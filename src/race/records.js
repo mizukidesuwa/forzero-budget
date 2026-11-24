@@ -1,4 +1,5 @@
 import { ROAD_Y, add, clamp, cross, dot, lerpPoint, mix, scale } from '../core/math.js';
+import { courseVariantSuffix } from './course-variants.js';
 import { Shape } from '../core/shape.js';
 import { getStorage, worldState } from '../core/state.js';
 import {
@@ -28,7 +29,7 @@ export function recordKey(event, vehicle = 'bike') {
         : event.id === 'ring'
           ? 'szu-yuehai-courses-4:ring'
           : 'szu-yuehai-long-courses-' + (event.revision ?? 5) + ':' + event.id;
-  return vehicle === 'bike' ? key : key + ':' + vehicle;
+  return key + (vehicle === 'bike' ? '' : ':' + vehicle) + courseVariantSuffix(event.variant);
 }
 
 export const checkpointRecordKey = (event, vehicle) => 'checkpoints:' + recordKey(event, vehicle);

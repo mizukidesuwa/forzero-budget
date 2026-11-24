@@ -10,6 +10,10 @@
   button { font:inherit; color:inherit; cursor:pointer; }
   button:focus-visible, .stage:focus-visible { outline:2px solid var(--lime); outline-offset:4px; }
   button:disabled { opacity:.46; cursor:default; }
+  .stage, button, .touch, .touch button::after {
+    -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; -webkit-tap-highlight-color:transparent;
+  }
+  input, textarea { -webkit-user-select:text; user-select:text; -webkit-touch-callout:default; }
   .shell { max-width:1700px; margin:auto; padding:0 clamp(14px,3.45vw,58px) 22px; }
   .masthead { height:75px; display:flex; align-items:center; justify-content:space-between; gap:10px; }
   .identity { display:flex; gap:12px; align-items:center; }
@@ -98,7 +102,7 @@
   .hints strong { font:600 .84rem var(--mono); color:#eaefd9; margin-left:3px; }
   .touch { display:none; position:absolute; z-index:4; left:11px; right:11px; bottom:11px; justify-content:space-between; pointer-events:none; }
   .touch div { display:flex; gap:6px; }
-  .touch button { min-width:56px; min-height:51px; touch-action:none; border:1px solid #e5f3d44f; border-radius:12px; background:#193124e8; color:#e8f0d9; font-size:.85rem; font-weight:600; pointer-events:auto; user-select:none; }
+  .touch button { min-width:56px; min-height:51px; touch-action:none; border:1px solid #e5f3d44f; border-radius:12px; background:#193124e8; color:#e8f0d9; font-size:.85rem; font-weight:600; pointer-events:auto; }
   .touch button.accent,.touch button.active { background:var(--lime); border-color:var(--lime); color:#23321e; }
   .notice { position:absolute; z-index:5; left:50%; top:58%; transform:translate(-50%,-50%); text-align:center; padding:13px 15px; width:min(87%,350px); border:1px solid var(--line); border-radius:12px; background:#182a20ee; font-size:.9rem; line-height:1.5; }
   @media (max-width:1010px) { .hints { gap:7px; } .hints .discard { display:none; } .next { min-width:180px; } }
@@ -180,12 +184,14 @@
     .touch button { min-width:48px; font-size:.79rem; }
   }
   .course-field { display:flex; align-items:center; min-height:44px; position:relative; background:var(--surface); border:1px solid var(--line); border-radius:10px; }
+  .course-picker { display:inline-flex; min-width:0; position:relative; align-items:center; }
+  #coursePicker { min-width:0; }
   .course-field label { margin-left:11px; color:#bfcfbc; font-size:.79rem; }
   .course-field select { min-height:42px; padding:0 26px 0 9px; font:600 .86rem "PingFang SC","Microsoft YaHei",sans-serif; color:var(--ink); background:none; border:0; appearance:none; cursor:pointer; }
   .course-field select:focus-visible { outline:2px solid var(--lime); outline-offset:3px; }
   .course-field select:disabled { opacity:.67; cursor:default; }
   .course-field option { color:var(--ink); background:var(--surface); }
-  .course-field::after { content:""; width:6px; height:6px; border:solid #d3e3c8; border-width:0 1.4px 1.4px 0; position:absolute; right:11px; transform:translateY(-2px) rotate(45deg); pointer-events:none; }
+  .course-picker::after { content:""; width:6px; height:6px; border:solid #d3e3c8; border-width:0 1.4px 1.4px 0; position:absolute; right:11px; transform:translateY(-2px) rotate(45deg); pointer-events:none; }
   .brake-hint { color:#f3c387; font-size:.72rem; margin-top:5px; display:block; }
   .map-tools { position:absolute; top:10px; left:10px; display:flex; align-items:flex-start; gap:7px; pointer-events:none; }
   .map-tools .float-button { min-height:34px; padding:0 8px; font-size:.76rem; pointer-events:auto; }
@@ -196,7 +202,7 @@
     .course-field { min-height:41px; }
     .course-field label { margin-left:8px; font-size:.72rem; }
     .course-field select { min-height:39px; padding:0 17px 0 6px; font-size:.76rem; }
-    .course-field::after { right:7px; }
+    .course-picker::after { right:7px; }
   }
   .settings-button i { width:14px; height:14px; border:1.5px solid #d9e8cd; border-radius:4px; display:grid; place-items:center; rotate:30deg; }
   .settings-button i::after { content:""; width:4px; height:4px; border:1px solid #d9e8cd; border-radius:50%; }

@@ -1,3 +1,6 @@
+import { londonTraffic } from '../data/traffic.js';
+import { draftingRules } from '../data/race.js';
+import { sampleWake } from '../ride/drafting.js';
 import { randomSource } from '../core/math.js';
 import { getActiveCampus, getPreferences, worldState } from '../core/state.js';
 import { cityVehicles, courseFrame, offsetVertex } from './geometry.js';
@@ -10,22 +13,28 @@ export function trafficPosition(actor, time) {
   return { frame, point: offsetVertex(frame, offset, .042) };
 }
 
-export function trafficDraftingAt(rider, time, actors = cityVehicles) {
-  if (!rider || rider.vehicle !== 'bike' || !rider.paved || rider.speed < 5.0 || !actors.length) return false;
-  const rx = rider.position[0], rz = rider.position[2];
-  const hx = Math.cos(rider.heading), hz = Math.sin(rider.heading);
-  for (const van of actors) {
-    const { frame, point } = trafficPosition(van, time);
-    const dx = point[0] - rx, dz = point[2] - rz;
-    if (Math.abs(dx) > 16 || Math.abs(dz) > 16) continue;
-    const ahead = dx * hx + dz * hz;
-    if (ahead < 2.5 || ahead > 14.5) continue;
-    const lateral = Math.abs(-dx * hz + dz * hx);
-    if (lateral > 1.85) continue;
-    const align = hx * (frame.f[0] * van.direction) + hz * (frame.f[2] * van.direction);
-    if (align > 0.90) return true;
+export function trafficWakeAt(rider, time, actors = cityVehicles, query = null, tracked = null) {
+  if (!rider?.paved || rider.speed < draftingRules.traffic.minSpeed) return null;
+  const [rx, , rz] = rider.position;
+  let best = null;
+  for (const actor of actors) {
+    const { frame, point } = trafficPosition(actor, time);
+    const radius = draftingRules.traffic.maxGap + (actor.halfL ?? 2.15) + draftingRules.exitMargin;
+    if (Math.abs(point[0] - rx) > radius || Math.abs(point[2] - rz) > radius) continue;
+    point[1] += query?.rideElevation(point[0], point[2]) ?? 0;
+    const wake = sampleWake(rider, {
+      id: actor, position: point, heading: Math.atan2(frame.f[2] * actor.direction, frame.f[0] * actor.direction),
+      speed: actor.speed, halfL: actor.halfL ?? 2.15, extraWakeWidth: actor.kind === 'bus' ? draftingRules.traffic.busWakeWidth : 0,
+    }, draftingRules.traffic, actor === tracked);
+    if (!wake) continue;
+    if (actor === tracked) return wake;
+    if (!best || wake.gap < best.gap) best = wake;
   }
-  return false;
+  return best;
+}
+
+export function trafficDraftingAt(rider, time, actors = cityVehicles) {
+  return Boolean(trafficWakeAt(rider, time, actors));
 }
 
 export function knownTraffic(mode) {
@@ -58,12 +67,14 @@ export function makeTrafficFormation(actors, mode, seed, spawn = null, countdown
       '-1': pool[0].speed * (.86 + random() * .25),
     };
     const placed = [];
+    let busCount = 0;
     const firstDirection = random() < .5 ? -1 : 1;
     for (let i = 0; i < count; i++) {
       const pair = i % 3 === 1 && (mode === 'standard' || random() < .38);
       const leader = pair ? placed.at(-1) : null;
       const direction = leader?.direction ?? (i % 2 ? -firstDirection : firstDirection);
-      const available = pool.filter(actor => actor.direction === direction);
+      const available = pool.filter(actor =>
+        actor.direction === direction && (actor.kind !== 'bus' || busCount < londonTraffic.busesPerRoute));
       if (!available.length) continue;
       const pick = available[Math.floor(random() * available.length)];
       const speed = speedByDirection[direction];
@@ -85,6 +96,7 @@ export function makeTrafficFormation(actors, mode, seed, spawn = null, countdown
           if (blocked) continue;
         }
         placed.push(actor);
+        if (actor.kind === 'bus') busCount++;
         break;
       }
     }

@@ -43,3 +43,15 @@
 .map-replay button,.map-replay select { min-height:32px; }
 .map-replay output { font-variant-numeric:tabular-nums; }
 .race-mode select { max-width:10rem; }
+
+#draftPill {
+  background: linear-gradient(90deg, #347358 var(--draft-charge, 0%), #1c3c2be8 0);
+  font-variant-numeric: tabular-nums;
+}
+
+.course-field { max-width:100%; }
+.course-variants { display:inline-flex; gap:.25rem; padding-right:.28rem; flex:none; }
+.course-field .race-option { min-height:32px; padding:0 .26rem; border:1px solid var(--line); appearance:auto; }
+.course-variants[hidden], #aiOptions[hidden], #courseLaps[hidden] { display: none; }
+.race-option { border-radius: 999px; }
+#aiOptions small { margin-inline-start: .25rem; white-space: nowrap; }

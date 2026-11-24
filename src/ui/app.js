@@ -7,7 +7,7 @@ import { Shape } from '../core/shape.js';
 import { getActiveCampus, setActiveCampus, setPreferences, worldState } from '../core/state.js';
 import { CampusCourier, makeCourierBeaconShape, nearestCourierLandmark } from '../race/courier.js';
 import { courseMedalSummary, isPaintUnlocked, liveDeltaMs, splitLabel, trialMedal } from '../race/records.js';
-import { aiRank, knownRaceMode } from '../race/rivals.js';
+import { aiRank } from '../race/rivals.js';
 import { readSeedCode, seedVersion, weeklySeed } from '../race/seed-code.js';
 import { TimeTrial } from '../race/time-trial.js';
 import { currentWeather, drawRainOverlay, knownWeather, setActiveWeather } from '../render/atmosphere.js';
@@ -51,6 +51,9 @@ import {
   bindOnlineApp, findOnlineCourse, getOnlineAppMode, getOnlineRoom, initOnline,
   onlineRaceRank, onlineRiderPoses, showOnlineDialog, syncOnlineProfile, tickOnline,
 } from '../online/client.js';
+import { draftRenderSpan } from '../ride/drafting.js';
+import { applyRaceOptions, installRaceOptions, updateRaceOptions } from './race-options.js';
+import { updateDraftHud } from './draft-hud.js';
 import { initCustomSounds, setRideAudioMuted, updateRideAudio } from './audio.js';
 import { getShowMapComparison, renderCampusMap, setShowMapComparison } from './minimap.js';
 import { bindSaveUi, exportSaveFile, importSaveFile, scheduleLocalSave } from './save-sync.js';
@@ -116,7 +119,7 @@ const ui = Object.fromEntries([
   'onlineTuningTime','onlineCollision','settingsTuneBar','settingsTuneText','settingsTuneReady','settingsTuneSkip',
   'onlineInvite','onlineReady','onlineStart','onlineStatus','onlineLatency','onlineRank','onlineBike','onlineHostHint',
   'onlineTag0','onlineTag1','onlineTag2','draftPill','weatherOverlay','settingsWeather','settingsWindSpeed','settingsWindDir','onlineWindSpeed','onlineWindDir','onlineLobbyWindSpeed','onlineLobbyWindDir','mapCompare','reviewMapButton','practiceExit',
-  'onlineBudget','onlineBlind','onlineWindMode','onlineLobbyBudget','onlineLobbyBlind','onlineLobbyWindMode','budgetPicker','budgetReadout','budgetHighlight','budgetNotice','soloRulesStatus','raceMode','mapReplay','replayPlay','replaySpeed','replaySeek','replayDetail','settingsWindMode','puddleStatus','bikePresets','bikePresetName','bikeSprintSpeed','bikeGravel','bikeStyles','bikeAbility','bikeFeedback','bikePosture','bikeGripMeter',
+  'onlineBudget','onlineBlind','onlineWindMode','onlineLobbyBudget','onlineLobbyBlind','onlineLobbyWindMode','budgetPicker','budgetReadout','budgetHighlight','budgetNotice','soloRulesStatus','raceMode','aiOptions','aiDifficulty','aiWins','courseVariants','courseDirection','courseLaps','mapReplay','replayPlay','replaySpeed','replaySeek','replayDetail','settingsWindMode','puddleStatus','bikePresets','bikePresetName','bikeSprintSpeed','bikeGravel','bikeStyles','bikeAbility','bikeFeedback','bikePosture','bikeGripMeter',
   'bikeFrame','frameNote','bikeSprint','sprintNote','motorTuning','vehLabel0','vehLabel1','vehLabel2','vehSlot0','vehSlot1','vehSlot2','vehNote0','vehNote1','vehNote2',
   'vehTopSpeed','vehGravel','vehGrass','vehAbility','saveExport','saveImport','saveFile','saveStatus',
   'liveDelta','windPill','courierHud','courierTitle','courierDetail','courierTag','courierButton',
@@ -355,6 +358,7 @@ export function updateHud() {
     ui.courierButton.setAttribute('aria-pressed',String(CampusCourier.active));
   }
   ui.raceMode.disabled=online||trial||Boolean(race.opponent);
+  updateRaceOptions(ui, race, online||trial||Boolean(pendingCampus));
   if(!online&&!trial) {
     const {over,illegal}=soloBudget(race);
     ui.soloRulesStatus.hidden=!over&&!illegal;
@@ -368,7 +372,7 @@ export function updateHud() {
     ui.freeRide.title=fin?'结束本场并返回自由骑行':'退出当前比赛并返回自由骑行';
   }
   ui.pause.disabled=online||race.phase==='done';
-  ui.draftPill.hidden=!race.rider.drafting;
+  updateDraftHud(ui.draftPill, race.rider.draft);
   const liveRank=race.phase==='race'?(online?onlineRaceRank(performance.now()):aiRank(race)):null;
   ui.onlineRank.hidden=!liveRank;
   if (liveRank) setText(ui.onlineRank,`第 ${liveRank.rank} / ${liveRank.total} 名`+(liveRank.gapMeters?` · 落后 ${liveRank.gapMeters} 米`:liveRank.rank===1?' · 领跑':''));
@@ -563,7 +567,7 @@ export function updateHud() {
       const beatCount = [opponent, ...race.extraOpponents].filter(op => race.elapsed < op.time).length;
       duel = `${duel}（击败 ${beatCount}/${1 + race.extraOpponents.length}）`;
     }
-    setText(ui.callDetail,[duel,rank,race.unranked?'娱乐改装 · 不计榜':ai?'AI 独立成绩':record].filter(Boolean).join(' · '));
+    setText(ui.callDetail,[duel,rank,race.unranked?'娱乐改装 · 不计榜':ai?(race.aiWinCount===null?'AI 独立成绩':`AI 夺冠 · 累计 ${race.aiWinCount} 胜`):record].filter(Boolean).join(' · '));
     ui.callDetail.hidden = false;
     ui.callAction.hidden = online;
     setText(ui.callAction,race.practice?'再练本段':'再跑一次');
@@ -627,7 +631,7 @@ function startTrial() {
 export function beginTrial() {
   if (typeof CampusCourier !== 'undefined') CampusCourier.stop(false);
   clearInput();
-  race.raceMode=knownRaceMode(ui.raceMode.value);
+  applyRaceOptions(ui, race);
   if(race.start()===false) {
     openSettings('bike');
     highlightBudgetParts();
@@ -1136,6 +1140,7 @@ function selectCourse(event,opponent=null,extraOpponents=[]) {
 }
 
 function initInput() {
+  installRaceOptions(ui, race, selectCourse, updateHud);
   ui.travel.addEventListener('click',requestTravel);
   ui.travelClose.addEventListener('click',()=>ui.travelDialog.close());
   ui.travelDialog.addEventListener('close',()=>{clearInput();priorTimestamp=undefined;ui.travel.focus();});
@@ -1232,6 +1237,10 @@ function initInput() {
     return hit;
   };
   if (touchPad) {
+    const cancelTouchSelection = event => event.preventDefault();
+    touchPad.addEventListener('touchstart', cancelTouchSelection, { passive: false });
+    touchPad.addEventListener('contextmenu', cancelTouchSelection);
+    touchPad.addEventListener('selectstart', cancelTouchSelection);
     touchPad.addEventListener('pointerdown', event => {
       if (!ready) return;
       const act = Number.isFinite(event.clientX) && Number.isFinite(event.clientY)
@@ -1565,7 +1574,7 @@ function run() {
     if(currentWeather().rain&&!world.rainPuddles) {
       world.rainPuddles=[[new gpu.Mesh(rainPuddleShape(getActiveCampus())),placement([0,0,0],0,0,0)]];
     }
-    const renderedFrame=gpu.draw(previousCamera,world,route,riderMeshes,p,waterTime,ghosts,trafficModels,currentAA(),head,getOnlineRoom()?2:1);
+    const renderedFrame=gpu.draw(previousCamera,world,route,riderMeshes,p,waterTime,ghosts,trafficModels,currentAA(),head,getOnlineRoom()?2:1,motion.matches?null:draftRenderSpan(rider));
     if (currentWeather().rain) drawRainOverlay(ui.weatherOverlay, rider.speed, performance.now());
     updateGraphicsStatus(renderedFrame);
     projectTag(ui.riderTag,previousCamera,transform(root,[-.08,tagHeight,0]),width,height);
@@ -1579,7 +1588,7 @@ function run() {
       const remote=extraRiders[i], tag=onlineTags[i];
       if (!tag) continue;
       if (remote && length(subtract(remote.position,p))<65) {
-        setText(tag,remote.name||DEFAULT_RIDER_NAME);
+        setText(tag,remote.skill ? `${remote.name} · ${remote.skill}` : remote.name||DEFAULT_RIDER_NAME);
         const tagY=remote.vehicle==='chair'?1.57:1.96;
         projectTag(tag,previousCamera,add(remote.position,[0,tagY,0]),width,height);
       } else tag.hidden=true;

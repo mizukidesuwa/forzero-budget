@@ -19,6 +19,7 @@ player-data.json
 player-data.json.tmp
 
 # Temporary QA / browser / transfer / benchmark artifacts
+dist-v2/
 *.tmp
 .transfer-*/
 szu-litchi-dev/chrome-*/
@@ -31,4 +32,5 @@ szu-litchi-dev/gl-recording.json
 szu-litchi-dev/**/perf-*.json
 
 # Release archives & historical snapshot bundles
+lagacy/
 *.zip

@@ -90,6 +90,12 @@ const openStreets = [
   {name:'', path:street([[295,-218],[287,-174],[285,-145],[268,-100],[239,-58],[199,-13],[189,55],[194,93],[187,136],[172,175]],8.5)}
 ];
 
+// The eastern connector ends at live junctions. Close only the unused shoulders there.
+export const szuRoadClosures = [
+  { road: 0, end: 0 }, { road: 0, end: 1 }, { road: 1, end: 0 }, { road: 1, end: 1 },
+  { road: 2, end: 0 }, { road: 2, end: 1 }, { road: 3, end: 0, shoulder: 1 }, { road: 3, end: 1, shoulder: -1 },
+];
+
 const cityLinks = [
   {name:'立德门', path:street([[-92.35,22.3],[-94.7,19.60],[-100.4,19.55],[-107.5,21.1],[-113,22]],2.14)},
   {name:'立德门', path:street([[-92,25],[-94.7,28.60],[-100.6,28.43],[-107,26.75],[-113,22]],2.11)},

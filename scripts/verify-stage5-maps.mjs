@@ -77,6 +77,44 @@ function assertFlyoverSeams() {
   assert.ok(Math.abs(deck(to - .05) - game.CITY_ASPHALT) < .001);
 }
 
+function assertSzuOpenGround() {
+  game.setActiveCampus('szu');
+  game.buildRidingScene('szu');
+  const query = game.createWorldQuery('szu');
+  assert.ok(query.safeToRide(104, -261) && !query.surfaceAt(104, -261));
+  assert.ok(query.safeToRide(game.parkX + 22, game.parkZ + 30));
+  assert.equal(query.surfaceAt(game.parkX + 22, game.parkZ + 30), false);
+  assert.ok(query.safeToRide(-54, -222.2) && query.safeToRide(-54, -223.9));
+  assert.equal(query.safeToRide(-54, -223), false, 'north wall must have a fixture');
+  assert.ok(query.safeToRide(-98.7, 13.1) && query.safeToRide(-99.6, 9.6));
+  for (const { xy: [x, z], facing: [fx, , fz], name } of [...game.campusGates, ...game.canghaiGates]) {
+    const lanes = Array.from({ length: 49 }, (_, i) => -6 + i * .25);
+    assert.ok(lanes.some(u => [-2, -1, 0, 1, 2, 3, 4].every(v =>
+      query.safeToRide(x + fx * v + fz * u, z + fz * v - fx * u))), name + ' should have a rideable apron in campus races');
+  }
+}
+
+function assertLondonTraffic() {
+  game.setActiveCampus('ucl');
+  game.buildRidingScene('ucl');
+  const { cityVehicles } = game;
+  assert.deepEqual(new Set(cityVehicles.map(actor => actor.kind)), new Set(['cab', 'bus']));
+  assert.equal(new Set(cityVehicles.map(actor => actor.path)).size, 6);
+  const spawn = game.coursesByCampus.ucl[0].spawn;
+  const stage = mode => game.makeTrafficFormation(cityVehicles, mode, '2.1-regression', spawn);
+  const sparse = stage('sparse'), full = stage('standard');
+  assert.equal(stage('off').length, 0);
+  assert.ok(sparse.length > 0 && full.length > sparse.length);
+  assert.deepEqual(full, stage('standard'));
+  for (const path of new Set(full.map(actor => actor.path))) {
+    assert.ok(full.filter(actor => actor.path === path && actor.kind === 'bus').length <= 1);
+  }
+  for (const actor of full) for (let time = -3; time <= 2; time += .125) {
+    const { point } = game.trafficPosition(actor, time);
+    assert.ok(Math.hypot(point[0] - spawn[0], point[2] - spawn[2]) >= 28, 'UCL starting buffer');
+  }
+}
+
 function assertStudentPassage() {
   game.setActiveCampus('ucl');
   game.buildRidingScene('ucl');
@@ -129,7 +167,13 @@ for (const [campus, actual] of Object.entries(results)) {
   assert.ok(game.replayAt(opponent, opponent.time / 2, campus).position.every(Number.isFinite));
   console.log(`${campus}: ${actual.routes} fixed routes, ${actual.roads} roads, ${actual.probes} terrain/collision probes, seeded routes where supported and pre-migration ghost match.`);
 }
-if (Object.hasOwn(results, 'szu')) assertFlyoverSeams();
-if (Object.hasOwn(results, 'ucl')) assertStudentPassage();
+if (Object.hasOwn(results, 'szu')) {
+  assertFlyoverSeams();
+  assertSzuOpenGround();
+}
+if (Object.hasOwn(results, 'ucl')) {
+  assertStudentPassage();
+  assertLondonTraffic();
+}
 if (Object.hasOwn(results, 'shunde')) assertPavilionWaterReturn();
 console.log('Targeted map probes passed for the selected maps.');

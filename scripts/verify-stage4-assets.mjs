@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import * as game from '../src/test-exports.js';
+import { emitBarrier } from '../src/world/assets/barriers.js';
+import { emitLondonTrafficVehicle } from '../src/world/assets/traffic-vehicles.js';
 import { emitRailFence } from '../src/world/assets/rail-fence.js';
 
 const fence = game.gordonNorthFence;
@@ -73,10 +75,25 @@ const rollback = snapshot(true);
 assert.deepEqual(modern, rollback);
 console.log(`UCL fence and rollback match byte-for-byte: ${railShape.indices.length / 3} fence triangles, ${modern.cells} solid cells, ${modern.submissions} visible submissions, both rail hits and open center gap.`);
 
-// Frozen before the lamp and vegetation moves. Hash geometry in generation order,
+const sampleBarrier = new game.Shape();
+const sampleCab = new game.Shape(), sampleBus = new game.Shape();
+const barrierFootprints = [];
+game.withRandom(() => { throw Error('2.1 assets consumed the map random stream'); }, () => {
+  emitBarrier({ x: 0, z: 0, width: 8, yaw: .5 }, { scenery: sampleBarrier, footprint: (...args) => barrierFootprints.push(args) });
+  emitLondonTrafficVehicle({ kind: 'cab' }, { scenery: sampleCab });
+  emitLondonTrafficVehicle({ kind: 'bus' }, { scenery: sampleBus });
+});
+assert.deepEqual(barrierFootprints[0].slice(0, 5), [0, 0, 8, .34, .5]);
+for (const shape of [sampleBarrier, sampleCab, sampleBus]) {
+  assert.ok(shape.indices.length > 0 && shape.indices.length / 3 <= 480);
+  assert.ok(shape.vertices.every(Number.isFinite));
+}
+
+// SZU includes the moved palms and visible works/clearance barriers. UCL traffic is uploaded separately.
+// Hash geometry in generation order,
 // including material channels, and every tree position and radius.
 const preExtraction = {
-  szu: '282be88ad864699619117badf2bfc819a2a2700922be8f61102ecd5b786b6353',
+  szu: 'a8c987352505c33433388742bc59aa612676e15b829734d7cfd73ed4539b6e20',
   ucl: '8aa270c17a7470d8c237f58e816dfec557304b8580026a6db8b8fd953fd4cf9c',
   shunde: 'cb0e6018183df1b9002c98259d2bd10732f283cdf4239bd329b9dc28bac36c64',
 };
@@ -91,4 +108,4 @@ for (const campus of ['shunde', 'szu', 'ucl']) {
   hash.update(JSON.stringify(game.treeSites));
   assert.equal(hash.digest('hex'), preExtraction[campus], campus);
 }
-console.log('All 3 maps match the ordered pre-extraction geometry, materials and tree positions.');
+console.log('All 3 maps match the ordered geometry snapshots, materials and tree positions.');

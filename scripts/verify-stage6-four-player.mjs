@@ -11,7 +11,7 @@ import { openTestBrowser } from './stage6-browser.mjs';
 // times are simulated API submissions.
 const drive = process.argv.includes('--drive');
 const desktop = resolve(process.env.FORZERO_RELEASE_DIR ??
-  (existsSync('forzero-budget-2.0.0/index.html') ? 'forzero-budget-2.0.0' : '.'));
+  (existsSync('forzero-budget-2.1.0/index.html') ? 'forzero-budget-2.1.0' : '.'));
 const serverUrl = pathToFileURL(join(desktop, 'server.mjs')).href;
 const { createRideServer, loadStaticAssets } = await import(serverUrl);
 const assets = await loadStaticAssets(pathToFileURL(desktop + '/'));

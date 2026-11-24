@@ -31,6 +31,7 @@ import {
   eastTeachingCrossing, hospitalCrossing, libraryEastConnector, hillReturn, innerSections, dujuanFoot, dujuanCrest,
   dujuanPass, parkWalks,
 } from './szu/layout.js';
+import { emitSzuBarriers } from './szu/barriers.js';
 import { dujuanHill, hillHeight, hillGrade, hillNormal, szuRiderGrade, flyover, flyoverHeight, flyoverAt } from './szu/terrain.js';
 import {
   lakeRoute, libraryRoute, teachingRoute, ringPath, ringLength, enduranceFlyoverParts,
@@ -306,7 +307,9 @@ function publicStreetMeshes() {
 
 function cityBlocked(x,z) {
   const nearby=worldState.ridingObstacles?.region === 'szu'?worldState.ridingObstacles.city.get(streetCell(x,z)):citySolid;
-  return nearby?.some(b=>Math.abs(x-b.x)<b.w/2+.34&&Math.abs(z-b.z)<b.d/2+.34)??false;
+  return nearby?.some(b => b.depth === undefined
+    ? Math.abs(x-b.x)<b.w/2+.34 && Math.abs(z-b.z)<b.d/2+.34
+    : closeToBlock(x, z, b, .34))??false;
 }
 
 const metroStop = geo(22.539264,113.943972);
@@ -1172,8 +1175,8 @@ function lideGate(gate) {
   plate(name,p(0,1.15,3.246),3.28,1.25,yaw+Math.PI);
   for(const side of [-1,1]) {
     westGateWing(f,side);
-    gatePalm(f,side*10.85,2.38,4.25);
-    gatePalm(f,side*14.35,3.26,4.85);
+    gatePalm(f,side*10.85,side === -1 ? 6.8 : 2.38,4.25);
+    gatePalm(f,side*14.35,side === -1 ? 7.7 : 3.26,4.85);
     for(let j=0;j<4;j++) {
       const u=side*(8.8+j*1.62),v=10.22-j*.49;
       foliage.ellipsoid(p(u,.33,v),[.99,.36,.51],j%2?'#849e54':'#739452',8,4,0,yaw);
@@ -1357,6 +1360,7 @@ function boundaryEdges() {
         const c=(sm+sq)/2/d, x=mix(a[0],b[0],c), z=mix(a[1],b[1],c), len=sq-sm;
         if(fenceOpenAt(x,z)) continue;
         scenery.box([x,.33,z],[len,.66,.47],'#b4ac95',yaw);
+        citySolid.push(campusFootprint(x, z, len, .47, yaw, 1.14));
         scenery.box([x,.68,z],[len,.10,.58],'#c8c0a9',yaw);
         if(Math.floor(m/3.1)%2===0 && s===0) scenery.box([x,.91,z],[.10,.46,.13],'#62796c');
         scenery.box([x,1.12,z],[len,.05,.2],'#5f746b',yaw);
@@ -1710,6 +1714,7 @@ function campusUrbanWorld() {
   metroEntrance();
   for(const gate of [...campusGates,...canghaiGates]) schoolGate(gate);
   boundaryEdges();
+  emitSzuBarriers({ scenery, footprint: (...args) => citySolid.push(campusFootprint(...args)) });
   drawGateLinkBorders();
   campusGroundDetails();
   walkBridge();
@@ -1945,13 +1950,12 @@ function szuCityWallAt(x, z, y) {
 function szuSurfaceAt(x, z, exploring = false) {
   const hit = nearestStreet(x, z);
   return Boolean(hit.street && hit.distance <= hit.street.width + .21 || pavedGroundAt(x, z) ||
-    shortcutRibbonContains(szuHighRiskShortcuts, x, z) || exploring && (cityStreetAt(x, z) || onParkWalk(x, z) || gateApronAt(x, z)));
+    shortcutRibbonContains(szuHighRiskShortcuts, x, z) || (cityStreetAt(x, z) || onParkWalk(x, z) || gateApronAt(x, z)));
 }
 
 function szuSafeToRide(x, z, exploring = false, skipHazard = false) {
-  const { minX, maxX, minZ, maxZ } = campusBoundary;
-  const inside = x > minX + .52 && x < maxX - .52 && z > minZ + .52 && z < maxZ - .52 && inCampus(x, z);
-  if (!inside && (!exploring || !(cityStreetAt(x, z) || onParkWalk(x, z) || gateApronAt(x, z)) || cityBlocked(x, z))) return false;
+  const { minX, maxX, minZ, maxZ } = cityExtent;
+  if (x < minX || x > maxX || z < minZ || z > maxZ || cityBlocked(x, z)) return false;
   return (skipHazard || lakeClearance(x, z) > .25) && !szuBuildingAt(x, z) && !treeBlocks(x, z, .28);
 }
 

@@ -28,13 +28,16 @@ export * from './ride/vehicles.js';
 export * from './ride/budget.js';
 export * from './ride/models.js';
 export * from './ride/physics.js';
+export * from './ride/drafting.js';
 
 export * from './replay/ghost.js';
 export * from './replay/map-replay.js';
 
 export * from './race/seed-code.js';
 export * from './race/records.js';
+export * from './race/course-variants.js';
 export * from './race/rivals.js';
+export * from './race/ai-results.js';
 export * from './race/courier.js';
 export * from './race/time-trial.js';
 

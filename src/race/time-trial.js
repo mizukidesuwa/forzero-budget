@@ -12,6 +12,7 @@ import { raceTrafficTime, stageRaceTraffic, trialTraffic } from '../world/traffi
 import {
   checkpointRecordKey, crossesRaceLine, guideProgressAt, loadBest, vehicleBenchmark,
 } from './records.js';
+import { recordAiWin } from './ai-results.js';
 import { prepareRivals, rivalComparison, stepRivals } from './rivals.js';
 
 export class TimeTrial {
@@ -148,6 +149,9 @@ export class TimeTrial {
     this.unranked = false;
     this.rivals = [];
     this.rider.rivalPoses = [];
+    this.rider.draft = null;
+    this.rider.drafting = false;
+    this.aiWinCount = null;
     const vehicle = this.opponent?.vehicle ?? this.vehicle;
     if (this.rider.vehicle !== vehicle) {
       const { position, heading, paved } = this.rider;
@@ -304,6 +308,7 @@ export class TimeTrial {
   }
 
   finishAt(time) {
+    if (this.phase === 'done') return;
     this.elapsed = time;
     this.phase = 'done';
     this.onGuide = false;
@@ -317,6 +322,7 @@ export class TimeTrial {
     worldState.hooks.playSound?.('finish');
     if (this.rivals?.length) {
       this.lastRun.comparison = rivalComparison(this);
+      this.aiWinCount = recordAiWin(this);
       return;
     }
     if (this.practice) {

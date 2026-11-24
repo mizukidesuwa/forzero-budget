@@ -140,9 +140,10 @@ export function updateRideAudio(rider, dt, active = true) {
     }
     const spd = Math.abs(rider.speed ?? 0);
     const windAmt = Math.pow(Math.min(spd / 17.5, 1.15), 1.6) * 0.11;
-    const windFreq = 260 + Math.min(spd, 20) * 68;
+    const wake = rider.draft?.charge ?? 0;
+    const windFreq = (260 + Math.min(spd, 20) * 68) * (1 - wake * .38);
     engine.windFilter.frequency.setTargetAtTime(windFreq, now, 0.08);
-    engine.windGain.gain.setTargetAtTime(windAmt, now, 0.08);
+    engine.windGain.gain.setTargetAtTime(windAmt * (1 + wake * .34), now, 0.08);
 
     const braking = (rider.brake ?? 0) > 0.25 && spd > 2.2;
     const offroad = !rider.paved && spd > 1.2;
@@ -165,8 +166,32 @@ export function updateRideAudio(rider, dt, active = true) {
   } catch {}
 }
 
+function playSlingshot() {
+  const engine = ensureRideAudioEngine();
+  if (!engine) return false;
+  const { ctx, noise, masterGain } = engine;
+  const filter = ctx.createBiquadFilter(), gain = ctx.createGain();
+  const now = ctx.currentTime;
+  filter.type = 'bandpass';
+  filter.frequency.setValueAtTime(460, now);
+  filter.frequency.exponentialRampToValueAtTime(2200, now + .26);
+  gain.gain.setValueAtTime(.001, now);
+  gain.gain.exponentialRampToValueAtTime(.17, now + .065);
+  gain.gain.exponentialRampToValueAtTime(.001, now + .35);
+  noise.connect(filter);
+  filter.connect(gain);
+  gain.connect(masterGain);
+  setTimeout(() => {
+    noise.disconnect(filter);
+    filter.disconnect();
+    gain.disconnect();
+  }, 420);
+  return true;
+}
+
 export function playBuiltInTone(key) {
   if (!isSoundEnabled()) return false;
+  if (key === 'slingshot') return playSlingshot();
   const notes = BUILTIN_TONES[key];
   if (!notes) return false;
   try {

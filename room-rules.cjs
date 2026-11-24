@@ -1,7 +1,13 @@
 const {randomBytes}=require('node:crypto');
 const tuning190=require('./tuning-190.cjs');
-const ROOM_ROUNDS = {bo1:1,bo3:3,league:5,random:3,triathlon:3};
-const TRIATHLON_VEHICLES = ['bike','chair','trail'];
+const ALL_ROUND_VEHICLES = Object.freeze(['bike','ebike','chair','trail']);
+const ROOM_ROUNDS = {bo1:1,bo3:3,league:5,random:3,triathlon:ALL_ROUND_VEHICLES.length};
+
+function lockRoomVehicle(room) {
+  if (room.format === 'triathlon') {
+    room.vehicleRule = ALL_ROUND_VEHICLES[Math.min(room.history.length, ALL_ROUND_VEHICLES.length - 1)];
+  }
+}
 
 function roomVehicle(room,player) {
   return room.vehicleRule==='any'?player.vehicle:room.vehicleRule;
@@ -62,9 +68,7 @@ function settle(room) {
   const byWins = room.standing.map(player=>player.wins).sort((a,b)=>b-a);
   const clinched = room.format==='bo3' && byWins[0]>byWins[1]+remaining;
   room.phase = (remaining===0 || clinched || room.players.size<2)?'done':'between';
-  if (room.format==='triathlon' && room.phase==='between') {
-    room.vehicleRule = TRIATHLON_VEHICLES[room.history.length % TRIATHLON_VEHICLES.length];
-  }
+  if (room.phase === 'between') lockRoomVehicle(room);
   room.winners = room.phase==='done'?leaders:[];
   for (const player of room.players.values()) player.ready = false;
 }
@@ -77,7 +81,7 @@ function retire(room,id) {
 
 function beginTuning(room,now) {
   if (room.phase==='lobby' || !room.roster?.length) room.roster = [...room.players.values()].map(({id,name})=>({id,name}));
-  if (room.format==='triathlon') room.vehicleRule = TRIATHLON_VEHICLES[room.history.length % TRIATHLON_VEHICLES.length];
+  lockRoomVehicle(room);
   const seconds = Math.max(0, Math.min(180, Math.round(Number(room.tuningSeconds ?? 0))))||(room.blind?30:0);
   const seed=randomBytes(4).readUInt32LE();
   const budget=room.blind?blindBudget(seed,room.budget):tuning190.budgetLimit(room.budget);
@@ -88,7 +92,7 @@ function beginTuning(room,now) {
 }
 
 function beginRoomRound(room,now) {
-  if(room.format==='triathlon') room.vehicleRule=TRIATHLON_VEHICLES[room.history.length%TRIATHLON_VEHICLES.length];
+  lockRoomVehicle(room);
   const blocked=roomBudgetProblems(room);
   if(blocked.length) {
     if(room.tuning) room.tuning.endsAt=null;
@@ -112,5 +116,5 @@ function beginRoomRound(room,now) {
   return [];
 }
 
-module.exports = {ROOM_ROUNDS,TRIATHLON_VEHICLES,tally,settle,retire,beginTuning,beginRoomRound,
+module.exports = {ROOM_ROUNDS,ALL_ROUND_VEHICLES,lockRoomVehicle,tally,settle,retire,beginTuning,beginRoomRound,
   roomVehicle,roomParts,roomBuildProblem,roomBudgetProblems,blindBudget};

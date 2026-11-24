@@ -2,6 +2,8 @@ import { MAX_RUN_MS, REJOIN_MS, SAMPLE_MS } from '../core/clock.js';
 import { clamp, dot, lerpPoint, mix, subtract } from '../core/math.js';
 import { getActiveCampus, worldState } from '../core/state.js';
 import { recordRules } from '../data/race.js';
+import { getCourseVariant } from '../race/course-variants.js';
+import { courseVariantRules } from '../data/race.js';
 import { readSeedCode } from '../race/seed-code.js';
 import {
   bicycleAppearance, bicycleStyle, frameChoices, knownPaint, maxBikeSpeed,
@@ -116,7 +118,7 @@ export function makeGhostFile(event, run, profile) {
   const appearance = run.appearance ?? (run.vehicle === 'bike' && profile.look ? bicycleAppearance(profile, run.bike) : null);
   return {
     format: GHOST_FORMAT, version: GHOST_VERSION,
-    course: { campus: event.campus, id: event.id, seed: event.seed ?? null, layout: ghostCourseKey(event) },
+    course: { campus: event.campus, id: event.id, seed: event.seed ?? null, layout: ghostCourseKey(event), ...(event.variant && { variant: event.variant }) },
     rider: {
       name: riderName(profile.name), vehicle: run.vehicle, paint: knownPaint(appearance?.paint ?? profile.paint),
       ...(appearance ? { look: bicycleStyle(appearance.look), bike: { tyres: appearance.tyres, frame: appearance.frame } } : {}),
@@ -139,7 +141,11 @@ export function readGhostFile(text, coursesMap = worldState.coursesByCampus, cam
       typeof course.id !== 'string' || typeof course.layout !== 'string' || !/^[0-9a-f]{8}$/.test(course.layout)) {
     throw new GhostFileError('影子文件里的地图信息不完整。');
   }
-  const { campus, id, seed } = course;
+  const { campus, id, seed, variant } = course;
+  if (variant !== undefined && (seed !== null || !variant ||
+      !['forward', 'reverse'].includes(variant.direction) || !courseVariantRules.laps.includes(variant.laps))) {
+    throw new GhostFileError('影子文件的方向或圈数无效。');
+  }
   const knownCourse = seed === null
     ? (coursesMap?.[campus] ?? []).some(event => event.id === id)
     : campus !== 'shunde' && typeof seed === 'string' && seed.length <= 15 && readSeedCode(seed, campus) === seed && id === 'seed-' + seed;
@@ -164,8 +170,9 @@ export function readGhostFile(text, coursesMap = worldState.coursesByCampus, cam
 export function loadFriendGhost({ course, rider, run }, activeCampus = getActiveCampus()) {
   const { campus, id, seed, layout } = course;
   const current = worldState.seedCourses?.[campus];
-  const event = seed === null ? worldState.coursesByCampus?.[campus]?.find(item => item.id === id) :
+  const base = seed === null ? worldState.coursesByCampus?.[campus]?.find(item => item.id === id) :
     current?.seed === seed ? current : worldState.hooks.makeSeedCourse?.(seed, campus);
+  const event = base && course.variant ? getCourseVariant(base, course.variant) : base;
   if (!event || event.campus !== activeCampus || ghostCourseKey(event) !== layout || run.splits.length !== event.gates.length) {
     throw new GhostFileError('这个影子使用的赛道布局与当前游戏版本不同。');
   }

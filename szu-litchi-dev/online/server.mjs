@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import rules from './room-rules.cjs';
 import tuning190 from './tuning-190.cjs';
 
-const {ROOM_ROUNDS,TRIATHLON_VEHICLES,tally,settle,retire,beginTuning,beginRoomRound,
+const {ROOM_ROUNDS,ALL_ROUND_VEHICLES,lockRoomVehicle,tally,settle,retire,beginTuning,beginRoomRound,
   roomVehicle,roomParts,roomBuildProblem,roomBudgetProblems,blindBudget} = rules;
 
 const LIMIT = 4;
@@ -197,6 +197,8 @@ function roomState(room) {
       return {id,name,ready,online:Boolean(stream),paint,vehicle,look,bike,
         tuning:roomVehicle(room,player)==='bike'?{}:roomParts(room,player)};
     }),
+    roundsTotal:ROOM_ROUNDS[room.format],
+    ...(room.format === 'triathlon' && { vehicleRotation: ALL_ROUND_VEHICLES }),
     round:room.round,history:room.history,standing:room.standing,winners:room.winners};
 }
 
@@ -280,7 +282,7 @@ function applyCommand(room,player,body) {
         room.winners = [];
         delete room.roster;
       }
-      if (room.format==='triathlon') room.vehicleRule = TRIATHLON_VEHICLES[room.history.length % TRIATHLON_VEHICLES.length];
+      lockRoomVehicle(room);
       if (room.phase==='tuning') {
         room.tuning.budget=room.blind?blindBudget(room.tuning.seed,room.budget):tuning190.budgetLimit(room.budget);
         if ((room.tuningSeconds??0)===0&&!room.blind) beginRoomRound(room,Date.now());
@@ -747,6 +749,7 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href===import.meta.url) {
       soundDir = fileURLToPath(new URL('./sound',import.meta.url));
       saveDir = fileURLToPath(new URL('./save',import.meta.url));
       previousSaveFile = [
+        new URL('../forzero-budget-2.0.0/save/player-data.json',import.meta.url),
         new URL('../forzero-budget-1.9.1.1/save/player-data.json',import.meta.url),
         new URL('../forzero-budget-1.9.1/save/player-data.json',import.meta.url),
         new URL('../forzero-budget-1.9.0/save/player-data.json',import.meta.url),

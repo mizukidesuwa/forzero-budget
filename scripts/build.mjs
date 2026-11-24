@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import esbuild from 'esbuild';
 import { writeDeterministicZip } from './deterministic-zip.mjs';
 
+export const VERSION = '2.1.0';
+
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
 const srcDir = join(root, 'src');
@@ -17,11 +19,13 @@ const outArg = process.argv.find((a) => a.startsWith('--out='));
 const outBase = resolve(root, outArg ? outArg.slice('--out='.length) : 'dist-v2');
 const desktopDir = join(outBase, 'desktop');
 const soundDir = join(desktopDir, 'sound');
-const mobileFile = join(outBase, release ? 'forzero-budget-mobile-2.0.0.html' : 'forzero-budget-mobile.html');
+const mobileFile = join(outBase, release ? `forzero-budget-mobile-${VERSION}.html` : 'forzero-budget-mobile.html');
 
 const entryJs = join(srcDir, 'entry.js');
 
 const t0 = performance.now();
+const packageVersion = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
+if (packageVersion !== VERSION) throw new Error('package.json and build version differ');
 if (esbuild.version !== '0.28.2') throw new Error(`Expected esbuild 0.28.2, found ${esbuild.version}`);
 
 // 1. Bundle client ESM entry via esbuild
@@ -45,12 +49,8 @@ const cssResult = await esbuild.build({
 const styleCss = cssResult.outputFiles[0].text;
 
 // 3. Assemble HTML (desktop split & mobile standalone)
-let htmlTpl = readFileSync(join(srcDir, 'index.html'), 'utf8').replace(/\r\n/g, '\n');
-if (release) {
-  const occurrences = htmlTpl.match(/1\.9\.1\.1/g) ?? [];
-  if (occurrences.length !== 2) throw new Error('Unexpected version markers in src/index.html');
-  htmlTpl = htmlTpl.replaceAll('1.9.1.1', '2.0.0');
-}
+const htmlTpl = readFileSync(join(srcDir, 'index.html'), 'utf8').replace(/\r\n/g, '\n');
+if (htmlTpl.split(VERSION).length !== 3) throw new Error('Unexpected version markers in src/index.html');
 const desktopHtml = htmlTpl
   .replace('<!-- @style -->', () => '<link rel="stylesheet" href="style.css">')
   .replace('<!-- @script -->', () => '<script src="game.js"></script>');
@@ -74,13 +74,8 @@ const serverCopies = [
   ['start-game.bat', '启动游戏.bat', '\r\n'],
 ];
 for (const [srcName, dstName, eol] of serverCopies) {
-  let txt = readFileSync(join(onlineDir, srcName), 'utf8').replace(/\r\n/g, '\n');
-  if (release && srcName === 'README.md') {
-    const occurrences = txt.match(/1\.9\.1\.1/g) ?? [];
-    if (occurrences.length !== 3) throw new Error('Unexpected version markers in online/README.md');
-    txt = txt.replaceAll('1.9.1.1', '2.0.0');
-    txt = txt.replace('`1.9.1`、`1.9.0`', '`1.9.1.1`、`1.9.1`、`1.9.0`');
-  }
+  const txt = readFileSync(join(onlineDir, srcName), 'utf8').replace(/\r\n/g, '\n');
+  if (srcName === 'README.md' && txt.split(VERSION).length !== 4) throw new Error('Unexpected version markers in online/README.md');
   writeFileSync(join(desktopDir, dstName), eol === '\r\n' ? txt.replace(/\n/g, '\r\n') : txt, 'utf8');
 }
 writeFileSync(join(desktopDir, 'tuning-190.cjs'), readFileSync(join(srcDir, 'data', 'tuning-190.cjs'), 'utf8').replace(/\r\n/g, '\n'), 'utf8');
@@ -91,7 +86,7 @@ writeFileSync(mobileFile, mobileHtml, 'utf8');
 
 if (release) {
   writeFileSync(join(desktopDir, 'LICENSE'), readFileSync(join(root, 'LICENSE'), 'utf8').replace(/\r\n/g, '\n'));
-  const zipFile = join(outBase, 'forzero-budget-2.0.0.zip');
+  const zipFile = join(outBase, `forzero-budget-${VERSION}.zip`);
   const entries = ['index.html', 'style.css', 'game.js', 'tuning-190.cjs', 'LICENSE',
     'sound/README.txt', ...serverCopies.map(([, dstName]) => dstName)];
   writeDeterministicZip(zipFile, desktopDir, entries);

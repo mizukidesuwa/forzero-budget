@@ -25,7 +25,10 @@ export function indexRidingObstacles(region) {
   }
   for (const tree of treeSites) putObstacle(trees, tree, tree.x, tree.z, .31, .31);
   if (region === 'ucl') for (const lot of uclFixtures) indexFootprint(fixtures, lot, lot, .28);
-  if (region === 'szu') for (const b of citySolid) putObstacle(city, b, b.x, b.z, b.w / 2 + .34, b.d / 2 + .34);
+  if (region === 'szu') for (const b of citySolid) {
+    if (b.depth === undefined) putObstacle(city, b, b.x, b.z, b.w / 2 + .34, b.d / 2 + .34);
+    else indexFootprint(city, b, b, .34);
+  }
   return { region, buildings, trees, fixtures, city };
 }
 

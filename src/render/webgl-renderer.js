@@ -1,3 +1,4 @@
+import { createWakeLines } from './wake-lines.js';
 import { signCanvas } from '../core/canvas.js';
 import { WATER_Y, add, identity, multiply, ortho, randomSource, scale, viewAt } from '../core/math.js';
 import { currentWeather, SUN } from './atmosphere.js';
@@ -393,7 +394,9 @@ void main() {
     gl.enable(gl.DEPTH_TEST);
   }
 
-  function draw(camera, world, route, riderObjects, riderPosition, time, ghosts, traffic, aa, head = null, ghostStyle = 1) {
+  const drawWake = createWakeLines(gl, program);
+
+  function draw(camera, world, route, riderObjects, riderPosition, time, ghosts, traffic, aa, head = null, ghostStyle = 1, wake = null) {
     if (head) { headPos = head.pos; headDir = head.dir; }
     const width = gl.drawingBufferWidth, height = gl.drawingBufferHeight;
     const frustum = frustumPlanes(camera.vp);
@@ -452,6 +455,7 @@ void main() {
       gl.depthMask(true);
       gl.disable(gl.BLEND);
     }
+    if (wake) drawWake(wake, camera.vp, time);
     presentScene(target, width, height);
     return { width, height, fxaa: Boolean(target), samples: target?.samples ?? 0 };
   }

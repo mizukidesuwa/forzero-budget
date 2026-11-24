@@ -237,24 +237,6 @@ function onlineRiderPoses(now) {
   return riders;
 }
 
-function onlineDraftingAt(rider,now) {
-  if (!onlineRoom || worldState.race.phase!=='race' || rider.vehicle!=='bike' || !rider.paved || rider.speed<5.5) return false;
-  const poses = onlineRiderPoses(now);
-  if (!poses.length) return false;
-  const fx = Math.cos(rider.heading), fz = Math.sin(rider.heading);
-  for (const other of poses) {
-    if (other.speed < 4.5) continue;
-    const dx = other.position[0] - rider.position[0], dz = other.position[2] - rider.position[2];
-    const ahead = dx * fx + dz * fz;
-    if (ahead < 2.0 || ahead > 12.0) continue;
-    const lateral = Math.abs(-dx * fz + dz * fx);
-    if (lateral > 1.35) continue;
-    const align = fx * Math.cos(other.heading) + fz * Math.sin(other.heading);
-    if (align > 0.90) return true;
-  }
-  return false;
-}
-
 function onlineRaceRank(now) {
   const session = onlineRoom;
   if (!session || session.state.phase!=='race' || !session.course) return null;
@@ -282,7 +264,7 @@ function onlineRaceRank(now) {
   return {rank, total, gapMeters, leaderName: leader?.name ?? ''};
 }
 
-const ONLINE_FORMAT = {bo1:'BO1',bo3:'BO3',league:'积分联赛',random:'盲盒随机',triathlon:'铁人三项'};
+const ONLINE_FORMAT = {bo1:'BO1',bo3:'BO3',league:'积分联赛',random:'盲盒随机',triathlon:'四项全能'};
 const ONLINE_VEHICLE_RULE = {bike:'统一自行车',trail:'统一越野小摩托',ebike:'统一电动自行车',chair:'统一电动轮椅',any:'自由混选'};
 const ONLINE_API = '/online/rooms';
 const ONLINE_HOST_KEY = 'szu-litchi-online-host-1';
@@ -595,8 +577,11 @@ function renderOnline() {
   const wLabel = wSpd > 0 ? `${(typeof WIND_LABELS!=='undefined'?WIND_LABELS[state.windDir??0]:'')||'风'} ${Number(wSpd).toFixed(1)}m/s` : '无风';
   const ruleTags = `车流 ${{off:'关闭',sparse:'稀疏',standard:'标准'}[knownTraffic(state.traffic)]} · 碰撞箱：${state.collision?'开':'关'} · 改车 ${state.tuningSeconds??0}s · ${wLabel} · ${roomBudgetLabel(state)}`;
   if (state.format==='triathlon') {
-    const step = Math.min(3,state.history.length+(state.phase==='done'?0:1));
-    app.setText(worldState.ui.onlineBike,`铁人三项第 ${step}/3 轮（${vehicleChoices[activeVeh].name}）· 自行车→轮椅→越野 · ${ruleTags}`);
+    const rotation = state.vehicleRotation ?? ['bike', 'chair', 'trail'];
+    const total = state.roundsTotal ?? rotation.length;
+    const step = Math.min(total, state.history.length + (state.phase === 'done' ? 0 : 1));
+    const names = rotation.map(vehicle => ONLINE_VEHICLE_RULE[vehicle]).join(' → ');
+    app.setText(worldState.ui.onlineBike,`${ONLINE_FORMAT[state.format]} 第 ${Math.max(1, step)}/${total} 轮（${vehicleChoices[activeVeh].name}）· ${names} · ${ruleTags}`);
   } else {
     app.setText(worldState.ui.onlineBike,ONLINE_VEHICLE_RULE[rule]+' · 我的配置：'+
       (activeVeh==='bike'?[tyreChoices[tyres].name,gearChoices[gears].name,brakeChoices[brakes].name].join(' / '):vehicleChoices[activeVeh].name)+
@@ -1118,12 +1103,11 @@ export function getOnlineAppMode() {
   return onlineAppMode;
 }
 
-worldState.hooks.onlineDraftingAt = onlineDraftingAt;
 worldState.hooks.onlineRiderPoses = onlineRiderPoses;
 worldState.hooks.onlineRoundBuild = onlineRoundBuild;
 
 export {
-  onlineRiderPoses, onlineDraftingAt, onlineRaceRank, onlineRoundBuild, syncOnlineProfile,
+  onlineRiderPoses, onlineRaceRank, onlineRoundBuild, syncOnlineProfile,
   showOnlineDialog, findOnlineCourse, setOnlineCourse, leaveOnline, tickOnline, initOnline,
   renderOnline, updateOnlineTuningBanner,
 };

@@ -243,6 +243,44 @@ try {
   assert.equal(budgetRound.windSeed,budgetGuest.stream.state().round.windSeed);
   assert.equal(budgetRound.builds[budgetGuest.id].parts.tyres,'usedSlick');
 
+  const allHost = await enter('AllH', 'triathlon');
+  const allGuest = await enter('AllG', null, allHost.room.code);
+  const entrants = [allHost, allGuest];
+  const rotation = ['bike', 'ebike', 'chair', 'trail'];
+  assert.equal(allHost.room.roundsTotal, 4);
+  assert.deepEqual(allHost.room.vehicleRotation, rotation);
+  await command(allHost, 'config', { budget: '400', tuningSeconds: 20, vehicleRule: 'any' });
+  for (const [index, vehicle] of rotation.entries()) {
+    assert.equal(allHost.stream.state().vehicleRule, vehicle);
+    await Promise.all(entrants.map(player => command(player, 'ready', { ready: true })));
+    await command(allHost, 'start');
+    assert.equal(allGuest.stream.state().phase, 'tuning');
+    assert.equal(allGuest.stream.state().vehicleRule, vehicle);
+    if (vehicle === 'ebike') {
+      await command(allGuest, 'profile', { tuning: { tyres: 'grip', motor: 'standard', brakes: 'disc' } });
+      await command(allGuest, 'ready', { ready: true }, 409);
+      assert.match(allHost.stream.state().budgetProblems[0].reason, /超预算/);
+      await command(allGuest, 'profile', { tuning: { motor: 'standard' } });
+    }
+    await Promise.all(entrants.map(player => command(player, 'ready', { ready: true })));
+    const { round } = allHost.stream.state();
+    assert.equal(round.number, index + 1);
+    assert.equal(round.budget, 400);
+    assert.equal(allGuest.stream.state().round.trafficSeed, round.trafficSeed);
+    for (const player of entrants) assert.equal(round.builds[player.id].vehicle, vehicle);
+    if (vehicle === 'ebike') {
+      assert.equal(round.builds[allHost.id].parts.motor, 'stock');
+      assert.equal(round.builds[allGuest.id].parts.motor, 'standard');
+    }
+    time = round.goAt + 12_000;
+    await command(allHost, 'finish', { round: round.number, ms: 10_000 });
+    await command(allGuest, 'finish', { round: round.number, ms: 11_000 });
+    assert.equal(allHost.stream.state().phase, index === 3 ? 'done' : 'between');
+  }
+  assert.deepEqual(allHost.stream.state().winners, [allHost.id]);
+  assert.deepEqual(allHost.stream.state().standing.map(row => row.points), [8, 4]);
+  console.log('Four all-round heats, vehicle locks, stock ebike, legal controller upgrade and budget rejection passed.');
+
   const partyHost=await enter('PartyH','bo1');
   const partyGuest=await enter('PartyG',null,partyHost.room.code);
   await command(partyGuest,'profile',{bike:{sprint:'rocket'}});

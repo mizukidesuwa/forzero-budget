@@ -2,6 +2,7 @@ import { withRandom } from '../core/math.js';
 import { worldState } from '../core/state.js';
 import { initCourseBenchmarks } from '../race/records.js';
 import { indexRidingObstacles, resetStreetIndex } from './collision-index.js';
+import { getCampusProvider } from './registry.js';
 import { clearWorldShapes, sceneLists } from './geometry.js';
 import { buildParkWorld, shundeCampusInfo, shundeCourses } from './maps/shunde.js';
 import { campusUrbanWorld, szuCampusInfo, szuCourses } from './maps/szu.js';
@@ -41,6 +42,7 @@ export function buildRidingScene(campus, { legacyUclFence = false } = {}) {
     if (campus === 'shunde') buildParkWorld();
     else if (campus === 'ucl') buildUclWorld(legacyUclFence);
     else campusUrbanWorld();
+    getCampusProvider(campus)?.buildTraffic?.();
     worldState.ridingObstacles = indexRidingObstacles(campus);
   });
 }

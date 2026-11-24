@@ -4,6 +4,7 @@ import {
 } from '../../core/math.js';
 import { Shape } from '../../core/shape.js';
 import { worldState } from '../../core/state.js';
+import { cityVehicles } from '../geometry.js';
 import { brakingCorners, buildCornerCuts } from '../../race/records.js';
 import { referenceCornerScores } from '../../replay/ghost.js';
 import { emitLondonLantern } from '../assets/lamps.js';
@@ -23,6 +24,7 @@ import {
   shortcutRibbonContains, uclHighRiskShortcuts,
 } from '../surfaces.js';
 
+import { buildLondonTraffic } from './ucl/traffic.js';
 import { createLondonCourses, londonSection, makeLondonCourse } from './ucl/courses.js';
 import { extraGardenFences, gordonNorthFence, londonGardenLots, londonGardens, russellGarden } from './ucl/gardens.js';
 import {
@@ -2041,6 +2043,7 @@ function londonLantern(x, z) {
 }
 
 registerCampus('ucl', {
+  buildTraffic: () => buildLondonTraffic(cityVehicles),
   timingSpan: (frame, _c, fallback) => londonGateSpan(frame, fallback),
   safeToRide: (x, z) => canRideUcl(x, z),
   surfaceAt: (x, z) => uclSurfaceAt(x, z),

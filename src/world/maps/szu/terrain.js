@@ -1,4 +1,5 @@
 import { CITY_ASPHALT, clamp, mix, normalize } from '../../../core/math.js';
+import { flyoverClearance } from '../../../data/traffic.js';
 import { along, pointDistance, streetCell } from '../../geometry.js';
 import { cityRoadIndex, openStreets } from './layout.js';
 
@@ -21,7 +22,7 @@ function hillGrade(x,z,dx,dz) {
 function szuRiderGrade(position, heading) {
   const [x, y, z] = position, dx = Math.cos(heading), dz = Math.sin(heading);
   const deck = flyoverAt(x, z);
-  if (deck !== null && y >= deck - .34) {
+  if (deck !== null && y >= deck - flyoverClearance.deckTolerance) {
     const ahead = flyoverAt(x + .56 * dx, z + .56 * dz) ?? deck;
     const behind = flyoverAt(x - .56 * dx, z - .56 * dz) ?? deck;
     return (ahead - behind) / 1.12;

@@ -2,12 +2,15 @@ import {
   CITY_ASPHALT, ROAD_Y, TAU, clamp, headingVector, mix, scale,
 } from '../core/math.js';
 import { getActiveCampus, getPreferences, worldState } from '../core/state.js';
-import { draftingFrom, rivalYieldsContact } from '../race/rivals.js';
+import { flyoverClearance } from '../data/traffic.js';
+import { draftingRules } from '../data/race.js';
+import { advanceDraft, findWake } from './drafting.js';
+import { rivalYieldsContact } from '../race/rivals.js';
 import { currentWeather } from '../render/atmosphere.js';
 import { rainPuddleAt, shelteredWind } from '../world/environment.js';
 import { cityVehicles } from '../world/geometry.js';
 import { courseGround, createWorldQuery } from '../world/query.js';
-import { trafficDraftingAt, trafficPosition } from '../world/traffic.js';
+import { trafficWakeAt, trafficPosition } from '../world/traffic.js';
 import { TYRE_RADIUS, WHEEL_TEETH_RATIO } from './models.js';
 import { bicycleGravelSpeed, buildVehicleTuning, stockBike } from './vehicles.js';
 
@@ -198,9 +201,19 @@ export function moveCyclist(rider, input, dt, exploring = false, wind = null, tr
   const wetGrip = wet && !bike.magicGrip ? mix(weather.gripScale, 1, bike.wetMitigate ?? 0) : 1;
   const wetBrake = wet ? mix(weather.brakeScale, 1, bike.wetBrakeMitigate ?? 0) : 1;
   const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-  rider.drafting = Boolean(worldState.hooks.onlineDraftingAt?.(rider, now)) ||
-    (trafficClock !== null && trafficDraftingAt(rider, trafficClock, actors)) ||
-    draftingFrom(rider, rider.rivalPoses ?? []);
+  const trackedWake = rider.draft?.wake?.id;
+  const raceRiders = worldState.onlineRoom && worldState.race?.phase === 'race'
+    ? worldState.hooks.onlineRiderPoses?.(now) : rider.rivalPoses;
+  const riderWake = raceRiders?.length ? findWake(rider, raceRiders, trackedWake) : null;
+  const trafficWake = trafficClock === null ? null : trafficWakeAt(rider, trafficClock, actors, query, trackedWake);
+  const wake = trackedWake && trafficWake?.id === trackedWake ? trafficWake : riderWake ?? trafficWake;
+  const eligible = paved && !input.brake && !rider.hazard;
+  const wasBoosting = (rider.draft?.burst ?? 0) > 0;
+  rider.draft = advanceDraft(rider.draft, wake, dt, eligible);
+  rider.drafting = Boolean(rider.draft.wake);
+  const slingshot = eligible && rider.draft.burst > 0;
+  if (slingshot && !wasBoosting) worldState.hooks.playSound?.('slingshot');
+  const wakeTuning = draftingRules.vehicles[vehicle] ?? draftingRules.vehicles.bike;
   const hillAcceleration = grade * 9.81;
   const gravelBase = cycling ? bicycleGravelSpeed(bike) : bike.gravelSpeed;
   const gravelSprint = Math.min(bike.sprintSpeed, gravelBase * bicycleGravel.sprintSpeedScale);
@@ -211,10 +224,10 @@ export function moveCyclist(rider, input, dt, exploring = false, wind = null, tr
   const windSpeedScale = wind ? clamp(1 + windAlong * wind.speed * windRules.topSpeedEffect, windRules.topSpeedMin, windRules.topSpeedMax) : 1;
   const windDragScale = wind ? clamp(1 - windAlong * wind.speed * windRules.dragEffect, windRules.dragMin, windRules.dragMax) : 1;
   const limit = (bike.magicGrip && !paved ? Math.max(flatLimit, bike.roadSpeed) : flatLimit) *
-    (topSpeedEffect + tuck * clamp(-grade * .27, 0, .032)) * (rider.drafting ? 1.045 : 1) * windSpeedScale * (rider.skillLimit ?? 1);
+    (topSpeedEffect + tuck * clamp(-grade * .27, 0, .032)) * (slingshot ? wakeTuning.burstLimit : rider.drafting ? wakeTuning.draftLimit : 1) * windSpeedScale * (rider.skillLimit ?? 1);
   const gravelDrag = cycling ? mix(bike.rolling, bike.grassRolling, bicycleGravel.rollingBlend) : bike.gravelRolling;
   const drag = (.48 + Math.abs(rider.speed) * .047) * (paved ? bike.rolling : gravel ? gravelDrag : bike.grassRolling ?? poweredDefaults.grassRolling) *
-    (rider.drafting ? .76 : 1) * (1 - tuck * .36) * windDragScale + (rider.regenDrag ?? 0);
+    (rider.drafting ? wakeTuning.drag : 1) * (1 - tuck * .36) * windDragScale + (rider.regenDrag ?? 0);
 
   if (input.brake) {
     if (rider.speed > .03) {
@@ -230,7 +243,7 @@ export function moveCyclist(rider, input, dt, exploring = false, wind = null, tr
     const gearing = mix(bike.force, bike.highForce ?? bike.force, fast);
     const groundForce = paved ? road.force : gravel ? (cycling ? bicycleGravel.force : bike.gravelForce) : cycling ? grass.bicycleForce : grass.poweredForce;
     const force = rider.throttle * (rider.sprinting ? sprint.force * (bike.sprintForce ?? 1) * (1 + stand * (bike.frame === 'agile' ? sprint.agileStandForce : sprint.standForce)) * (gravel ? bicycleGravel.sprintForceScale : 1) : groundForce) *
-      gearing * (rider.skillForce ?? 1);
+      gearing * (rider.skillForce ?? 1) + (slingshot ? rider.throttle * wakeTuning.thrust : 0);
     const gravelSlowdown = cycling ? mix(bicycleGravel.slowdownMin, bicycleGravel.slowdownMax,
       clamp((bike.grassSlowdown - bicycleGravel.grassSlowdownMin) / bicycleGravel.grassSlowdownRange, 0, 1)) : bike.gravelSlowdown;
     if (rider.speed > limit) rider.speed = Math.max(limit, rider.speed - dt * (paved ? road.overspeedSlowdown : gravel ? gravelSlowdown : bike.grassSlowdown ?? poweredDefaults.grassSlowdown));
@@ -266,12 +279,12 @@ export function moveCyclist(rider, input, dt, exploring = false, wind = null, tr
   const step = scale(headingVector(rider.heading - rider.yawRate * dt * .5), rider.speed * dt);
   let x = p[0] + step[0], z = p[2] + step[2];
   const onDeck = exploring ? query.flyoverAt(p[0], p[2]) : null;
-  const onUpperRoad = onDeck !== null && p[1] >= onDeck - .34;
+  const onUpperRoad = onDeck !== null && p[1] >= onDeck - flyoverClearance.deckTolerance;
   const deckAt = (px, pz) => exploring ? query.flyoverAt(px, pz) : null;
   const mayRide = (px, pz) => {
     const deck = deckAt(px, pz);
-    if (onUpperRoad && onDeck > .40) return deck !== null;
-    if (!onUpperRoad && deck !== null && deck > .40 && deck < 2.78) return false;
+    if (onUpperRoad && onDeck > flyoverClearance.accessHeight) return deck !== null;
+    if (!onUpperRoad && deck !== null && deck > flyoverClearance.accessHeight && deck < flyoverClearance.obstructionHeight) return false;
     return query.safeToRide(px, pz, exploring, true);
   };
   rider.hazard = null;
@@ -293,7 +306,7 @@ export function moveCyclist(rider, input, dt, exploring = false, wind = null, tr
     rider.surfaceKind = rider.paved ? 'paved' : 'grass';
   }
   const deck = deckAt(x, z);
-  const nextOnDeck = deck !== null && (onUpperRoad || deck <= .40);
+  const nextOnDeck = deck !== null && (onUpperRoad || deck <= flyoverClearance.accessHeight);
   const height = rider.paved ? ROAD_Y + .002 : -.006;
   const heightBefore = query.rideElevation(p[0], p[2]) + (onUpperRoad ? onDeck - CITY_ASPHALT : 0);
   const heightAfter = query.rideElevation(x, z) + (nextOnDeck ? deck - CITY_ASPHALT : 0);
