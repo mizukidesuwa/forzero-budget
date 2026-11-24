@@ -32,3 +32,15 @@
 ## 5. 构建与定向验证
 - 修改 2.0.0 源码后跑 ESM 构建与定向测试。完整工作区发布时用 `npm run build:release` 的桌面产物同步版本目录和 `szu-litchi-loop/dist/`，不得覆盖 `save/`。旧 `ride-update/build.py` 仅生成回归基线。
 - 1.9.0 的专项验收入口为 `verify-190.mjs`。联机改动同时跑 `online/verify.mjs`。配件及价格共用 `online/tuning-190.cjs`，违禁成绩不得进入存档、勋章或官方影子。
+
+## 6. 2.0.0 模块化与资产化规范（防屎山红线）
+- **数据与逻辑分离**：新增玩法参数、配速、价格、车流与环境常量统一写入 `src/data/`（如 `race.js`、`parts.js`、`surfaces.js`、`environment.js`、`tuning-190.cjs` 等），严禁在物理、地图或 UI 代码中散落魔法数字。
+- **程序化 3D 模型必须资产化**：新增可复用场景道具、路障/围挡、车流载具等程序化网格，一律在 `src/world/assets/` 下按 `rail-fence.js`、`lamps.js`、`trees.js` 的纯函数 Emitter 规范独立建文件（如 `emitXxx(spec, { scenery, urban, footprint, ... })`），所有依赖通过参数注入；严禁在资产模块内读取 `worldState`、消费全局随机流或耦合 DOM/UI，严禁将零散 `box`/`tube` 直接堆进 `szu.js`、`ucl.js`、`shunde.js` 主文件。
+- **禁止继续膨胀大文件**：禁止向 `src/world/maps/szu.js`、`src/ui/app.js` 等大聚合文件直接堆叠新子系统；独立玩法特性（如赛道变体派生、尾流弹弓状态机等）应拆分为独立纯函数模块并按需导出至 `src/test-exports.js`；地图特有逻辑通过 `registerCampus()` 接入 `src/world/registry.js` / `query.js`，避免业务层到处写 `if (campus === ...)` 分支。对 `src/ui/app.js` 遵循增量剥离原则：不专门发起重构专项，后续需修改车库、设置弹窗或输入控制等 UI/玩法时，顺手将对应区块抽成独立模块，改一块并用 `node scripts/verify-stage6-browser.mjs` 验一块；已稳定的地图主文件（`szu.js`、`ucl.js`）与 `src/online/client.js` 不作无收益硬拆。
+- **基线与版本硬编码同步纪律**：禁止通过注释、删除或弱化 `scripts/verify-*.mjs` 断言来绕过校验；当合法修改改变了地图几何、资产或版本号时，须同步检查并更新 `scripts/build.mjs` 版本常量、`scripts/verify-stage4-assets.mjs` / `scripts/verify-stage5-maps.mjs` 对应基线快照，并说明变更原因；浏览器端与联机服务端保持零第三方运行时依赖。
+- **UI 与公开上传纪律**：非用户明确要求，禁止在一级菜单或顶栏新增按钮（新开关收敛进发车区或二级设置）；向 GitHub 提交或同步前必须核查 remote 与暂存清单，严禁包含 `save/`、`player-data.json`、`dist-v2/` 临时缓存或旧链调试产物。
+
+## 7. 收尾留痕与交接规范
+- **改动留痕统一写进 `CHANGELOG.md` 顶部**：每次完成代码修改并通过验证后，必须在 `CHANGELOG.md` 顶部条目（如 `## Unreleased` 或对应版本 `## 2.1.0`）用简洁条目记录：做了什么改动、涉及的核心模块路径、跑过的定向验证命令，以及是否更新了地图/资产基线快照。
+- **结构变更同步更新 `FORZERO-WORK-GUIDE.md`**：新增资产目录、玩法模块或验证脚本时，须同步更新 `FORZERO-WORK-GUIDE.md`（注意仅追加在第 78 行之后，不得改动或破坏前 78 行给 `scripts/verify-stage6-maintenance.mjs` 使用的读取窗口行号）。
+- **控制体量，不写流水账**：禁止把大段控制台日志、失败尝试或临时调试流水写进 `CHANGELOG.md`、`AGENTS.md` 或膨胀 `HISTORY.md`，保证下一任模型只读 `CHANGELOG.md` 顶部几十行即可准确接手。
