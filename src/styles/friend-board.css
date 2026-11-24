@@ -1,0 +1,30 @@
+#friendDialog { width:min(570px,calc(100% - 30px)); }
+  .friend-head { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+  .friend-head .action { min-height:36px; }
+  .friend-filters { display:grid; grid-template-columns:1fr 1.3fr .82fr; gap:8px; padding:0; margin:0; min-width:0; border:0; }
+  .friend-filters label { display:grid; gap:5px; min-width:0; color:#cbd9ca; font-size:.76rem; }
+  .friend-filters select { width:100%; min-height:40px; padding:0 7px; color:var(--ink); font:inherit;
+    background:#2e4334; border:1px solid #dceac638; border-radius:8px; }
+  .friend-filters select:focus-visible { outline:2px solid var(--lime); outline-offset:3px; }
+  .friend-board-note { margin:12px 0 0; padding:12px; color:#c8d8c9; font-size:.83rem;
+    background:#24372b; border:1px solid var(--line); border-radius:9px; }
+  .friend-scores { max-height:min(42vh,345px); overflow:auto; scrollbar-width:thin; }
+  .friend-scores:not(:empty) { margin-top:12px; border-block:1px solid var(--line); }
+  .friend-scores h3 { margin:10px 6px 0; color:var(--muted); font-size:.75rem; font-weight:500; }
+  .friend-ranking { margin:0; padding:0 4px 0 27px; }
+  .friend-ranking li::marker { color:#c8dd9c; font:600 .8rem var(--mono); }
+  .friend-ranking li+li { border-top:1px solid var(--line); }
+  .friend-score { display:grid; grid-template-columns:minmax(0,1fr) auto auto auto; align-items:center;
+    gap:7px; min-height:54px; padding:5px 0; }
+  .friend-score-name { min-width:0; overflow-wrap:anywhere; font-size:.87rem; }
+  .friend-score-time { color:#edfac9; font:600 .87rem var(--mono); white-space:nowrap; }
+  .friend-score .action { min-height:36px; padding:0 9px; font-size:.77rem; white-space:nowrap; }
+  .friend-score .friend-remove { color:#c8d7cb; background:transparent; }
+  .friend-score .friend-remove:hover { background:#3b4e40; }
+  #friendDialog .friend-drop { min-height:70px; margin-top:14px; }
+  @media (max-width:510px) {
+    .friend-filters { grid-template-columns:1.28fr 1fr; }
+    .friend-filters label:first-child { grid-column:1 / -1; }
+    .friend-score { gap:5px; }
+    .friend-score .action { min-height:40px; padding:0 6px; }
+  }

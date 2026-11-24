@@ -1,0 +1,51 @@
+#onlineDialog { width:min(590px,calc(100% - 30px)); }
+  .online-create,.online-join { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:9px;
+    border-top:1px solid var(--line); padding:12px 0; font-size:.85rem; }
+  .online-host { display:grid; grid-template-columns:auto minmax(0,1fr); align-items:center; gap:9px;
+    border-top:1px solid var(--line); padding:12px 0; font-size:.85rem; }
+  .online-rules-row { display:grid; grid-template-columns:1fr 1fr; gap:9px; border-top:1px solid var(--line); padding:10px 0; font-size:.82rem; }
+  .online-rules-row label,.online-host-controls label { display:grid; gap:4px; color:#cbd9ca; }
+  .online-host-controls { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-items:end; gap:8px;
+    margin:6px 0 10px; padding:10px; border:1px solid var(--line); border-radius:9px; background:#233528; font-size:.8rem; }
+  .online-host-controls .action { min-height:36px; padding:0 10px; }
+  .online-create select,.online-join input,.online-host input,.online-rules-row select,.online-rules-row input,.online-host-controls select,.online-host-controls input { min-width:0; width:100%; min-height:36px; padding:0 8px; border:1px solid #dceac638;
+    border-radius:8px; color:var(--ink); background:#2e4334; font:inherit; }
+  .online-create select:focus-visible,.online-join input:focus-visible,.online-host input:focus-visible,.online-rules-row select:focus-visible,.online-rules-row input:focus-visible,.online-host-controls select:focus-visible,.online-host-controls input:focus-visible { outline:2px solid var(--lime); outline-offset:3px; }
+  .online-tuning-banner { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px;
+    margin:0 0 9px; padding:9px 11px; border:1px solid #d4ed8a80; border-radius:9px; background:#253d2b; color:#effbd6; font-size:.82rem; font-weight:600; }
+  .online-tuning-banner[hidden] { display:none; }
+  .online-tuning-actions { display:flex; gap:7px; flex-wrap:wrap; }
+  .online-tuning-actions .action { min-height:32px; padding:0 10px; font-size:.78rem; }
+  .online-room-head { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 0; border-top:1px solid var(--line); }
+  .online-room-head h3 { margin:0; font-size:.95rem; }
+  #onlineCode { flex:none; color:var(--lime); font:600 .86rem var(--mono); letter-spacing:.08em; }
+  .online-host-hint { margin:4px 0 8px; color:#d8edbb; font-family:var(--mono); font-size:.78rem; overflow-wrap:anywhere; }
+  .online-list { margin:0 0 8px; padding:8px 10px 8px 28px; border:1px solid var(--line); border-radius:9px; font-size:.83rem; }
+  .online-list li+li { margin-top:5px; }
+  .online-standing { background:#304630; color:#eeffd3; }
+  .online-actions { margin-top:10px; }
+  .online-peer-latency,.online-latency,.online-rank { color:#d8edbb; font:600 .77rem var(--mono); white-space:nowrap; }
+  .online-peer-latency { margin-inline-start:10px; }
+  .online-latency,.online-rank { display:table; margin-top:7px; padding:3px 7px; border:1px solid var(--line); border-radius:6px; background:#263b2b; }
+  .online-rank { color:#f2f7b8; border-color:#ddeb9c55; }
+  .online-latency[hidden],.online-rank[hidden] { display:none; }
+  .online-tag { background:#183028d9; border-color:#8fe6c280; color:#e6fff2; }
+  .draft-pill { display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px; background:#1c3c2be8; border:1px solid #88e6aa88; color:#c8ffd6; font:600 .72rem var(--mono); white-space:nowrap; }
+  .draft-pill[hidden] { display:none; }
+  .practice-bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:8px; }
+  .practice-btn { min-height:24px; padding:2px 7px; border-radius:6px; border:1px solid #ddeb9c55; background:#294131; color:#eef7d5; font-size:.72rem; white-space:nowrap; }
+  .practice-btn:hover { background:#36543f; }
+  .map-sector-meta { margin-left:auto; display:inline-flex; align-items:center; gap:6px; flex:none; }
+  .map-sector-delta { font:600 .72rem var(--mono); color:#d8edbb; white-space:nowrap; }
+  .map-sector-delta[data-gap="ahead"] { color:#8cf29a; }
+  .map-sector-delta[data-gap="behind"] { color:#ffa482; }
+  #stationList li { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+  .save-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+  #weatherOverlay { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:2; }
+  #onlineStatus { margin:12px 0 0; overflow-wrap:anywhere; }
+  @media (max-width:500px) {
+    .online-create,.online-join { grid-template-columns:minmax(0,1fr) auto; }
+    .online-host,.online-rules-row,.online-host-controls { grid-template-columns:minmax(0,1fr); }
+    .online-create label,.online-join label,.online-host label { grid-column:1 / -1; }
+    .online-create .action,.online-join .action { padding-inline:8px; }
+  }

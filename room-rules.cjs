@@ -25,8 +25,9 @@ function roomBudgetProblems(room) {
 }
 
 function blindBudget(seed,policy) {
-  const cap=tuning190.budgetLimit(policy)??700;
-  const choices=[300,400,500,600,700].filter(limit=>limit<=cap);
+  const tiers=tuning190.blindBudgetTiers;
+  const cap=tuning190.budgetLimit(policy)??tiers.at(-1);
+  const choices=tiers.filter(limit=>limit<=cap);
   return choices[(seed>>>0)%choices.length];
 }
 

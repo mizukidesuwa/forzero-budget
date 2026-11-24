@@ -23,8 +23,10 @@ const tuning190=(()=>{
     }
   };
   const illegalParts=new Set(['rocket','glue','gravity','capacitor']);
-  const normalizeBudget=value=>['400','700','party'].includes(String(value))?String(value):'open';
-  const budgetLimit=value=>Number(normalizeBudget(value))||null;
+  const budgetPolicies={400:400,700:700,party:null};
+  const blindBudgetTiers=[300,400,500,600,700];
+  const normalizeBudget=value=>Object.hasOwn(budgetPolicies,String(value))?String(value):'open';
+  const budgetLimit=value=>budgetPolicies[normalizeBudget(value)]??null;
   const sanitize=(vehicle,parts)=>Object.fromEntries(Object.entries(prices[vehicle]??prices.bike).map(([slot,options])=>{
     const key=parts?.[slot];
     return [slot,typeof key==='string'&&Object.hasOwn(options,key)?key:'stock'];
@@ -40,7 +42,7 @@ const tuning190=(()=>{
     if(limit!==null&&build.total>limit) return `超预算 ¥${build.total-limit}`;
     return '';
   }
-  return {protocol:3,prices,illegalParts,normalizeBudget,budgetLimit,sanitize,summarize,violation};
+  return {protocol:3,prices,illegalParts,blindBudgetTiers,normalizeBudget,budgetLimit,sanitize,summarize,violation};
 })();
 
 if(typeof module!=='undefined'&&module.exports) module.exports=tuning190;
