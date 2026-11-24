@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { openTestBrowser } from './stage6-browser.mjs';
 
-const desktop = resolve(process.env.FORZERO_RELEASE_DIR ?? 'dist-v2/stage6-final-a/desktop');
+const desktop = resolve(process.env.FORZERO_RELEASE_DIR ??
+  (existsSync('forzero-budget-2.0.0/index.html') ? 'forzero-budget-2.0.0' : '.'));
 const fixtures = JSON.parse(await readFile(new URL('./fixtures/stage4-maps.json', import.meta.url), 'utf8'));
 const { rpc, close } = await openTestBrowser();
 try {
