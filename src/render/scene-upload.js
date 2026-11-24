@@ -83,6 +83,7 @@ export function uploadRidingScene(gpu, campus) {
   const cars = new Map();
   for (const actor of cityVehicles) {
     if (!cars.has(actor.model)) cars.set(actor.model, new gpu.Mesh(actor.model));
+    if (actor.lodModel && !cars.has(actor.lodModel)) cars.set(actor.lodModel, new gpu.Mesh(actor.lodModel));
   }
   return { world, cars };
 }

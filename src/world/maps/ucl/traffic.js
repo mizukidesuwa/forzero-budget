@@ -13,23 +13,26 @@ const paths = londonTraffic.routes.map(({ roads, loop, ...spec }) => {
     return [...rows.filter(row => row.distance < end).map(row => row.p), along(path, end)];
   });
   const path = travelTable(segments.flatMap((rows, index) => index ? rows.slice(1) : rows));
-  return { ...spec, path, wide: londonRoads.get(roads[0]).width >= 5.9 };
+  return { ...spec, loop, path, wide: londonRoads.get(roads[0]).width >= 5.9 };
 });
 
 export function buildLondonTraffic(actors) {
+  const { dimensions, formation, terminalFade, reentryDistance, collisionOpacity } = londonTraffic;
   const models = Object.fromEntries(['cab', 'bus'].map(kind => {
-    const shape = new Shape();
-    emitLondonTrafficVehicle({ kind }, { scenery: shape });
-    return [kind, shape];
+    const model = new Shape(), lodModel = new Shape();
+    emitLondonTrafficVehicle({ kind }, { scenery: model });
+    emitLondonTrafficVehicle({ kind, detail: false }, { scenery: lodModel });
+    return [kind, { model, lodModel }];
   }));
-  for (const { path, count, speed, buses, wide } of paths) {
+  for (const { loop, path, count, speed, buses, wide } of paths) {
     for (let i = 0; i < count; i++) {
       const direction = i % 2 ? 1 : -1;
       const kind = buses && (i % londonTraffic.busEvery === 0 || i % londonTraffic.busEvery === 3) ? 'bus' : 'cab';
       actors.push({
-        path, direction, speed, kind, model: models[kind],
+        path, direction, speed, kind, formation, loop, ...models[kind],
+        ...(loop ? {} : { terminalFade, reentryDistance, collisionOpacity }),
         offset: -direction * (wide ? londonTraffic.wideLane : londonTraffic.lane),
-        start: path.length * i / count, ...londonTraffic.dimensions[kind],
+        start: path.length * i / count, ...dimensions[kind],
       });
     }
   }

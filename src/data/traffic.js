@@ -10,5 +10,8 @@ export const londonTraffic = {
     { roads: ['russellNorth', 'russellEast', 'russellSouth', 'russellWest'], count: 5, speed: 8.3, loop: true },
   ],
   lane: 2.05, wideLane: 2.6, busEvery: 4, busesPerRoute: 1,
-  dimensions: { cab: { halfL: 2.25, halfW: .96 }, bus: { halfL: 4.65, halfW: 1.20 } },
+  reentryDistance: 48, terminalFade: 17, collisionOpacity: .7,
+  formation: { sparse: 3, standard: 5, gap: 34, sightDistance: 110, sightDot: .66 },
+  render: { detailDistance: 75, fadeDistance: 166, drawDistance: 190 },
+  dimensions: { cab: { halfL: 2.25, halfW: .96, height: 1.8 }, bus: { halfL: 4.65, halfW: 1.20, height: 3.8 } },
 };

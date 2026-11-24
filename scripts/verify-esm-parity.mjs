@@ -227,11 +227,11 @@ for (const [camp, id, spr, sec] of lapCourses) {
   };
 }
 Math.random = savedMathRandom;
-// The Qingyun Lake shuttle wake changes the automated rider's finish in 2.1.0.
+// The Qingyun Lake lap no longer receives the shuttle's wake in 2.1.1.
 const expectedLaps = structuredClone(baseline.laps);
-expectedLaps['qingyun-lake'].elapsed = 88497;
-expectedLaps['qingyun-lake'].position = [-0.034417, 0.043, -0.010919];
-assert.deepEqual(laps, expectedLaps, '9 fixed-route laps mismatch vs 2.1.0 expectations');
+expectedLaps['qingyun-lake'].elapsed = 88630;
+expectedLaps['qingyun-lake'].position = [-0.032653, 0.043, -0.004724];
+assert.deepEqual(laps, expectedLaps, '9 fixed-route laps mismatch vs 2.1.1 expectations');
 console.log('3. All 9 fixed-route laps (pure ESM without global vm): EXACT MATCH');
 
 // 4. Standalone Node 120 Hz physics trajectories using explicit createWorldQuery(campus)

@@ -212,9 +212,13 @@ export function along(path, distance) {
   return lerpPoint(a.p, b.p, (d - a.distance) / Math.max(b.distance - a.distance, .0001));
 }
 
-export function courseFrame(path, d) {
+export function courseFrame(path, d, loop = false) {
   const p = along(path, d);
-  const f = normalize(subtract(along(path, d + .67), along(path, d - .67)));
+  const before = d - .67, after = d + .67;
+  const f = normalize(subtract(
+    along(path, loop && after > path.length ? after - path.length : after),
+    along(path, loop && before < 0 ? before + path.length : before),
+  ));
   return { p, f, side: unitRight(f) };
 }
 

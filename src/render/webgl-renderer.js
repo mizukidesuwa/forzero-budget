@@ -4,6 +4,7 @@ import { WATER_Y, add, identity, multiply, ortho, randomSource, scale, viewAt } 
 import { currentWeather, SUN } from './atmosphere.js';
 import { frustumPlanes, reflectionCrop, seesBounds, shapeBounds, visibleStatic, waterReflectionArea } from './bounds.js';
 import { DEPTH_FRAGMENT, DEPTH_VERTEX, FRAGMENT, SKY_FRAGMENT, SKY_VERTEX, VERTEX } from './shaders.js';
+import { createTrafficBatchDrawer } from './traffic.js';
 
 export function renderer(canvas, lakeBounds = []) {
   const gl = canvas.getContext('webgl2', { alpha: false, antialias: false, depth: true, powerPreference: 'high-performance' });
@@ -40,6 +41,7 @@ export function renderer(canvas, lakeBounds = []) {
   const staticFragment = FRAGMENT.replace('precision highp float;',
     '#define OPAQUE_PASS\n#define STATIC_SCENE\nprecision highp float;');
   const solidSurface = program(staticVertex, staticFragment, surfaceUniforms);
+  let trafficSurface, drawTrafficBatches;
   const sky = program(SKY_VERTEX, SKY_FRAGMENT, ['uRight', 'uUp', 'uBack', 'uSun', 'uSkyLow', 'uSkyHigh', 'uCloudColor', 'uSunGlow', 'uTangent', 'uCloudAlpha', 'uMirror']);
   const depth = program(DEPTH_VERTEX, DEPTH_FRAGMENT, ['uVp', 'uModel']);
 
@@ -232,7 +234,7 @@ export function renderer(canvas, lakeBounds = []) {
   }
 
   function surfacePass({ p, u }, projection, eye, nearLight, size, time, objects,
-    { isReflection = false, ghost = false, reflect = true } = {}) {
+    { isReflection = false, ghost = false, reflect = true } = {}, drawMeshes = drawBatches) {
     gl.useProgram(p);
     gl.uniformMatrix4fv(u.uVp, false, projection);
     gl.uniformMatrix4fv(u.uLight, false, light);
@@ -262,7 +264,7 @@ export function renderer(canvas, lakeBounds = []) {
     gl.uniform1i(u.uDecal, 3);
     bindTexture(4, groundNoise);
     gl.uniform1i(u.uGroundNoise, 4);
-    drawBatches(objects, (mesh, model, previous, previousModel) => {
+    drawMeshes(objects, (mesh, model, previous, previousModel) => {
       if (model !== previousModel) gl.uniformMatrix4fv(u.uModel, false, model);
       if (mesh.material !== previous?.material) gl.uniform1i(u.uMaterial, mesh.material);
       if (mesh.texture !== previous?.texture) bindTexture(3, mesh.texture);
@@ -396,7 +398,7 @@ void main() {
 
   const drawWake = createWakeLines(gl, program);
 
-  function draw(camera, world, route, riderObjects, riderPosition, time, ghosts, traffic, aa, head = null, ghostStyle = 1, wake = null) {
+  function draw(camera, world, route, riderObjects, riderPosition, time, ghosts, traffic, aa, head = null, ghostStyle = 1, wake = null, trafficBatches = null) {
     if (head) { headPos = head.pos; headDir = head.dir; }
     const width = gl.drawingBufferWidth, height = gl.drawingBufferHeight;
     const frustum = frustumPlanes(camera.vp);
@@ -444,6 +446,15 @@ void main() {
     surfacePass(opaqueSurface, camera.vp, camera.eye, nearLight, size, time, surfaces.concat(course, [world.ground]), lighting);
     if (currentWeather().rain && world.rainPuddles) {
       surfacePass(opaqueSurface, camera.vp, camera.eye, nearLight, size, time, world.rainPuddles, { reflect: false });
+    }
+    if (trafficBatches?.size) {
+      if (!trafficSurface) {
+        const vertex = VERTEX.replace('precision highp float;', '#define TRAFFIC_INSTANCES\nprecision highp float;');
+        const fragment = FRAGMENT.replace('precision highp float;', '#define OPAQUE_PASS\n#define TRAFFIC_INSTANCES\nprecision highp float;');
+        trafficSurface = program(vertex, fragment, surfaceUniforms);
+        drawTrafficBatches = createTrafficBatchDrawer(gl);
+      }
+      surfacePass(trafficSurface, camera.vp, camera.eye, nearLight, size, time, trafficBatches, lighting, drawTrafficBatches);
     }
     if (decals.length) surfacePass(maskedSurface, camera.vp, camera.eye, nearLight, size, time, decals, lighting);
     skyPass(camera, false);

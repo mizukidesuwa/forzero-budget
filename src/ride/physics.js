@@ -10,7 +10,7 @@ import { currentWeather } from '../render/atmosphere.js';
 import { rainPuddleAt, shelteredWind } from '../world/environment.js';
 import { cityVehicles } from '../world/geometry.js';
 import { courseGround, createWorldQuery } from '../world/query.js';
-import { trafficWakeAt, trafficPosition } from '../world/traffic.js';
+import { trafficPosition } from '../world/traffic.js';
 import { TYRE_RADIUS, WHEEL_TEETH_RATIO } from './models.js';
 import { bicycleGravelSpeed, buildVehicleTuning, stockBike } from './vehicles.js';
 
@@ -125,7 +125,9 @@ export function resolveVehicleCollisions(rider, x, z, y, trafficClock, mayRide, 
   let hit = false;
   if (trafficClock !== null) {
     for (const van of actors) {
-      const { frame, point: vp } = trafficPosition(van, trafficClock);
+      const pose = trafficPosition(van, trafficClock);
+      if (!pose || pose.opacity < (van.collisionOpacity ?? 0)) continue;
+      const { frame, point: vp } = pose;
       if (Math.abs(vp[0] - x) > 10 || Math.abs(vp[2] - z) > 10) continue;
       if (Math.abs(query.rideElevation(vp[0], vp[2]) - y) > 2.2) continue;
       const fx = frame.f[0] * van.direction, fz = frame.f[2] * van.direction, rx = -fz, rz = fx;
@@ -204,9 +206,7 @@ export function moveCyclist(rider, input, dt, exploring = false, wind = null, tr
   const trackedWake = rider.draft?.wake?.id;
   const raceRiders = worldState.onlineRoom && worldState.race?.phase === 'race'
     ? worldState.hooks.onlineRiderPoses?.(now) : rider.rivalPoses;
-  const riderWake = raceRiders?.length ? findWake(rider, raceRiders, trackedWake) : null;
-  const trafficWake = trafficClock === null ? null : trafficWakeAt(rider, trafficClock, actors, query, trackedWake);
-  const wake = trackedWake && trafficWake?.id === trackedWake ? trafficWake : riderWake ?? trafficWake;
+  const wake = raceRiders?.length ? findWake(rider, raceRiders, trackedWake) : null;
   const eligible = paved && !input.brake && !rider.hazard;
   const wasBoosting = (rider.draft?.burst ?? 0) > 0;
   rider.draft = advanceDraft(rider.draft, wake, dt, eligible);

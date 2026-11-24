@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import esbuild from 'esbuild';
 import { writeDeterministicZip } from './deterministic-zip.mjs';
 
-export const VERSION = '2.1.0';
+export const VERSION = '2.1.1';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');

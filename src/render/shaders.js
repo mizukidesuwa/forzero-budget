@@ -4,6 +4,11 @@ layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec3 aColor;
 layout(location = 3) in vec2 aUv;
+#ifdef TRAFFIC_INSTANCES
+layout(location = 4) in mat4 aTrafficModel;
+layout(location = 8) in float aTrafficOpacity;
+flat out float vTrafficOpacity;
+#endif
 uniform mat4 uVp, uModel, uLight, uNearLight;
 out vec3 vWorld, vNormal, vColor;
 out vec2 vUv;
@@ -12,6 +17,10 @@ void main() {
 #ifdef STATIC_SCENE
   vec4 world = vec4(aPosition, 1.0);
   vNormal = aNormal;
+#elif defined(TRAFFIC_INSTANCES)
+  vec4 world = aTrafficModel * vec4(aPosition, 1.0);
+  vNormal = mat3(aTrafficModel) * aNormal;
+  vTrafficOpacity = aTrafficOpacity;
 #else
   vec4 world = uModel * vec4(aPosition, 1.0);
   vNormal = mat3(uModel) * aNormal;
@@ -26,6 +35,9 @@ void main() {
 
 export const FRAGMENT = `#version 300 es
 precision highp float;
+#ifdef TRAFFIC_INSTANCES
+flat in float vTrafficOpacity;
+#endif
 in vec3 vWorld, vNormal, vColor;
 in vec2 vUv;
 in vec4 vShadow, vNearShadow;
@@ -76,6 +88,12 @@ vec3 fog(vec3 color) {
   return mix(color, uFogColor, haze);
 }
 void main() {
+#ifdef TRAFFIC_INSTANCES
+  if (vTrafficOpacity < 1.0) {
+    float threshold = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(.06711056, .00583715))));
+    if (threshold >= vTrafficOpacity) discard;
+  }
+#endif
 #ifndef OPAQUE_PASS
   if (uMirror == 1 && vWorld.y < .024) discard;
 #endif

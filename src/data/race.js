@@ -24,7 +24,6 @@ export const recordRules = {
 
 export const draftingRules = {
   minSpeed: 4.5, minLeaderSpeed: 3, maxHeight: 1.5, minGap: 2, maxGap: 12, maxSide: 1.45, minHeadingDot: .88,
-  traffic: { minGap: 1.25, maxGap: 13, maxSide: 1.85, minHeadingDot: .90, maxHeight: 1.7, minSpeed: 4.5, busWakeWidth: .22 },
   chargeSeconds: 1.5, burstSeconds: 1.5, exitMargin: .85, exitHeadingDot: .78,
   minimumSideChange: .008, riderFront: .63, riderWakeHeight: .47,
   vehicles: {

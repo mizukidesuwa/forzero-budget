@@ -46,7 +46,8 @@ import { londonPlaces, uclStreetAt, uclWayByPath } from '../world/maps/ucl.js';
 import { buildingAt, cityWallAt, courseGround, rideElevation, riderGrade } from '../world/query.js';
 import { buildRidingScene, campuses, courseByCampus, courses, coursesByCampus } from '../world/scene-builder.js';
 import { availableCourses, makeSeedCourse } from '../world/seed-courses.js';
-import { knownTraffic, raceTrafficTime, trafficPosition, trialTraffic } from '../world/traffic.js';
+import { knownTraffic, raceTrafficTime, trialTraffic } from '../world/traffic.js';
+import { prepareTraffic } from '../render/traffic.js';
 import {
   bindOnlineApp, findOnlineCourse, getOnlineAppMode, getOnlineRoom, initOnline,
   onlineRaceRank, onlineRiderPoses, showOnlineDialog, syncOnlineProfile, tickOnline,
@@ -1455,18 +1456,6 @@ function run() {
       [rig.wheel,multiply(root,placement(transform(steer,FRONT),0,turn,spin))],
       [rig.fork,multiply(root,forkPose)],[body,multiply(root,pose.bodyPose)],[limbMesh,root]];
   }
-  function trafficNear(eye,time,actors) {
-    const models=[];
-    for(const van of actors) {
-      const {frame,point}=trafficPosition(van,time);
-      if (Math.hypot(point[0]-eye[0],point[2]-eye[2])>190) continue;
-      point[1]+=rideElevation(point[0],point[2]);
-      const heading=Math.atan2(frame.f[2]*van.direction,frame.f[0]*van.direction);
-      const pitch=getActiveCampus()==='shunde'?Math.atan(riderGrade(point,heading)):0;
-      models.push([cars.get(van.model),placement(point,0,-heading,pitch)]);
-    }
-    return models;
-  }
   const routeMeshes = new Map(), noRoute = [];
   let renderScale=1,renderedSettings=-1,lastStageWidth=0,lastStageHeight=0;
   let previousCamera, steering=Infinity, parts,bow,facing,waterTime=0,animationId,lastCameraRevision=-1,poseRig,posePhase,poseTuck,poseStand;
@@ -1562,7 +1551,10 @@ function run() {
       if(!roomLimbs[index]) continue;
       if(!aiRiders.length) ghosts.push(...ghostMeshes(remote,roomLimbs[index]));
     }
-    const trafficModels=trafficNear(previousCamera.eye,raceTrafficTime(race),trialTraffic(race).vehicles);
+    const { models: trafficModels, batches: trafficBatches } = prepareTraffic(
+      previousCamera, raceTrafficTime(race), trialTraffic(race).vehicles, cars,
+      rideElevation, getActiveCampus()==='shunde' ? riderGrade : null,
+    );
     for(const [index,rival] of aiRiders.entries()) {
       if(roomLimbs[index]) trafficModels.push(...ghostMeshes(rival,roomLimbs[index]));
     }
@@ -1574,7 +1566,7 @@ function run() {
     if(currentWeather().rain&&!world.rainPuddles) {
       world.rainPuddles=[[new gpu.Mesh(rainPuddleShape(getActiveCampus())),placement([0,0,0],0,0,0)]];
     }
-    const renderedFrame=gpu.draw(previousCamera,world,route,riderMeshes,p,waterTime,ghosts,trafficModels,currentAA(),head,getOnlineRoom()?2:1,motion.matches?null:draftRenderSpan(rider));
+    const renderedFrame=gpu.draw(previousCamera,world,route,riderMeshes,p,waterTime,ghosts,trafficModels,currentAA(),head,getOnlineRoom()?2:1,motion.matches?null:draftRenderSpan(rider),trafficBatches);
     if (currentWeather().rain) drawRainOverlay(ui.weatherOverlay, rider.speed, performance.now());
     updateGraphicsStatus(renderedFrame);
     projectTag(ui.riderTag,previousCamera,transform(root,[-.08,tagHeight,0]),width,height);

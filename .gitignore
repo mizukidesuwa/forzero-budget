@@ -32,5 +32,5 @@ szu-litchi-dev/gl-recording.json
 szu-litchi-dev/**/perf-*.json
 
 # Release archives & historical snapshot bundles
-lagacy/
+legacy/
 *.zip

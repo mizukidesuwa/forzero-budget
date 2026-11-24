@@ -7,7 +7,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { openTestBrowser } from './stage6-browser.mjs';
 
 const desktop = resolve(process.env.FORZERO_RELEASE_DIR ??
-  (existsSync('forzero-budget-2.1.0/index.html') ? 'forzero-budget-2.1.0' : '.'));
+  (existsSync('forzero-budget-2.1.1/index.html') ? 'forzero-budget-2.1.1' : '.'));
 const fixtures = JSON.parse(await readFile(new URL('./fixtures/stage4-maps.json', import.meta.url), 'utf8'));
 const { rpc, close } = await openTestBrowser();
 try {
@@ -16,6 +16,13 @@ try {
   await rpc('Page.enable', {}, sessionId);
   await rpc('Page.addScriptToEvaluateOnNewDocument', { source: `
     globalThis.qaErrors = [];
+    globalThis.qaTrafficDraws = 0;
+    const drawInstances = WebGL2RenderingContext.prototype.drawElementsInstanced;
+    WebGL2RenderingContext.prototype.drawElementsInstanced = function (...args) {
+      drawInstances.apply(this, args);
+      if (this.getError() !== this.NO_ERROR) qaErrors.push('WebGL traffic draw failed');
+      qaTrafficDraws++;
+    };
     addEventListener('error', event => qaErrors.push(event.message));
     addEventListener('unhandledrejection', event => qaErrors.push(String(event.reason)));
     const error = console.error;
@@ -51,6 +58,11 @@ try {
     await wait(`activeCampus===${JSON.stringify(campus)} && race.event.id===${JSON.stringify(ghost.course.id)} && race.opponent?.name===${JSON.stringify(ghost.rider.name)} && !ui.friendDialog.open`, `${campus} ghost import or map travel failed`);
     assert.equal(await evaluate('race.opponent.time'), ghost.run.time);
     console.log(campus, 'legacy ghost imported through the packaged browser UI');
+    if (campus === 'ucl') {
+      await evaluate("Object.assign(race.rider, { position: [-245, .043, -119], heading: 0 })");
+      await wait('qaTrafficDraws > 0', 'UCL traffic instancing was not exercised');
+      console.log('UCL traffic drew through WebGL instancing.');
+    }
     if (campus === 'shunde') continue;
     const weeklyCode = await evaluate('ui.seedButton.click();ui.weeklyCode.value');
     assert.match(weeklyCode, new RegExp(`^${campus[0].toUpperCase()}2-W\\d{8}$`));
@@ -84,7 +96,7 @@ try {
   assert.equal(await evaluate('race.aiDifficulty'), 'strong');
   assert.deepEqual(await evaluate('qaErrors'), [], 'desktop errors');
 
-  const mobile = resolve(process.env.FORZERO_MOBILE_HTML ?? 'forzero-budget-mobile-2.1.0.html');
+  const mobile = resolve(process.env.FORZERO_MOBILE_HTML ?? 'forzero-budget-mobile-2.1.1.html');
   if (existsSync(mobile)) {
     await rpc('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true }, sessionId);
     await rpc('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 }, sessionId);

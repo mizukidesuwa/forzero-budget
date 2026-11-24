@@ -100,8 +100,8 @@ function assertLondonTraffic() {
   const { cityVehicles } = game;
   assert.deepEqual(new Set(cityVehicles.map(actor => actor.kind)), new Set(['cab', 'bus']));
   assert.equal(new Set(cityVehicles.map(actor => actor.path)).size, 6);
-  const spawn = game.coursesByCampus.ucl[0].spawn;
-  const stage = mode => game.makeTrafficFormation(cityVehicles, mode, '2.1-regression', spawn);
+  const { spawn, heading } = game.coursesByCampus.ucl[0];
+  const stage = mode => game.makeTrafficFormation(cityVehicles, mode, '2.1-regression', spawn, 3, heading);
   const sparse = stage('sparse'), full = stage('standard');
   assert.equal(stage('off').length, 0);
   assert.ok(sparse.length > 0 && full.length > sparse.length);
@@ -110,8 +110,35 @@ function assertLondonTraffic() {
     assert.ok(full.filter(actor => actor.path === path && actor.kind === 'bus').length <= 1);
   }
   for (const actor of full) for (let time = -3; time <= 2; time += .125) {
-    const { point } = game.trafficPosition(actor, time);
-    assert.ok(Math.hypot(point[0] - spawn[0], point[2] - spawn[2]) >= 28, 'UCL starting buffer');
+    const pose = game.trafficPosition(actor, time);
+    if (!pose) continue;
+    const dx = pose.point[0] - spawn[0], dz = pose.point[2] - spawn[2];
+    const distance = Math.hypot(dx, dz);
+    assert.ok(distance >= 28, 'UCL starting buffer');
+    if (time === -3 && distance < actor.formation.sightDistance) {
+      assert.ok(dx * Math.cos(heading) + dz * Math.sin(heading) <= distance * actor.formation.sightDot);
+    }
+  }
+  const paths = new Map(cityVehicles.map(actor => [actor.path, actor]));
+  assert.equal([...paths.values()].filter(actor => actor.loop).length, 1);
+  for (const actor of paths.values()) {
+    assert.ok(actor.lodModel.indices.length < actor.model.indices.length / 2);
+    for (const direction of [-1, 1]) {
+      const cycle = { ...actor, start: direction === 1 ? 0 : actor.path.length, direction };
+      const seconds = actor.path.length / actor.speed;
+      if (actor.loop) {
+        const before = game.trafficPosition(cycle, seconds - .001);
+        const after = game.trafficPosition(cycle, seconds + .001);
+        assert.ok(game.length(game.subtract(before.point, after.point)) < .2, 'closed-loop seam');
+      } else {
+        const entry = game.trafficPosition(cycle, .1);
+        const exit = game.trafficPosition(cycle, seconds - .1);
+        assert.ok(entry.opacity > 0 && entry.opacity < actor.collisionOpacity);
+        assert.ok(exit.opacity > 0 && exit.opacity < actor.collisionOpacity);
+        assert.equal(game.trafficPosition(cycle, seconds + .2), null, 'off-road reentry interval');
+        assert.ok(game.trafficPosition(cycle, seconds + actor.reentryDistance / actor.speed + .1).opacity < actor.collisionOpacity);
+      }
+    }
   }
 }
 

@@ -2,25 +2,24 @@ import assert from 'node:assert/strict';
 import * as game from '../src/test-exports.js';
 
 const { chargeSeconds, burstSeconds, vehicles } = game.draftingRules;
-const path = game.travelTable([[0, 0, 0], [100, 0, 0]]);
-const actor = { path, start: 40, direction: 1, offset: 0, speed: 8, halfL: 2.25 };
+const leader = { id: 'opponent', speed: 8, heading: 0, position: [37, 0, 0] };
 for (const vehicle of Object.keys(vehicles)) {
   const rider = { vehicle, paved: true, heading: 0, speed: 7, position: [30, 0, 0] };
-  const find = tracked => game.trafficWakeAt(rider, 0, [actor], null, tracked);
-  assert.ok(game.trafficDraftingAt(rider, 0, [actor]), vehicle);
+  const find = tracked => game.findWake(rider, [leader], tracked);
+  assert.ok(find(), vehicle);
   let draft = null;
-  for (let i = 0; i < 150; i++) draft = game.advanceDraft(draft, find(actor), chargeSeconds / 150, true);
+  for (let i = 0; i < 150; i++) draft = game.advanceDraft(draft, find(leader.id), chargeSeconds / 150, true);
   assert.equal(draft.charge, 1, vehicle);
   assert.equal(game.advanceDraft(draft, null, .01, true).burst, 0, 'losing the leader straight ahead does not trigger');
   rider.position[2] = 2;
-  const cut = find(actor);
+  const cut = find(leader.id);
   assert.ok(cut && !cut.inside);
   assert.equal(game.advanceDraft(draft, cut, .01, false).burst, 0, 'braking does not trigger');
   draft = game.advanceDraft(draft, cut, .01, true);
   assert.equal(draft.burst, burstSeconds);
   assert.equal(game.advanceDraft(draft, cut, burstSeconds, true).burst, 0);
   rider.position = [30, 5, 0];
-  assert.equal(find(actor), null, 'different bridge level');
+  assert.equal(find(leader.id), null, 'different bridge level');
   rider.position = [30, 0, 0];
   assert.ok(game.findWake(rider, [{ id: 'opponent', speed: 8, heading: 0, position: [37, 0, 0] }]));
 }
@@ -34,6 +33,22 @@ game.setStorage({
 game.setActiveCampus('shunde');
 game.buildRidingScene('shunde');
 const loop = game.parkCourse, query = game.createWorldQuery('shunde');
+const drive = { gas: true, brake: false, left: false, right: false, sprint: false };
+for (const vehicle of Object.keys(vehicles)) {
+  const rider = game.makeCyclist(loop, game.stockBike, vehicle, null, query);
+  const [x, y, z] = rider.position, { heading } = rider;
+  rider.speed = 7;
+  const forward = [Math.cos(heading), 0, Math.sin(heading)];
+  const ahead = game.add(rider.position, game.scale(forward, 8));
+  const npc = { path: game.travelTable([rider.position, game.add(ahead, game.scale(forward, 8))]),
+    start: 8, direction: 1, offset: 0, speed: 8, halfL: 2.25 };
+  game.moveCyclist(rider, drive, game.PHYSICS_STEP, false, null, 0, [npc], query);
+  assert.equal(rider.draft.wake, null, vehicle + ' has no NPC wake');
+  Object.assign(rider, { position: [x, y, z], heading, speed: 7, paved: true });
+  rider.rivalPoses = [{ ...leader, heading, position: ahead }];
+  game.moveCyclist(rider, drive, game.PHYSICS_STEP, false, null, 0, [npc], query);
+  assert.equal(rider.draft.wake?.id, leader.id, vehicle + ' follows a race opponent');
+}
 assert.ok(game.courseIsLoop(loop));
 const reverse = game.getCourseVariant(loop, { direction: 'reverse', laps: 3 });
 assert.equal(game.getCourseVariant(loop, { direction: 'reverse', laps: 3 }), reverse);
