@@ -1,15 +1,29 @@
 # FORZERO: BUDGET（有限竞速：地贫线）开发速查
 
+## 2.0.0 生效源码索引
+
+2.0.0 的构建、验证和发行状态见 `STAGE6-ACCEPTANCE.md`。
+
+| 入口 | 依赖 | 定向测试 |
+| --- | --- | --- |
+| `src/entry.js` / `src/test-exports.js` | `src/ride/`、`src/world/`、`src/data/` | `node scripts/verify-esm-parity.mjs`、`node scripts/verify-stage2-esm.mjs` |
+| `src/data/vehicles.js`、`parts.js`、`surfaces.js` | `src/ride/vehicles.js`、`physics.js` | `node scripts/verify-stage3-data.mjs` |
+| `src/data/tuning-190.cjs` | 客户端及 `szu-litchi-dev/online/` 房间服务 | `node scripts/verify-stage3-data.mjs`、`node szu-litchi-dev/online/verify.mjs` |
+| `src/world/assets/`、`src/world/maps/ucl/gardens.js` 的 `extraGardenFences` | `src/world/maps/ucl.js` | `node scripts/verify-stage4-assets.mjs` |
+| `src/world/maps/{szu,ucl,shunde}/` 中的 `courses.js` 检查点与地图数据 | `src/world/query.js`、`src/world/scene-builder.js` | `node scripts/verify-stage5-maps.mjs [szu|ucl|shunde]` |
+| `scripts/build.mjs` | esbuild 0.28.2、`scripts/deterministic-zip.mjs` | `npm run build`、`npm run build:release` |
+| `szu-litchi-dev/online/server.mjs` | 桌面本地服务与存档 | `node scripts/verify-stage6-save.mjs` |
+
 > 历史交付与早期架构见 [HISTORY.md](HISTORY.md)；版本流水见 [CHANGELOG.md](CHANGELOG.md)；1.8.6 车流见 [1.8.6-traffic.md](szu-litchi-dev/ride-update/1.8.6-traffic.md)。巨型 `perf-*.json`、截图与旧包已归档至 `D:\szubikeGPT-archive\`。
 
-## 1. 当前基线（1.9.1）
+## 1. 本地正式版（2.0.0）
 
-- **桌面目录**：`forzero-budget-1.9.1/`（含 `save/player-data.json` 个人存档）；分发使用同名 ZIP。
-- **手机单文件**：`forzero-budget-mobile-1.9.1.html`
-- **分发镜像**：`szu-litchi-loop/dist/`（同步 `release/*`，不含 `save/`）
-- **最新修订**：`hud-compact.css` 处理小屏 HUD 布局与缩放。竖屏小地图与「下一站」都置于右上角。「不计榜」仅在发车与结算流程中提示。
+- **桌面目录**：`forzero-budget-2.0.0/`（个人存档在 `save/player-data.json`），公开分发使用同名 ZIP。
+- **手机单文件**：`forzero-budget-mobile-2.0.0.html`。
+- **分发镜像**：`szu-litchi-loop/dist/` 与公开发布目录 `github-upload-2.0.0/`。
+- **回归基线**：1.9.1.1，以下旧链索引用于定位旧版行为。
 
-## 2. 活跃源码与地图构建链
+## 2. 1.9.1.1 旧链源码与地图索引
 
 ### 上游纯净地图源码层（自上而下重构建顺序）
 `street-riding/szu-litchi-loop.html` → `campus-map` → `endurance` → `road-junctions` → `garage` → `architecture` → `bloomsbury` → `slopes` → `london` → `ride-update`
@@ -43,15 +57,12 @@
 
 ## 3. 构建、同步与定向验证
 
+2.0.0 使用 `npm ci` 和 `npm run build:release`。把 `dist-v2/desktop/` 中的发行文件同步到当前版本目录和 `szu-litchi-loop/dist/`，跳过 `save/`。以下 Python 与旧版验证命令只用于重建 1.9.1.1 回归基线。
+
 ```powershell
 python szu-litchi-dev/ride-update/build.py
 node --check szu-litchi-dev/ride-update/game.js
 node --check szu-litchi-dev/online/server.mjs
-$releaseItems = Get-ChildItem szu-litchi-dev/ride-update/release | Where-Object Name -ne 'save'
-foreach ($item in $releaseItems) {
-  Copy-Item -LiteralPath $item.FullName -Destination forzero-budget-1.9.1/ -Recurse -Force
-  Copy-Item -LiteralPath $item.FullName -Destination szu-litchi-loop/dist/ -Recurse -Force
-}
 
 # 按改动面定向跑对应验证：
 node szu-litchi-dev/ride-update/verify-190.mjs               # 车型技能、天气、闪送、AI、回放、预算与隔离
