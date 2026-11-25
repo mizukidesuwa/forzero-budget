@@ -7,6 +7,7 @@ import { gzipSync } from 'node:zlib';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import rules from './room-rules.cjs';
 import tuning190 from './tuning-190.cjs';
+import routeRules from './route-rules.cjs';
 
 const {ROOM_ROUNDS,ALL_ROUND_VEHICLES,lockRoomVehicle,tally,settle,retire,beginTuning,beginRoomRound,
   roomVehicle,roomParts,roomBuildProblem,roomBudgetProblems,blindBudget} = rules;
@@ -20,6 +21,23 @@ const VEHICLE_RULES = new Set(['bike','trail','ebike','chair','any']);
 const VEHICLES = new Set(['bike','trail','ebike','chair']);
 const WEATHERS = new Set(['day','sunset','night','rain']);
 const PAINTS = new Set(['classic','shared','bay','red','white','amethyst','obsidian']);
+const SKIN_VERSION = 1;
+const SKIN_IDS = new Set(['default']);
+const REMOVED_SKIN_IDS = new Set(['yellow-orb']);
+const SKIN_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,47}$/;
+const SKIN_PRIMITIVES = new Set(['ellipsoid','tube','box']);
+const SKIN_TRIANGLE_COSTS = Object.freeze({ellipsoid:288,tube:40,box:12});
+const SKIN_ACCESSORIES = new Set(['eye','belly','scarf','vest','tail','antenna']);
+const SKIN_VEHICLES = new Set(['bike','ebike','chair','trail']);
+const SKIN_HEAD_MODES = new Set(['separate','integrated']);
+const SKIN_LIMB_MODES = new Set(['full','simplified','hidden']);
+const SKIN_ANIMATION_PROFILES = new Set(['seated','seated-soft','upright']);
+const SKIN_ANCHORS = new Set(['body','head','neck','back','leftHand','rightHand','leftFoot','rightFoot']);
+const SKIN_ACCESSORY_ANCHORS = new Set(['body','head','back','leftHand','rightHand']);
+const SKIN_PART_ID = /^[a-z][a-z0-9_-]{0,31}$/;
+const SKIN_MATERIAL = /^[a-z][a-z0-9_-]{0,23}$/;
+const FORBIDDEN_SKIN_PART = /helmet|backpack/i;
+const MAX_SKIN_SPEC_BYTES = 50_000;
 const BICYCLE_LOOK = {
   category:['campus','road','climb','gravel'], rim:['auto','spokes','deep'], sidewall:['black','tan'],
   accessory:['none','bottle','basket','computer'], trim:['coal','brown','orange'],
@@ -32,11 +50,120 @@ const normalizeTraffic = value => value==='off'||value==='standard'?value:'spars
 
 const normalizeWindMode=value=>value==='steady'?'steady':'gust';
 
+function sanitizeSkinSpec(value, requestedId) {
+  if (!value || typeof value!=='object' || Array.isArray(value)) return null;
+  let json;
+  try { json=JSON.stringify(value); } catch { return null; }
+  if (json.length>MAX_SKIN_SPEC_BYTES || value.schemaVersion!==SKIN_VERSION || value.rig!=='shared-rider-v1' || value.class!=='model') return null;
+  if (typeof value.id!=='string' || !SKIN_ID_PATTERN.test(value.id) || value.id!==requestedId) return null;
+  const label=typeof value.label==='string'&&value.label.trim().length<=64?value.label.trim():value.id;
+  const palette=value.palette;
+  if (!palette||typeof palette!=='object'||Array.isArray(palette)||Object.keys(palette).length>8) return null;
+  const cleanPalette={};
+  for (const [key,color] of Object.entries(palette)) {
+    if (!/^[a-z][a-zA-Z0-9_-]{0,23}$/.test(key)||typeof color!=='string'||!/^#[0-9a-f]{6}$/i.test(color)) return null;
+    cleanPalette[key]=color.toLowerCase();
+  }
+  const proportionRanges={heightScale:[.85,1.15],bodyWidthScale:[.78,1.28],bodyDepthScale:[.80,1.25],headWidthScale:[.80,1.25],headHeightScale:[.80,1.25],limbRadiusScale:[.70,1.20],handScale:[.70,1.35],footScale:[.70,1.35],neckWidthScale:[.75,1.35],neckLengthScale:[0,.35]};
+  const proportionDefaults={heightScale:1,bodyWidthScale:1,bodyDepthScale:1,headWidthScale:1,headHeightScale:1,limbRadiusScale:1,handScale:1,footScale:1,neckWidthScale:1,neckLengthScale:.08};
+  if (!value.proportions||typeof value.proportions!=='object'||Array.isArray(value.proportions)) return null;
+  const proportions={};
+  for (const [key,[min,max]] of Object.entries(proportionRanges)) {
+    const number=Number(value.proportions[key]??proportionDefaults[key]);
+    if (!Number.isFinite(number)||number<min||number>max) return null;
+    proportions[key]=number;
+  }
+  const boundRanges={width:[.70,1.35],height:[1.25,2.05],depth:[.55,1.15]};
+  if (!value.bounds||typeof value.bounds!=='object'||Array.isArray(value.bounds)) return null;
+  const bounds={};
+  for (const [key,[min,max]] of Object.entries(boundRanges)) {
+    const number=Number(value.bounds[key]);
+    if (!Number.isFinite(number)||number<min||number>max) return null;
+    bounds[key]=number;
+  }
+  if (!SKIN_HEAD_MODES.has(value.headMode)||!SKIN_LIMB_MODES.has(value.limbMode)||!SKIN_ANIMATION_PROFILES.has(value.animationProfile)) return null;
+  const accessoriesInput=value.accessories??[];
+  if (!Array.isArray(accessoriesInput)||accessoriesInput.length>6) return null;
+  const accessories=[];
+  for (const item of accessoriesInput) {
+    const source=typeof item==='string'?{type:item}:item;
+    if (!source||typeof source!=='object'||Array.isArray(source)||!SKIN_ACCESSORIES.has(source.type)) return null;
+    const anchor=source.anchor??(['eye','antenna'].includes(source.type)?'head':'body');
+    const scale=Number(source.scale??1), color=source.color??null;
+    if (!SKIN_ACCESSORY_ANCHORS.has(anchor)||!Number.isFinite(scale)||scale<.5||scale>1.5||
+        (color!==null&&(typeof color!=='string'||!/^#[0-9a-f]{6}$/i.test(color)))) return null;
+    accessories.push({type:source.type,anchor,scale,...(color?{color:color.toLowerCase()}: {})});
+  }
+  const vehiclesInput=value.allowedVehicles??['bike','ebike','chair','trail'];
+  if (!Array.isArray(vehiclesInput)||!vehiclesInput.length) return null;
+  const allowedVehicles=[...new Set(vehiclesInput)];
+  if (allowedVehicles.some(vehicle=>!SKIN_VEHICLES.has(vehicle))) return null;
+  const triangleBudget=Number(value.triangleBudget);
+  if (!Number.isInteger(triangleBudget)||triangleBudget<1||triangleBudget>2400) return null;
+  const unlock=value.unlock==null?null:value.unlock;
+  if (unlock!==null&&(typeof unlock!=='string'||unlock.length>80)) return null;
+  const model=value.model;
+  if (!model||Number(model.version)!==1||!Array.isArray(model.parts)||model.parts.length<2||model.parts.length>32) return null;
+  const vector=(input,limits=[-2.5,2.5])=>Array.isArray(input)&&input.length===3&&input.every(number=>Number.isFinite(Number(number))&&Number(number)>=limits[0]&&Number(number)<=limits[1]);
+  const partIds=new Set(), parts=[];
+  for (const part of model.parts) {
+    if (!part||typeof part!=='object'||Array.isArray(part)||typeof part.id!=='string'||!SKIN_PART_ID.test(part.id)||FORBIDDEN_SKIN_PART.test(part.id)||partIds.has(part.id)||
+        !SKIN_PRIMITIVES.has(part.primitive)||typeof part.material!=='string'||!SKIN_MATERIAL.test(part.material)||!Object.hasOwn(cleanPalette,part.material)||
+        (part.anchor!=null&&!SKIN_ANCHORS.has(part.anchor))) return null;
+    partIds.add(part.id);
+    const id=part.id, primitive=part.primitive, material=part.material;
+    const anchor=part.anchor==null?null:part.anchor;
+    const yaw=Number(part.yaw??0), roll=Number(part.roll??0);
+    if (!Number.isFinite(yaw)||!Number.isFinite(roll)||Math.abs(yaw)>Math.PI*4||Math.abs(roll)>Math.PI*4) return null;
+    const common={id,primitive,material,...(anchor?{anchor}: {})};
+    if (primitive==='tube') {
+      const radius=Number(part.radius), radius2=Number(part.radius2??part.radius);
+      if (!vector(part.from)||!vector(part.to)||!Number.isFinite(radius)||!Number.isFinite(radius2)||radius<.004||radius>.45||radius2<.004||radius2>.45) return null;
+      parts.push({...common,from:part.from.map(Number),to:part.to.map(Number),radius,radius2,yaw,roll});
+    } else {
+      if (!vector(part.center)||!vector(part.size,[.004,1.2])||part.size.some(number=>Number(number)<.004)) return null;
+      parts.push({...common,center:part.center.map(Number),size:part.size.map(Number),yaw,roll});
+    }
+  }
+  if (!partIds.has('body')||!partIds.has('head')) return null;
+  const modelTriangles=parts.reduce((sum,part)=>sum+(SKIN_TRIANGLE_COSTS[part.primitive]??0),0);
+  if (modelTriangles>triangleBudget) return null;
+  return {
+    schemaVersion:SKIN_VERSION,id:value.id,label,class:'model',rig:'shared-rider-v1',palette:cleanPalette,
+    proportions,headMode:value.headMode,limbMode:value.limbMode,animationProfile:value.animationProfile,
+    accessories,allowedVehicles,bounds,triangleBudget,model:{version:1,parts},unlock,
+  };
+}
+
+function canonicalSkinText(spec) {
+  return JSON.stringify({
+    schemaVersion:spec.schemaVersion,id:spec.id,label:spec.label,class:spec.class,rig:spec.rig,
+    palette:spec.palette,proportions:spec.proportions,headMode:spec.headMode,limbMode:spec.limbMode,
+    animationProfile:spec.animationProfile,accessories:spec.accessories,allowedVehicles:spec.allowedVehicles,
+    bounds:spec.bounds,triangleBudget:spec.triangleBudget,model:spec.model??null,unlock:spec.unlock??null,
+  });
+}
+
+function skinSpecHash(spec) {
+  let hash=2166136261;
+  for (const char of canonicalSkinText(spec)) { hash^=char.codePointAt(0); hash=Math.imul(hash,16777619)>>>0; }
+  return `fnv1a-${hash.toString(16).padStart(8,'0')}`;
+}
+
 function sanitizeProfile(body,rule) {
   const vehicle=VEHICLES.has(body?.vehicle)?body.vehicle:'bike';
   const current=VEHICLES.has(rule)?rule:vehicle;
+  const requestedSkin=typeof body?.skinId==='string'?body.skinId:'';
+  const customSkin=!SKIN_IDS.has(requestedSkin)&&!REMOVED_SKIN_IDS.has(requestedSkin)&&SKIN_ID_PATTERN.test(requestedSkin)?sanitizeSkinSpec(body?.skinSpec,requestedSkin):null;
+  const customHash=customSkin?skinSpecHash(customSkin):null;
   return {
     paint: PAINTS.has(body?.paint) ? body.paint : 'classic',
+    skinId: customSkin ? requestedSkin : SKIN_IDS.has(body?.skinId) ? body.skinId : 'default',
+    skinVersion: SKIN_VERSION,
+    skinSpec: customSkin,
+    // The server always publishes the hash of its canonicalized spec. A client
+    // supplied hash is advisory and is never allowed to desynchronize cache keys.
+    skinSpecHash: customHash,
     vehicle,
     look: Object.fromEntries(Object.entries(BICYCLE_LOOK).map(([key,choices])=>[
       key,choices.includes(body?.look?.[key])?body.look[key]:choices[0],
@@ -133,15 +260,33 @@ async function readRequest(req) {
 }
 
 function assertRoute(route) {
-  if (!route || !CAMPUSES.has(route.campus) || typeof route.id!=='string' || !/^[a-zA-Z0-9-]{1,48}$/.test(route.id) ||
+  if (!route || !CAMPUSES.has(route.campus) || typeof route.id!=='string' || !/^[a-zA-Z0-9._-]{1,64}$/.test(route.id) ||
       typeof route.layout!=='string' || !/^[0-9a-f]{8}$/.test(route.layout) ||
       (route.campus==='shunde' && route.seed!==null) ||
       (route.seed!==null && (typeof route.seed!=='string' || !/^[SU][0-9]-[A-Z0-9]{1,12}$/.test(route.seed) ||
         route.id!=='seed-'+route.seed || route.seed[0]!==route.campus[0].toUpperCase()))) {
     throw new RoomError('赛道信息无效。',400);
   }
+  const candidate = routeRules.normalizeRoute({
+    campus: route.campus, id: route.id, seed: route.seed, source: route.networkRevision || route.edges?.length ? 'network' : route.seed ? 'seed' : 'fixed',
+    networkRevision: route.networkRevision, edges: route.edges, variant: route.variant,
+  });
+  if (!candidate || (candidate.source === 'network' && candidate.networkRevision !== routeRules.CAMPUS_NETWORKS[route.campus])) {
+    throw new RoomError('赛道身份无效。',400);
+  }
+  const canonical = routeRules.encodeRoute(candidate);
+  if (!canonical || (route.code !== undefined && route.code !== canonical)) throw new RoomError('路线代码与赛道字段不一致。',400);
+  const parsed = route.code ? routeRules.parseRouteCode(route.code) : candidate;
+  if (!parsed || parsed.campus !== route.campus || parsed.variant.direction !== candidate.variant.direction || parsed.variant.laps !== candidate.variant.laps) {
+    throw new RoomError('路线代码版本或变体不一致。',400);
+  }
   const {campus,id,layout,seed} = route;
-  return {campus,id,layout,seed};
+  return {
+    campus, id, layout, seed,
+    variant: parsed.variant,
+    ...(parsed.networkRevision ? { networkRevision: parsed.networkRevision, edges: parsed.edges } : {}),
+    code: canonical,
+  };
 }
 
 function clampTuningSeconds(value,fallback=0) {
@@ -172,7 +317,7 @@ function addPlayer(room,name,profile={}) {
     .slice(0,12).join('') || 'player';
   const clean = sanitizeProfile(profile,room.vehicleRule);
   const player = {id:identifier(),name:nickname,token:randomBytes(24).toString('base64url'),ready:false,
-    paint:clean.paint,vehicle:clean.vehicle,look:clean.look,bike:clean.bike,tunings:clean.tunings,
+    paint:clean.paint,skinId:clean.skinId,skinVersion:clean.skinVersion,skinSpec:clean.skinSpec,skinSpecHash:clean.skinSpecHash,vehicle:clean.vehicle,look:clean.look,bike:clean.bike,tunings:clean.tunings,
     stream:null,expires:Date.now()+RECONNECT,signals:[],signalWindow:0,signalCount:0};
   room.players.set(player.id,player);
   return player;
@@ -193,8 +338,8 @@ function roomState(room) {
     budget:room.budget,blind:room.blind,budgetProblems:roomBudgetProblems(room),
     tuningSeconds:room.tuningSeconds??0,collision:Boolean(room.collision),traffic:room.traffic??'sparse',tuning:room.tuning??null,
     players:Array.from(room.players.values(),player=>{
-      const {id,name,ready,stream,paint,vehicle,look,bike}=player;
-      return {id,name,ready,online:Boolean(stream),paint,vehicle,look,bike,
+      const {id,name,ready,stream,paint,skinId,skinVersion,skinSpec,skinSpecHash,vehicle,look,bike}=player;
+      return {id,name,ready,online:Boolean(stream),paint,skinId,skinVersion,skinSpec,skinSpecHash,vehicle,look,bike,
         tuning:roomVehicle(room,player)==='bike'?{}:roomParts(room,player)};
     }),
     roundsTotal:ROOM_ROUNDS[room.format],
@@ -238,6 +383,10 @@ function applyCommand(room,player,body) {
       if (room.phase==='race') throw new RoomError('比赛中无法更换配置。');
       const clean = sanitizeProfile(body,room.vehicleRule);
       player.paint = clean.paint;
+      player.skinId = clean.skinId;
+      player.skinVersion = clean.skinVersion;
+      player.skinSpec = clean.skinSpec;
+      player.skinSpecHash = clean.skinSpecHash;
       player.vehicle = clean.vehicle;
       player.look = clean.look;
       player.bike = clean.bike;

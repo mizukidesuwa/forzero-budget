@@ -6,13 +6,13 @@
 <meta name="theme-color" content="#0b0d0f">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 340 340'%3E%3Crect width='340' height='340' rx='52' fill='%230b0d0f'/%3E%3Cg transform='translate(0,116)'%3E%3Cg transform='translate(14,0) skewX(-10)' font-family='Arial Black, Arial, sans-serif'%3E%3Ctext x='10' y='65' font-size='59' font-weight='950' letter-spacing='-2' fill='%23ffffff'%3EFOR%3Ctspan fill='%23ff6433'%3EZERO%3C/tspan%3E:%3C/text%3E%3Ctext x='15' y='96' font-size='26' font-weight='900' letter-spacing='9' fill='%23ff6433'%3EBUDGET%3C/text%3E%3C/g%3E%3C/g%3E%3C/svg%3E">
 <meta name="description" content="FORZERO: BUDGET（有限竞速：地贫线）— 在深圳大学、伦敦与顺峰山公园之间自由骑行与计时竞速。">
-<title>FORZERO: BUDGET · 有限竞速：地贫线 2.1.1</title>
+<title>FORZERO: BUDGET · 有限竞速：地贫线 2.3.1</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <main class="shell">
   <header class="masthead">
-    <div class="identity"><span class="brand-badge" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 108"><g transform="translate(14,0) skewX(-10)" font-family="Arial Black, Arial, sans-serif"><text x="10" y="65" font-size="59" font-weight="950" letter-spacing="-2" fill="#FFFFFF">FOR<tspan fill="#FF6433">ZERO</tspan>:</text><text x="15" y="96" font-size="26" font-weight="900" letter-spacing="9" fill="#FF6433">BUDGET</text></g></svg></span><div><strong>有限竞速：地贫线</strong><small lang="en">FORZERO: BUDGET · 2.1.1</small></div></div>
+    <div class="identity"><span class="brand-badge" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 108"><g transform="translate(14,0) skewX(-10)" font-family="Arial Black, Arial, sans-serif"><text x="10" y="65" font-size="59" font-weight="950" letter-spacing="-2" fill="#FFFFFF">FOR<tspan fill="#FF6433">ZERO</tspan>:</text><text x="15" y="96" font-size="26" font-weight="900" letter-spacing="9" fill="#FF6433">BUDGET</text></g></svg></span><div><strong>有限竞速：地贫线</strong><small lang="en">FORZERO: BUDGET · 2.3.1</small></div></div>
     <div class="location" id="campusName">深圳大学 · 粤海校区</div>
   </header>
   <section class="stage" tabindex="0" id="stage" data-phase="free" aria-label="FORZERO: BUDGET 有限竞速：地贫线">
@@ -43,6 +43,7 @@
         <label>抓地 <meter id="bikeGripMeter" min="0" max="100" value="100"></meter></label>
       </div><span class="brake-hint" id="brakeHint" hidden></span></div>
       <div class="courier-hud" id="courierHud" hidden><strong id="courierTitle"></strong><span id="courierDetail"></span></div>
+      <output id="fpsCounter" class="fps-counter" aria-live="polite" hidden>FPS --</output>
       <div class="hud-navigation">
       <div class="next" id="next" hidden></div>
       <div class="gate-flash" id="gateFlash" aria-live="polite" hidden></div>
@@ -86,6 +87,7 @@
         <div class="corner-review" id="cornerReview" hidden>
           <strong id="reviewCornerName"></strong><span id="reviewCornerDetail"></span><span id="reviewCornerSpeed"></span>
         </div>
+        <div class="review-feedback" id="reviewFeedback" hidden><strong>比赛反馈</strong><span id="reviewFeedbackText"></span></div>
         <div class="review-title"><strong>分段用时</strong><span id="reviewReference"></span></div>
         <table class="review-table" aria-label="分段成绩">
           <thead><tr><th scope="col">路段</th><th scope="col">用时 (秒)</th><th scope="col">差距 (秒)</th><th scope="col">练习</th></tr></thead>
@@ -128,6 +130,7 @@
         <option value="0">偏西风</option><option value="1">西北风</option><option value="2">偏北风</option><option value="3">东北风</option><option value="4">偏东风</option><option value="5">东南风</option><option value="6">偏南风</option><option value="7">西南风</option>
       </select></div>
       <div class="setting-line"><label for="settingsGhost">显示竞赛影子</label><input id="settingsGhost" type="checkbox" checked></div>
+      <div class="setting-line"><label for="settingsFps">显示 FPS<small>每 0.5 秒更新一次</small></label><input id="settingsFps" type="checkbox" checked></div>
       <div class="setting-line">
         <label for="settingsBrakeLine">刹车线<small>绿可加速 · 黄收力 · 红减速</small></label>
         <input id="settingsBrakeLine" type="checkbox" checked>
@@ -228,6 +231,16 @@
         </details>
           <details class="workshop-group"><summary>外观定制</summary>
             <div class="setting-line"><label for="bikePaint">涂装</label><select id="bikePaint"></select></div>
+            <div class="setting-line"><label for="riderSkin">骑手皮肤</label><select id="riderSkin"></select></div>
+            <label for="riderSkinImport">导入 AI 皮肤模型文件</label>
+            <textarea id="riderSkinImport" rows="4" spellcheck="false" placeholder="粘贴 AI 生成的 SkinModelSpec JSON"></textarea>
+            <div class="settings-actions seed-actions">
+              <button class="action" type="button" id="riderSkinFile">选择模型文件</button>
+              <button class="action" type="button" id="riderSkinPrompt">复制 AI 提示词</button>
+              <button class="action primary" type="button" id="riderSkinImportButton">导入并预览</button>
+            </div>
+            <input id="riderSkinFileInput" type="file" accept="application/json,.json" hidden>
+            <p class="bike-note" id="riderSkinStatus" role="status">AI 生成的模型文件只允许白名单图元、比例和挂点。</p>
             <div id="bikeStyles"></div>
           </details>
         <dl class="bike-stats" aria-live="polite">
@@ -272,8 +285,8 @@
           <button class="action" type="button" id="weeklyBoard" aria-haspopup="dialog">本周友人对战</button>
         </div>
         <div class="setting-line">
-          <label for="seedInput">种子码 <small id="seedCampus"></small></label>
-          <input id="seedInput" type="text" maxlength="15" autocomplete="off" spellcheck="false" autocapitalize="characters" aria-describedby="seedStatus">
+          <label for="seedInput">种子码 / 路线代码 <small id="seedCampus"></small></label>
+          <input id="seedInput" type="text" maxlength="256" autocomplete="off" spellcheck="false" autocapitalize="characters" aria-describedby="seedStatus">
         </div>
         <p class="bike-note" id="seedStatus" role="status">同一张地图输入同一种子码，得到同一条赛道。</p>
         <div class="settings-actions seed-actions">
