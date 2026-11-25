@@ -46,6 +46,7 @@ const SKIN_GEOMETRY_RULES = Object.freeze({
   headBox:[[.22,.44],[.22,.44],[.22,.44]],
   bodyCenter:[[-.35,.15],[1.05,1.30],[-.10,.10]],
   headCenter:[[-.05,.20],[1.45,1.72],[-.10,.10]],
+  hipOffset:{xFactor:.72,xMinimum:.76,yFactor:.75,zFactor:.72},
 });
 const RIDER_HIP = [-.222,.990,0];
 const MAX_SKIN_SPEC_BYTES = 50_000;
@@ -199,7 +200,9 @@ function sanitizeSkinSpec(value, requestedId) {
     const span=Math.max(...part.high.map((value,axis)=>value-part.low[axis]));
     if (span<range[0]||span>range[1]) return null;
   }
-  const depthLimit=Math.max(bounds.depth*.72,.76), widthLimit=bounds.width*.72, heightLimit=bounds.height*.75;
+  const offset=SKIN_GEOMETRY_RULES.hipOffset;
+  const depthLimit=Math.max(bounds.depth*offset.xFactor,offset.xMinimum);
+  const widthLimit=bounds.width*offset.zFactor, heightLimit=bounds.height*offset.yFactor;
   if (Math.max(Math.abs(minX-RIDER_HIP[0]),Math.abs(maxX-RIDER_HIP[0]))>depthLimit ||
       Math.max(Math.abs(minY-RIDER_HIP[1]),Math.abs(maxY-RIDER_HIP[1]))>heightLimit ||
       Math.max(Math.abs(minZ),Math.abs(maxZ))>widthLimit) return null;
