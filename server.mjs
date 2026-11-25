@@ -199,7 +199,7 @@ function sanitizeSkinSpec(value, requestedId) {
     const span=Math.max(...part.high.map((value,axis)=>value-part.low[axis]));
     if (span<range[0]||span>range[1]) return null;
   }
-  const depthLimit=bounds.depth*.72, widthLimit=bounds.width*.72, heightLimit=bounds.height*.75;
+  const depthLimit=Math.max(bounds.depth*.72,.76), widthLimit=bounds.width*.72, heightLimit=bounds.height*.75;
   if (Math.max(Math.abs(minX-RIDER_HIP[0]),Math.abs(maxX-RIDER_HIP[0]))>depthLimit ||
       Math.max(Math.abs(minY-RIDER_HIP[1]),Math.abs(maxY-RIDER_HIP[1]))>heightLimit ||
       Math.max(Math.abs(minZ),Math.abs(maxZ))>widthLimit) return null;
