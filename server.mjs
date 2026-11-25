@@ -37,6 +37,17 @@ const SKIN_ACCESSORY_ANCHORS = new Set(['body','head','back','leftHand','rightHa
 const SKIN_PART_ID = /^[a-z][a-z0-9_-]{0,31}$/;
 const SKIN_MATERIAL = /^[a-z][a-z0-9_-]{0,23}$/;
 const FORBIDDEN_SKIN_PART = /helmet|backpack/i;
+const SKIN_GEOMETRY_RULES = Object.freeze({
+  depth:[.45,.96], height:[1.08,1.90], width:[.40,1.10],
+  bodySpan:[.26,.78], headSpan:[.18,.56],
+  bodyEllipsoid:[[.15,.27],[.21,.35],[.14,.29]],
+  bodyBox:[[.30,.54],[.42,.70],[.28,.58]],
+  headEllipsoid:[[.11,.22],[.11,.22],[.11,.22]],
+  headBox:[[.22,.44],[.22,.44],[.22,.44]],
+  bodyCenter:[[-.35,.15],[1.05,1.30],[-.10,.10]],
+  headCenter:[[-.05,.20],[1.45,1.72],[-.10,.10]],
+});
+const RIDER_HIP = [-.222,.990,0];
 const MAX_SKIN_SPEC_BYTES = 50_000;
 const BICYCLE_LOOK = {
   category:['campus','road','climb','gravel'], rim:['auto','spokes','deep'], sidewall:['black','tan'],
@@ -64,20 +75,20 @@ function sanitizeSkinSpec(value, requestedId) {
     if (!/^[a-z][a-zA-Z0-9_-]{0,23}$/.test(key)||typeof color!=='string'||!/^#[0-9a-f]{6}$/i.test(color)) return null;
     cleanPalette[key]=color.toLowerCase();
   }
-  const proportionRanges={heightScale:[.85,1.15],bodyWidthScale:[.78,1.28],bodyDepthScale:[.80,1.25],headWidthScale:[.80,1.25],headHeightScale:[.80,1.25],limbRadiusScale:[.70,1.20],handScale:[.70,1.35],footScale:[.70,1.35],neckWidthScale:[.75,1.35],neckLengthScale:[0,.35]};
+  const proportionRanges={heightScale:[.94,1.06],bodyWidthScale:[.88,1.14],bodyDepthScale:[.88,1.14],headWidthScale:[.90,1.12],headHeightScale:[.90,1.12],limbRadiusScale:[.85,1.12],handScale:[.85,1.15],footScale:[.85,1.15],neckWidthScale:[.88,1.14],neckLengthScale:[.04,.22]};
   const proportionDefaults={heightScale:1,bodyWidthScale:1,bodyDepthScale:1,headWidthScale:1,headHeightScale:1,limbRadiusScale:1,handScale:1,footScale:1,neckWidthScale:1,neckLengthScale:.08};
   if (!value.proportions||typeof value.proportions!=='object'||Array.isArray(value.proportions)) return null;
   const proportions={};
   for (const [key,[min,max]] of Object.entries(proportionRanges)) {
-    const number=Number(value.proportions[key]??proportionDefaults[key]);
+    const number=value.proportions[key]??proportionDefaults[key];
     if (!Number.isFinite(number)||number<min||number>max) return null;
     proportions[key]=number;
   }
-  const boundRanges={width:[.70,1.35],height:[1.25,2.05],depth:[.55,1.15]};
+  const boundRanges={width:[.76,1.10],height:[1.42,1.92],depth:[.60,.96]};
   if (!value.bounds||typeof value.bounds!=='object'||Array.isArray(value.bounds)) return null;
   const bounds={};
   for (const [key,[min,max]] of Object.entries(boundRanges)) {
-    const number=Number(value.bounds[key]);
+    const number=value.bounds[key];
     if (!Number.isFinite(number)||number<min||number>max) return null;
     bounds[key]=number;
   }
@@ -89,7 +100,7 @@ function sanitizeSkinSpec(value, requestedId) {
     const source=typeof item==='string'?{type:item}:item;
     if (!source||typeof source!=='object'||Array.isArray(source)||!SKIN_ACCESSORIES.has(source.type)) return null;
     const anchor=source.anchor??(['eye','antenna'].includes(source.type)?'head':'body');
-    const scale=Number(source.scale??1), color=source.color??null;
+    const scale=source.scale??1, color=source.color??null;
     if (!SKIN_ACCESSORY_ANCHORS.has(anchor)||!Number.isFinite(scale)||scale<.5||scale>1.5||
         (color!==null&&(typeof color!=='string'||!/^#[0-9a-f]{6}$/i.test(color)))) return null;
     accessories.push({type:source.type,anchor,scale,...(color?{color:color.toLowerCase()}: {})});
@@ -98,13 +109,13 @@ function sanitizeSkinSpec(value, requestedId) {
   if (!Array.isArray(vehiclesInput)||!vehiclesInput.length) return null;
   const allowedVehicles=[...new Set(vehiclesInput)];
   if (allowedVehicles.some(vehicle=>!SKIN_VEHICLES.has(vehicle))) return null;
-  const triangleBudget=Number(value.triangleBudget);
+  const triangleBudget=value.triangleBudget;
   if (!Number.isInteger(triangleBudget)||triangleBudget<1||triangleBudget>2400) return null;
   const unlock=value.unlock==null?null:value.unlock;
   if (unlock!==null&&(typeof unlock!=='string'||unlock.length>80)) return null;
   const model=value.model;
-  if (!model||Number(model.version)!==1||!Array.isArray(model.parts)||model.parts.length<2||model.parts.length>32) return null;
-  const vector=(input,limits=[-2.5,2.5])=>Array.isArray(input)&&input.length===3&&input.every(number=>Number.isFinite(Number(number))&&Number(number)>=limits[0]&&Number(number)<=limits[1]);
+  if (!model||model.version!==1||!Array.isArray(model.parts)||model.parts.length<2||model.parts.length>32) return null;
+  const vector=(input,limits=[-2.5,2.5])=>Array.isArray(input)&&input.length===3&&input.every(number=>typeof number==='number'&&Number.isFinite(number)&&number>=limits[0]&&number<=limits[1]);
   const partIds=new Set(), parts=[];
   for (const part of model.parts) {
     if (!part||typeof part!=='object'||Array.isArray(part)||typeof part.id!=='string'||!SKIN_PART_ID.test(part.id)||FORBIDDEN_SKIN_PART.test(part.id)||partIds.has(part.id)||
@@ -113,19 +124,85 @@ function sanitizeSkinSpec(value, requestedId) {
     partIds.add(part.id);
     const id=part.id, primitive=part.primitive, material=part.material;
     const anchor=part.anchor==null?null:part.anchor;
-    const yaw=Number(part.yaw??0), roll=Number(part.roll??0);
+    const yaw=part.yaw??0, roll=part.roll??0;
     if (!Number.isFinite(yaw)||!Number.isFinite(roll)||Math.abs(yaw)>Math.PI*4||Math.abs(roll)>Math.PI*4) return null;
     const common={id,primitive,material,...(anchor?{anchor}: {})};
     if (primitive==='tube') {
-      const radius=Number(part.radius), radius2=Number(part.radius2??part.radius);
+      const radius=part.radius, radius2=part.radius2??part.radius;
       if (!vector(part.from)||!vector(part.to)||!Number.isFinite(radius)||!Number.isFinite(radius2)||radius<.004||radius>.45||radius2<.004||radius2>.45) return null;
-      parts.push({...common,from:part.from.map(Number),to:part.to.map(Number),radius,radius2,yaw,roll});
+      parts.push({...common,from:part.from.slice(),to:part.to.slice(),radius,radius2,yaw,roll});
     } else {
       if (!vector(part.center)||!vector(part.size,[.004,1.2])||part.size.some(number=>Number(number)<.004)) return null;
-      parts.push({...common,center:part.center.map(Number),size:part.size.map(Number),yaw,roll});
+      parts.push({...common,center:part.center.slice(),size:part.size.slice(),yaw,roll});
     }
   }
   if (!partIds.has('body')||!partIds.has('head')) return null;
+  const modelEnvelope = (() => {
+    const height=proportions.heightScale, width=proportions.bodyWidthScale, depth=proportions.bodyDepthScale;
+    const headHeight=proportions.headHeightScale, headWidth=proportions.headWidthScale;
+    const limbRadius=proportions.limbRadiusScale;
+    const low=[Infinity,Infinity,Infinity], high=[-Infinity,-Infinity,-Infinity];
+    const partBounds=new Map();
+    const point = ([x,y,z]) => [
+      RIDER_HIP[0] + (x - RIDER_HIP[0]) * depth,
+      RIDER_HIP[1] + (y - RIDER_HIP[1]) * height,
+      z * width,
+    ];
+    const include = (id, center, extent) => {
+      const lo=center.map((value,axis)=>value-extent[axis]);
+      const hi=center.map((value,axis)=>value+extent[axis]);
+      for (let axis=0;axis<3;axis++) {
+        low[axis]=Math.min(low[axis],lo[axis]);
+        high[axis]=Math.max(high[axis],hi[axis]);
+      }
+      partBounds.set(id,{low:lo,high:hi});
+    };
+    for (const part of parts) {
+      const isHead=/head|eye/i.test(part.id);
+      const axisScale=[depth,height*(isHead?headHeight:1),width*(isHead?headWidth:1)];
+      if (part.primitive==='tube') {
+        const from=point(part.from), to=point(part.to), radius=part.radius*limbRadius;
+        include(part.id,from.map((value,axis)=>(value+to[axis])*.5),[
+          Math.abs(to[0]-from[0])*.5+radius,
+          Math.abs(to[1]-from[1])*.5+radius,
+          Math.abs(to[2]-from[2])*.5+radius,
+        ]);
+        continue;
+      }
+      const center=point(part.center);
+      const scaled=part.size.map((value,axis)=>value*axisScale[axis]);
+      const rotated=Math.abs(part.yaw)>1e-6||Math.abs(part.roll)>1e-6;
+      const extent=part.primitive==='ellipsoid'
+        ? (rotated?[Math.hypot(...scaled),Math.hypot(...scaled),Math.hypot(...scaled)]:scaled)
+        : (rotated?[Math.hypot(...scaled)*.5,Math.hypot(...scaled)*.5,Math.hypot(...scaled)*.5]:scaled.map(value=>value*.5));
+      include(part.id,center,extent);
+    }
+    return {low,high,partBounds};
+  })();
+  const [minX,minY,minZ]=modelEnvelope.low, [maxX,maxY,maxZ]=modelEnvelope.high;
+  const actual={depth:maxX-minX,height:maxY-minY,width:maxZ-minZ};
+  for (const key of ['depth','height','width']) {
+    const [min,max]=SKIN_GEOMETRY_RULES[key];
+    if (actual[key]<min||actual[key]>max||actual[key]>bounds[key]) return null;
+  }
+  for (const [id,part] of [['body',parts.find(item=>item.id==='body')],['head',parts.find(item=>item.id==='head')]]) {
+    if (!part) return null;
+    if (part.primitive==='tube') return null;
+    const rule=SKIN_GEOMETRY_RULES[`${id}${part.primitive==='ellipsoid'?'Ellipsoid':'Box'}`];
+    if (rule && part.size.some((number,axis)=>number<rule[axis][0]||number>rule[axis][1])) return null;
+    const centerRule=SKIN_GEOMETRY_RULES[`${id}Center`];
+    if (centerRule && part.center.some((number,axis)=>number<centerRule[axis][0]||number>centerRule[axis][1])) return null;
+  }
+  for (const [id,range] of [['body',SKIN_GEOMETRY_RULES.bodySpan],['head',SKIN_GEOMETRY_RULES.headSpan]]) {
+    const part=modelEnvelope.partBounds.get(id);
+    if (!part) return null;
+    const span=Math.max(...part.high.map((value,axis)=>value-part.low[axis]));
+    if (span<range[0]||span>range[1]) return null;
+  }
+  const depthLimit=bounds.depth*.72, widthLimit=bounds.width*.72, heightLimit=bounds.height*.75;
+  if (Math.max(Math.abs(minX-RIDER_HIP[0]),Math.abs(maxX-RIDER_HIP[0]))>depthLimit ||
+      Math.max(Math.abs(minY-RIDER_HIP[1]),Math.abs(maxY-RIDER_HIP[1]))>heightLimit ||
+      Math.max(Math.abs(minZ),Math.abs(maxZ))>widthLimit) return null;
   const modelTriangles=parts.reduce((sum,part)=>sum+(SKIN_TRIANGLE_COSTS[part.primitive]??0),0);
   if (modelTriangles>triangleBudget) return null;
   return {
