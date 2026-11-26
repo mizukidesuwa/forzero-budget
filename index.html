@@ -6,13 +6,13 @@
 <meta name="theme-color" content="#0b0d0f">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 340 340'%3E%3Crect width='340' height='340' rx='52' fill='%230b0d0f'/%3E%3Cg transform='translate(0,116)'%3E%3Cg transform='translate(14,0) skewX(-10)' font-family='Arial Black, Arial, sans-serif'%3E%3Ctext x='10' y='65' font-size='59' font-weight='950' letter-spacing='-2' fill='%23ffffff'%3EFOR%3Ctspan fill='%23ff6433'%3EZERO%3C/tspan%3E:%3C/text%3E%3Ctext x='15' y='96' font-size='26' font-weight='900' letter-spacing='9' fill='%23ff6433'%3EBUDGET%3C/text%3E%3C/g%3E%3C/g%3E%3C/svg%3E">
 <meta name="description" content="FORZERO: BUDGET（有限竞速：地贫线）— 在深圳大学、伦敦与顺峰山公园之间自由骑行与计时竞速。">
-<title>FORZERO: BUDGET · 有限竞速：地贫线 2.3.2</title>
+<title>FORZERO: BUDGET · 有限竞速：地贫线 2.3.3.1</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <main class="shell">
   <header class="masthead">
-    <div class="identity"><span class="brand-badge" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 108"><g transform="translate(14,0) skewX(-10)" font-family="Arial Black, Arial, sans-serif"><text x="10" y="65" font-size="59" font-weight="950" letter-spacing="-2" fill="#FFFFFF">FOR<tspan fill="#FF6433">ZERO</tspan>:</text><text x="15" y="96" font-size="26" font-weight="900" letter-spacing="9" fill="#FF6433">BUDGET</text></g></svg></span><div><strong class="brand-zh">有限竞速：地贫线</strong><small lang="en">FORZERO: BUDGET · 2.3.2</small></div></div>
+    <div class="identity"><span class="brand-badge" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 108"><g transform="translate(14,0) skewX(-10)" font-family="Arial Black, Arial, sans-serif"><text x="10" y="65" font-size="59" font-weight="950" letter-spacing="-2" fill="#FFFFFF">FOR<tspan fill="#FF6433">ZERO</tspan>:</text><text x="15" y="96" font-size="26" font-weight="900" letter-spacing="9" fill="#FF6433">BUDGET</text></g></svg></span><div><strong class="brand-zh">有限竞速：地贫线</strong><small lang="en">FORZERO: BUDGET · 2.3.3.1</small></div></div>
     <div class="location" id="campusName">深圳大学 · 粤海校区</div>
   </header>
   <section class="stage" tabindex="0" id="stage" data-phase="free" aria-label="FORZERO: BUDGET 有限竞速：地贫线">
@@ -43,10 +43,12 @@
         <label>抓地 <meter id="bikeGripMeter" min="0" max="100" value="100"></meter></label>
       </div><span class="brake-hint" id="brakeHint" hidden></span></div>
       <div class="courier-hud" id="courierHud" hidden><strong id="courierTitle"></strong><span id="courierDetail"></span></div>
-      <output id="fpsCounter" class="fps-counter" aria-live="polite" hidden>FPS --</output>
       <div class="hud-navigation">
-      <div class="next" id="next" hidden></div>
-      <div class="gate-flash" id="gateFlash" aria-live="polite" hidden></div>
+      <div class="route-hud">
+        <div class="next" id="next" hidden></div>
+        <div class="gate-flash" id="gateFlash" aria-live="polite" hidden></div>
+        <output id="fpsCounter" class="fps-counter" aria-live="off" hidden>FPS --</output>
+      </div>
       <button id="miniButton" class="mini" type="button" aria-label="打开俯视地图"><span>校园小地图</span><canvas id="miniMap" width="382" height="228" aria-hidden="true"></canvas></button>
       </div>
       <div class="rider-tag" id="riderTag" hidden>player</div>
@@ -75,6 +77,7 @@
     <div class="stage-controls">
       <button class="float-button mode-button" id="freeRide" type="button" aria-pressed="true" title="切换到自由骑行" hidden>自由骑行</button>
       <button class="float-button" id="mapToggle" type="button" aria-pressed="false"><span id="mapText">俯视地图</span><kbd>M</kbd></button>
+      <button class="float-button" id="cameraToggle" type="button" aria-keyshortcuts="V" aria-label="切换视角，当前第三人称" title="切换视角，当前第三人称"><span id="cameraModeTag">3P</span><kbd>V</kbd></button>
       <button class="float-button" id="courierButton" type="button" aria-pressed="false" title="自由骑行校园闪送">闪送</button>
       <button class="float-button" id="medalButton" type="button" aria-haspopup="dialog" aria-controls="medalDialog">勋章</button>
       <button class="float-button bike-shop-button" id="bikeButton" type="button" aria-haspopup="dialog" aria-controls="settingsDialog">车库</button>
@@ -149,12 +152,12 @@
         <label for="settingsCollision">车辆碰撞箱<small>本局开启后，与巡游车 / 车流产生实体碰撞</small></label>
         <input id="settingsCollision" type="checkbox">
       </div>
-      <div class="setting-line"><label for="settingsHudScale">HUD 缩放<small>计时、速度、小地图和赛道提示</small></label><select id="settingsHudScale">
-        <option value="auto">自动（推荐）</option><option value="65">65%</option><option value="80">80%</option><option value="100">100%</option><option value="115">115%</option><option value="130">130%</option>
-      </select></div>
-      <div class="setting-line"><label for="settingsTouchSize">触屏按键大小<small>仅触屏模式生效，可调节按钮与热区尺寸</small></label><select id="settingsTouchSize">
-        <option value="compact">紧凑</option><option value="standard">标准（推荐）</option><option value="large">超大</option>
-      </select></div>
+      <div class="setting-line scale-setting"><label for="settingsHudScale">HUD 缩放<small>计时、速度、小地图和赛道提示</small></label>
+        <div class="scale-control"><input id="settingsHudScale" type="range" min="50" max="150" step="5" value="100"><output id="settingsHudScaleValue" for="settingsHudScale">自动</output><button id="settingsHudAuto" class="action" type="button" aria-pressed="true">自动</button></div>
+      </div>
+      <div class="setting-line scale-setting"><label for="settingsTouchSize">触屏按键大小<small>仅触屏模式生效，可调节按钮与热区尺寸</small></label>
+        <div class="scale-control"><input id="settingsTouchSize" type="range" min="50" max="150" step="5" value="100"><output id="settingsTouchSizeValue" for="settingsTouchSize">100%</output></div>
+      </div>
       <div class="settings-result" id="settingsStatus">等待 3D 画面</div>
       <div class="setting-line"><label>存档备份<small>启动器自动写入 save/player-data.json</small></label><div class="save-actions"><button class="action" id="saveExport" type="button">导出备份</button><button class="action" id="saveImport" type="button">导入备份</button><input id="saveFile" type="file" accept=".json,application/json" hidden></div></div>
       <p class="bike-note" id="saveStatus" role="status"></p>
@@ -165,7 +168,8 @@
           <ul>
             <li>电脑：<code>W A S D</code> 或方向键骑行，<code>Shift</code> 冲刺，<code>F</code> 回赛道（+2 秒），<code>M</code> 俯视地图，<code>P</code> 暂停，<code>B / H</code> 摇车铃。</li>
             <li>手机：左手「左转 ↔ 右转」支持拇指直接滑动切换；右手「加速」上滑进「冲刺」、左滑切「刹车」，按键外缘自带扩边容错热区。</li>
-            <li>触屏手感：可在「设置 → 触屏按键大小」切换紧凑 / 标准 / 超大档位。</li>
+            <li>在「设置」里可将 HUD 和触屏按键分别调到 50%–150%。</li>
+            <li>点击主界面的 1P、2P 或 3P 按钮循环切换车手视线、前方回看和后方跟随。电脑也可以按 V。</li>
           </ul>
         </section>
         <section class="guide-card">
@@ -240,6 +244,7 @@
             <div class="settings-actions seed-actions">
               <button class="action" type="button" id="riderSkinFile">选择模型文件</button>
               <button class="action" type="button" id="riderSkinPrompt">复制 AI 提示词</button>
+              <button class="action" type="button" id="riderSkinClear" aria-controls="riderSkinImport">清空文本框</button>
               <button class="action primary" type="button" id="riderSkinImportButton">导入并预览</button>
             </div>
             <input id="riderSkinFileInput" type="file" accept="application/json,.json" hidden>

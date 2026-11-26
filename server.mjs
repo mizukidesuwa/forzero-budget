@@ -35,7 +35,7 @@ const SKIN_ANIMATION_PROFILES = new Set(['seated','seated-soft','upright']);
 const SKIN_ANCHORS = new Set(['body','head','neck','back','leftHand','rightHand','leftFoot','rightFoot']);
 const SKIN_ACCESSORY_ANCHORS = new Set(['body','head','back','leftHand','rightHand']);
 const SKIN_PART_ID = /^[a-z][a-z0-9_-]{0,31}$/;
-const SKIN_MATERIAL = /^[a-z][a-z0-9_-]{0,23}$/;
+const SKIN_MATERIAL = /^[a-z][a-zA-Z0-9_-]{0,23}$/;
 const FORBIDDEN_SKIN_PART = /helmet|backpack/i;
 const SKIN_GEOMETRY_RULES = Object.freeze({
   depth:[.45,.96], height:[1.08,1.90], width:[.40,1.10],
@@ -162,7 +162,7 @@ function sanitizeSkinSpec(value, requestedId) {
       const isHead=/head|eye/i.test(part.id);
       const axisScale=[depth,height*(isHead?headHeight:1),width*(isHead?headWidth:1)];
       if (part.primitive==='tube') {
-        const from=point(part.from), to=point(part.to), radius=part.radius*limbRadius;
+        const from=point(part.from), to=point(part.to), radius=Math.max(part.radius,part.radius2??part.radius)*limbRadius;
         include(part.id,from.map((value,axis)=>(value+to[axis])*.5),[
           Math.abs(to[0]-from[0])*.5+radius,
           Math.abs(to[1]-from[1])*.5+radius,
@@ -978,6 +978,8 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href===import.meta.url) {
       soundDir = fileURLToPath(new URL('./sound',import.meta.url));
       saveDir = fileURLToPath(new URL('./save',import.meta.url));
       previousSaveFile = [
+        new URL('../forzero-budget-2.3.3/save/player-data.json',import.meta.url),
+        new URL('../forzero-budget-2.3.2/save/player-data.json',import.meta.url),
         new URL('../forzero-budget-2.3.1/save/player-data.json',import.meta.url),
         new URL('../forzero-budget-2.1.0/save/player-data.json',import.meta.url),
         new URL('../forzero-budget-2.0.0/save/player-data.json',import.meta.url),
