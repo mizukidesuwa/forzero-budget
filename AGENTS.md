@@ -56,7 +56,7 @@
 
 - 发行同步时跳过 save/、player-data.json、dist-v2/ 临时内容和旧链调试产物，不覆盖玩家存档。
 - 准备公开仓库上传包 `github-upload-<version>/` 时，必须拆分为互不混杂的两部分（优先直接执行 `npm run release:github`）：
-  - `github-upload-<version>/repo/`：仅保留推送到 GitHub 主干的纯净工程与文档（根目录 `.gitignore`、`AGENTS.md`、`CHANGELOG.md`、`FORZERO-ROUTE-SKIN-DESIGN.md`、`FORZERO-WORK-GUIDE.md`、`HISTORY.md`、`LICENSE`、`README.md`、`package.json`、`package-lock.json` 与 `src/`、`scripts/`、`szu-litchi-dev/`）；严格排除所有构建分发包（`forzero-budget-*`、`*.zip`、`forzero-budget-mobile-*.html`、`szu-litchi-loop/dist/`、`dist-v2/`）、`node_modules/`、`legacy/`、`save/`、`player-data.json`、`.openai/`、`__pycache__/`、`chrome-*` 与临时调试产物，且须在 `repo/` 目录内通过 `node scripts/verify-hygiene.mjs`。
+  - `github-upload-<version>/repo/`：仅保留推送到 GitHub 主干的纯净工程与文档（根目录 `.gitignore`、`AGENTS.md`、`CHANGELOG.md`、`FORZERO-ROUTE-SKIN-DESIGN.md`、`FORZERO-WORK-GUIDE.md`、`HISTORY.md`、`LICENSE`、`README.md`、`package.json`、`package-lock.json` 与 `.github/`、`src/`、`scripts/`、`szu-litchi-dev/`）；严格排除所有构建分发包（`forzero-budget-*`、`*.zip`、`forzero-budget-mobile-*.html`、`szu-litchi-loop/dist/`、`dist-v2/`）、`node_modules/`、`legacy/`、`save/`、`player-data.json`、`.openai/`、`__pycache__/`、`chrome-*` 与临时调试产物，且须在 `repo/` 目录内通过 `node scripts/verify-hygiene.mjs`。
   - `github-upload-<version>/release-assets/`：仅放挂到 GitHub Releases（`v<version>`）的玩家下载产物与校验清单（`forzero-budget-<version>.zip`、`forzero-budget-mobile-<version>.html`、`SHA256SUMS.txt`、`MANIFEST.json`、`RELEASE-NOTES.md`），确保压缩包不含 `save/` 或 `player-data.json`，并核对 SHA-256 与 `SHA256SUMS.txt` 一致。
 - 升级版本号并生成上传包时，同步保持 `README.md` 顶部的「直接下载游玩（玩家入口）」指向 GitHub Releases（`v<version>`）。
 - 旧版 szu-litchi-dev/ride-update/build.py 只用于明确的 1.9.1.1 回归任务，不作为 2.x 入口。
