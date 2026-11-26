@@ -1,0 +1,36 @@
+# Python & OS caches
+__pycache__/
+*.py[cod]
+*$py.class
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Node & environment
+node_modules/
+.env
+.env.*
+*.log
+
+# Private player saves & runtime data
+save/
+**/save/
+player-data.json
+player-data.json.tmp
+
+# Temporary QA / browser / transfer / benchmark artifacts
+dist-v2/
+*.tmp
+.transfer-*/
+szu-litchi-dev/chrome-*/
+szu-litchi-dev/isolated-chrome/
+szu-litchi-dev/**/chrome-qa/
+szu-litchi-dev/**/library-transfer/
+szu-litchi-dev/ride-update/mountain-qa-views/
+szu-litchi-dev/ride-update/park-qa-views/
+szu-litchi-dev/gl-recording.json
+szu-litchi-dev/**/perf-*.json
+
+# Release archives & historical snapshot bundles
+legacy/
+*.zip

@@ -1,0 +1,20 @@
+{
+  "name": "forzero-budget",
+  "version": "2.5.0",
+  "private": true,
+  "description": "FORZERO: BUDGET (有限竞速：地贫线) build tooling",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:release": "node scripts/build.mjs --release",
+    "verify:hygiene": "node scripts/verify-hygiene.mjs",
+    "verify:fast": "node scripts/verify-all.mjs --fast",
+    "verify:e2e": "node scripts/verify-all.mjs --e2e",
+    "verify:all": "node scripts/verify-all.mjs",
+    "verify:map-assets-perf": "node scripts/verify-map-assets-perf.mjs",
+    "release:stage": "node scripts/stage-release.mjs",
+    "release:github": "node scripts/stage-release.mjs --github"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}
