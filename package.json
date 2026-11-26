@@ -4,6 +4,8 @@
   "private": true,
   "description": "FORZERO: BUDGET (有限竞速：地贫线) build tooling",
   "scripts": {
+    "test": "node scripts/verify-all.mjs --fast",
+    "lint": "node scripts/verify-hygiene.mjs",
     "build": "node scripts/build.mjs",
     "build:release": "node scripts/build.mjs --release",
     "verify:hygiene": "node scripts/verify-hygiene.mjs",

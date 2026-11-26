@@ -46,111 +46,115 @@ try {
   }
 
   async function chooseLanguage(language) {
-    await evaluate(`openSettings();ui.settingsLanguage.value=${JSON.stringify(language)};
-      ui.settingsLanguage.dispatchEvent(new Event('change'));`);
+    await evaluate(`(()=>{const f=__FORZERO__;f.openSettings();f.ui.settingsLanguage.value=${JSON.stringify(language)};
+      f.ui.settingsLanguage.dispatchEvent(new Event('change'));})()`);
     assert.equal(await evaluate('document.documentElement.lang'), language);
   }
 
   async function scaleHud(hud, touch) {
-    await evaluate(`openSettings();for (const [control,value] of [[ui.settingsHudScale,${hud}],[ui.settingsTouchSize,${touch}]]) {
+    await evaluate(`(()=>{const f=__FORZERO__;f.openSettings();for (const [control,value] of [[f.ui.settingsHudScale,${hud}],[f.ui.settingsTouchSize,${touch}]]) {
       control.value=value;control.dispatchEvent(new Event('input'));control.dispatchEvent(new Event('change'));
-    } closeSettings()`);
+    } f.closeSettings()})()`);
   }
 
-  await wait('globalThis.ready===true', 'Game initialization timed out');
-  await wait("ui.fpsCounter && !ui.fpsCounter.hidden && /^FPS [0-9]+$/.test(ui.fpsCounter.textContent)", 'FPS HUD did not update');
+  await wait('globalThis.__FORZERO__?.ready===true', 'Game initialization timed out');
+  await wait("__FORZERO__.ui.fpsCounter && !__FORZERO__.ui.fpsCounter.hidden && /^FPS [0-9]+$/.test(__FORZERO__.ui.fpsCounter.textContent)", 'FPS HUD did not update');
   assert.equal(await evaluate('document.documentElement.lang'), 'zh-CN');
-  const originalCourse = await evaluate('race.event.name');
-  const originalKey = await evaluate('checkpointRecordKey(race.event,race.rider.vehicle)');
+  const originalCourse = await evaluate('__FORZERO__.race.event.name');
+  const originalKey = await evaluate('__FORZERO__.checkpointRecordKey(__FORZERO__.race.event,__FORZERO__.race.rider.vehicle)');
   await chooseLanguage('en');
-  assert.equal(await evaluate('ui.settingsTitle.textContent'), 'Settings');
+  assert.equal(await evaluate('__FORZERO__.ui.settingsTitle.textContent'), 'Settings');
   assert.equal(await evaluate("document.querySelector('label[for=settingsLanguage]').textContent"), 'Language');
-  assert.equal(await evaluate('ui.startTrial.textContent'), 'Start Time Trial');
-  assert.equal(await evaluate('race.event.name'), originalCourse);
-  assert.equal(await evaluate('checkpointRecordKey(race.event,race.rider.vehicle)'), originalKey);
-  assert.equal(await evaluate("buildSaveSnapshot().then(save => save.storage['forzero-language'])"), undefined);
-  await evaluate('ui.settingsGuideBtn.click()');
-  assert.equal(await evaluate('ui.settingsTitle.textContent'), 'How to Play');
-  assert.equal(await evaluate('/[\\p{Script=Han}]/u.test(ui.guideSettings.innerText)'), false);
+  assert.equal(await evaluate('__FORZERO__.ui.startTrial.textContent'), 'Start Time Trial');
+  assert.equal(await evaluate('__FORZERO__.race.event.name'), originalCourse);
+  assert.equal(await evaluate('__FORZERO__.checkpointRecordKey(__FORZERO__.race.event,__FORZERO__.race.rider.vehicle)'), originalKey);
+  assert.equal(await evaluate("__FORZERO__.buildSaveSnapshot().then(save => save.storage['forzero-language'])"), undefined);
+  await evaluate('__FORZERO__.ui.settingsGuideBtn.click()');
+  assert.equal(await evaluate('__FORZERO__.ui.settingsTitle.textContent'), 'How to Play');
+  assert.equal(await evaluate('/[\\p{Script=Han}]/u.test(__FORZERO__.ui.guideSettings.innerText)'), false);
   await rpc('Page.reload', {}, sessionId);
-  await wait("globalThis.ready===true && document.documentElement.lang==='en'", 'English preference did not survive reload');
+  await wait("globalThis.__FORZERO__?.ready===true && document.documentElement.lang==='en'", 'English preference did not survive reload');
   await evaluate(`(async()=>{
-    const save=await buildSaveSnapshot();
-    save.storage[PREF_KEY]=JSON.stringify({...preferences,hudScale:'115',touchSize:'large'});
-    await applySaveSnapshot(save,{preferIncoming:true});
+    const f=__FORZERO__;
+    const save=await f.buildSaveSnapshot();
+    save.storage[f.PREF_KEY]=JSON.stringify({...f.preferences,hudScale:'115',touchSize:'large'});
+    await f.applySaveSnapshot(save,{preferIncoming:true});
   })()`);
-  assert.deepEqual(await evaluate('[preferences.hudScale,preferences.touchSize,preferences.cameraView]'), [115, 110, 'third']);
-  const expand = await evaluate('(()=>{const r=ui.expand.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()');
+  assert.deepEqual(await evaluate('[__FORZERO__.preferences.hudScale,__FORZERO__.preferences.touchSize,__FORZERO__.preferences.cameraView]'), [115, 110, 'third']);
+  const expand = await evaluate('(()=>{const r=__FORZERO__.ui.expand.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()');
   await rpc('Input.dispatchMouseEvent',{type:'mousePressed',...expand,button:'left',clickCount:1},sessionId);
   await rpc('Input.dispatchMouseEvent',{type:'mouseReleased',...expand,button:'left',clickCount:1},sessionId);
-  await wait("document.fullscreenElement===stage||stage.classList.contains('expanded')", 'Stage did not go fullscreen');
-  assert.equal(await evaluate('stage.contains(ui.cameraToggle) && ui.cameraToggle.getBoundingClientRect().width > 0'), true);
-  await evaluate('ui.cameraToggle.click()');
-  assert.deepEqual(await evaluate('[stage.dataset.cameraView,ui.cameraModeTag.textContent,ui.cameraToggle.getAttribute("aria-label")]'),
+  await wait("document.fullscreenElement===__FORZERO__.stage||__FORZERO__.stage.classList.contains('expanded')", 'Stage did not go fullscreen');
+  assert.equal(await evaluate('__FORZERO__.stage.contains(__FORZERO__.ui.cameraToggle) && __FORZERO__.ui.cameraToggle.getBoundingClientRect().width > 0'), true);
+  await evaluate('__FORZERO__.ui.cameraToggle.click()');
+  assert.deepEqual(await evaluate('[__FORZERO__.stage.dataset.cameraView,__FORZERO__.ui.cameraModeTag.textContent,__FORZERO__.ui.cameraToggle.getAttribute("aria-label")]'),
     ['first', '1P', 'Switch camera, current: First-person view']);
   await evaluate("window.dispatchEvent(new KeyboardEvent('keydown',{code:'KeyV'}))");
-  assert.deepEqual(await evaluate('[stage.dataset.cameraView,ui.cameraModeTag.textContent]'), ['second', '2P']);
-  assert.equal(await evaluate("document.fullscreenElement===stage||stage.classList.contains('expanded')"), true);
-  await evaluate("window.dispatchEvent(new KeyboardEvent('keydown',{code:'KeyV'}));ui.expand.click()");
-  await wait("!document.fullscreenElement&&!stage.classList.contains('expanded')", 'Stage did not leave fullscreen');
-  assert.equal(await evaluate('stage.dataset.cameraView'), 'third');
+  assert.deepEqual(await evaluate('[__FORZERO__.stage.dataset.cameraView,__FORZERO__.ui.cameraModeTag.textContent]'), ['second', '2P']);
+  assert.equal(await evaluate("document.fullscreenElement===__FORZERO__.stage||__FORZERO__.stage.classList.contains('expanded')"), true);
+  await evaluate("window.dispatchEvent(new KeyboardEvent('keydown',{code:'KeyV'}));__FORZERO__.ui.expand.click()");
+  await wait("!document.fullscreenElement&&!__FORZERO__.stage.classList.contains('expanded')", 'Stage did not leave fullscreen');
+  assert.equal(await evaluate('__FORZERO__.stage.dataset.cameraView'), 'third');
   for (const campus of ['szu', 'ucl', 'shunde']) {
     const ghost = fixtures[campus].ghost;
     await evaluate(`(()=>{
-      race.freeRide();ui.friendButton.click();
+      const f=__FORZERO__;
+      f.race.freeRide();f.ui.friendButton.click();
       const upload = new DataTransfer();
       upload.items.add(new File([${JSON.stringify(JSON.stringify(ghost))}], 'regression.ghost.json', {type:'application/json'}));
-      ui.friendFile.files = upload.files;
-      ui.friendFile.dispatchEvent(new Event('change'));
+      f.ui.friendFile.files = upload.files;
+      f.ui.friendFile.dispatchEvent(new Event('change'));
     })()`);
-    await wait(`activeCampus===${JSON.stringify(campus)} && race.event.id===${JSON.stringify(ghost.course.id)} && race.opponent?.name===${JSON.stringify(ghost.rider.name)} && !ui.friendDialog.open`, `${campus} ghost import or map travel failed`);
-    assert.equal(await evaluate('race.opponent.time'), ghost.run.time);
-    assert.equal(await evaluate(`/[\\p{Script=Han}]/u.test(ui.courseBrief.textContent + ui.stationList.textContent + ui.campusName.textContent)`), false, `${campus} course copy or checkpoint names`);
+    await wait(`__FORZERO__.activeCampus===${JSON.stringify(campus)} && __FORZERO__.race.event.id===${JSON.stringify(ghost.course.id)} && __FORZERO__.race.opponent?.name===${JSON.stringify(ghost.rider.name)} && !__FORZERO__.ui.friendDialog.open`, `${campus} ghost import or map travel failed`);
+    assert.equal(await evaluate('__FORZERO__.race.opponent.time'), ghost.run.time);
+    assert.equal(await evaluate(`/[\\p{Script=Han}]/u.test(__FORZERO__.ui.courseBrief.textContent + __FORZERO__.ui.stationList.textContent + __FORZERO__.ui.campusName.textContent)`), false, `${campus} course copy or checkpoint names`);
     console.log(campus, 'legacy ghost imported through the packaged browser UI');
     if (campus === 'ucl') {
-      await evaluate("Object.assign(race.rider, { position: [-245, .043, -119], heading: 0 })");
+      await evaluate("Object.assign(__FORZERO__.race.rider, { position: [-245, .043, -119], heading: 0 })");
       await wait('qaTrafficDraws > 0', 'UCL traffic instancing was not exercised');
       console.log('UCL traffic drew through WebGL instancing.');
     }
     if (campus === 'shunde') continue;
-    const weeklyCode = await evaluate('ui.seedButton.click();ui.weeklyCode.value');
+    const weeklyCode = await evaluate('__FORZERO__.ui.seedButton.click();__FORZERO__.ui.weeklyCode.value');
     assert.match(weeklyCode, new RegExp(`^${campus[0].toUpperCase()}2-W\\d{8}$`));
-    await evaluate('ui.weeklyPlay.click()');
-    await wait(`race.event.seed===${JSON.stringify(weeklyCode)} && !ui.seedDialog.open`, `${campus} weekly route was not selected`);
-    assert.equal(await evaluate('race.opponent===null && Boolean(race.event.environment?.weather)'), true);
-    await evaluate('ui.startTrial.click()');
-    await wait("race.phase==='count'||race.phase==='race'", `${campus} weekly route did not start`);
-    await evaluate('ui.freeRide.click()');
-    await wait("race.phase==='free'", `${campus} failed to return to free ride`);
+    await evaluate('__FORZERO__.ui.weeklyPlay.click()');
+    await wait(`__FORZERO__.race.event.seed===${JSON.stringify(weeklyCode)} && !__FORZERO__.ui.seedDialog.open`, `${campus} weekly route was not selected`);
+    assert.equal(await evaluate('__FORZERO__.race.opponent===null && Boolean(__FORZERO__.race.event.environment?.weather)'), true);
+    await evaluate('__FORZERO__.ui.startTrial.click()');
+    await wait("__FORZERO__.race.phase==='count'||__FORZERO__.race.phase==='race'", `${campus} weekly route did not start`);
+    await evaluate('__FORZERO__.ui.freeRide.click()');
+    await wait("__FORZERO__.race.phase==='free'", `${campus} failed to return to free ride`);
     console.log(campus, 'weekly route selected and started', weeklyCode);
   }
   await evaluate(`(()=>{
-    ui.coursePicker.disabled = false;
-    ui.coursePicker.value = 'qingyun-lake';
-    ui.coursePicker.dispatchEvent(new Event('change'));
+    const u=__FORZERO__.ui;
+    u.coursePicker.disabled = false;
+    u.coursePicker.value = 'qingyun-lake';
+    u.coursePicker.dispatchEvent(new Event('change'));
   })()`);
-  await wait("!ui.courseVariants.hidden && !ui.courseLaps.hidden", 'Loop options did not appear');
+  await wait("!__FORZERO__.ui.courseVariants.hidden && !__FORZERO__.ui.courseLaps.hidden", 'Loop options did not appear');
   await evaluate(`(()=>{
-    ui.courseDirection.value = 'reverse';
-    ui.courseDirection.dispatchEvent(new Event('change'));
-    ui.courseLaps.value = '3';
-    ui.courseLaps.dispatchEvent(new Event('change'));
-    ui.raceMode.value = 'team';
-    ui.raceMode.dispatchEvent(new Event('change'));
-    ui.aiDifficulty.value = 'strong';
-    ui.startTrial.click();
+    const u=__FORZERO__.ui;
+    u.courseDirection.value = 'reverse';
+    u.courseDirection.dispatchEvent(new Event('change'));
+    u.courseLaps.value = '3';
+    u.courseLaps.dispatchEvent(new Event('change'));
+    u.raceMode.value = 'team';
+    u.raceMode.dispatchEvent(new Event('change'));
+    u.aiDifficulty.value = 'strong';
+    u.startTrial.click();
   })()`);
-  await wait("race.phase==='count' && race.rivals.length===3", 'Reverse three-lap AI race failed to start');
-  assert.deepEqual(await evaluate('race.event.variant'), { direction: 'reverse', laps: 3 });
-  assert.equal(await evaluate('race.aiDifficulty'), 'strong');
-  assert.equal(await evaluate('ui.callTitle.textContent'), 'Time Trial Starting');
-  await evaluate('race.splits=Array.from(race.reference.splits);race.nextGate=race.event.gates.length;race.finishAt(race.splits.at(-1));updateHud()');
-  assert.equal(await evaluate('ui.callTitle.textContent'), 'Finished');
-  assert.equal(await evaluate('/[\\p{Script=Han}]/u.test(ui.raceReview.innerText)'), false);
+  await wait("__FORZERO__.race.phase==='count' && __FORZERO__.race.rivals.length===3", 'Reverse three-lap AI race failed to start');
+  assert.deepEqual(await evaluate('__FORZERO__.race.event.variant'), { direction: 'reverse', laps: 3 });
+  assert.equal(await evaluate('__FORZERO__.race.aiDifficulty'), 'strong');
+  assert.equal(await evaluate('__FORZERO__.ui.callTitle.textContent'), 'Time Trial Starting');
+  await evaluate('(()=>{const f=__FORZERO__;f.race.splits=Array.from(f.race.reference.splits);f.race.nextGate=f.race.event.gates.length;f.race.finishAt(f.race.splits.at(-1));f.updateHud()})()');
+  assert.equal(await evaluate('__FORZERO__.ui.callTitle.textContent'), 'Finished');
+  assert.equal(await evaluate('/[\\p{Script=Han}]/u.test(__FORZERO__.ui.raceReview.innerText)'), false);
   await chooseLanguage('zh-CN');
-  await evaluate('closeSettings();updateHud()');
-  assert.equal(await evaluate('ui.callTitle.textContent'), '完赛');
-  assert.deepEqual(await evaluate('race.event.variant'), { direction: 'reverse', laps: 3 });
+  await evaluate('__FORZERO__.closeSettings();__FORZERO__.updateHud()');
+  assert.equal(await evaluate('__FORZERO__.ui.callTitle.textContent'), '完赛');
+  assert.deepEqual(await evaluate('__FORZERO__.race.event.variant'), { direction: 'reverse', laps: 3 });
   assert.deepEqual(await evaluate('qaErrors'), [], 'desktop errors');
 
   const mobile = resolve(process.env.FORZERO_MOBILE_HTML ??
@@ -160,9 +164,9 @@ try {
     await rpc('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 }, sessionId);
     const navMobile = await rpc('Page.navigate', { url: pathToFileURL(mobile).href }, sessionId);
     assert.ok(!navMobile.errorText, navMobile.errorText);
-    await wait('globalThis.ready===true && navigator.maxTouchPoints===2', 'Mobile build did not load');
+    await wait('globalThis.__FORZERO__?.ready===true && navigator.maxTouchPoints===2', 'Mobile build did not load');
     await chooseLanguage('en');
-    await evaluate('closeSettings()');
+    await evaluate('__FORZERO__.closeSettings()');
     assert.equal(await evaluate("document.querySelector('[data-drive=gas]').textContent"), 'Accelerate');
     const info = await evaluate(`(()=>{
       const button = document.querySelector('[data-drive="gas"]');
@@ -173,7 +177,7 @@ try {
         select:getComputedStyle(button).webkitUserSelect,
         inputSelect:getComputedStyle(input).webkitUserSelect,
         overflow:document.documentElement.scrollWidth > innerWidth + 2,
-        lapsHidden:ui.courseLaps.hidden,
+        lapsHidden:__FORZERO__.ui.courseLaps.hidden,
         blocked:['touchstart','contextmenu','selectstart'].map(type =>
           !button.dispatchEvent(new Event(type, {bubbles:true,cancelable:true}))),
       };
@@ -197,14 +201,14 @@ try {
     const largeHeight = await evaluate("document.querySelector('[data-drive=gas]').getBoundingClientRect().height");
     assert.ok(Math.abs(largeHeight / normalHeight - 1.5) < .03, 'Touch buttons did not reach 150% height');
     assert.equal(await evaluate("getComputedStyle(document.querySelector('.speedometer')).scale"), '1.5');
-    await evaluate('ui.startTrial.click()');
-    await wait("race.phase==='race' && !ui.next.hidden && !ui.fpsCounter.hidden", 'Mobile race guidance did not appear');
+    await evaluate('__FORZERO__.ui.startTrial.click()');
+    await wait("__FORZERO__.race.phase==='race' && !__FORZERO__.ui.next.hidden && !__FORZERO__.ui.fpsCounter.hidden", 'Mobile race guidance did not appear');
     for (const [width,height] of [[320,568],[390,844],[844,390]]) {
       await rpc('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:2,mobile:true},sessionId);
       await wait(`innerWidth===${width}`, 'Mobile viewport did not resize');
       const fit = await evaluate(`(()=>{
-        const box=element=>element.getBoundingClientRect();
-        const view=box(stage), fps=box(ui.fpsCounter), next=box(ui.next), camera=box(ui.cameraToggle),
+        const f=__FORZERO__, box=element=>element.getBoundingClientRect();
+        const view=box(f.stage), fps=box(f.ui.fpsCounter), next=box(f.ui.next), camera=box(f.ui.cameraToggle),
           left=box(document.querySelector('.touch-steer')), right=box(document.querySelector('.touch-pedals'));
         return {
           guidance:fps.width>0 && next.width>0 && fps.top>=next.bottom,
@@ -219,7 +223,7 @@ try {
     }
     const timeOrigin = await evaluate('performance.timeOrigin');
     await rpc('Page.reload',{},sessionId);
-    await wait(`performance.timeOrigin!==${timeOrigin} && globalThis.ready===true && preferences.hudScale===150 && preferences.touchSize===150`, 'Custom scales did not survive reload');
+    await wait(`performance.timeOrigin!==${timeOrigin} && globalThis.__FORZERO__?.ready===true && __FORZERO__.preferences.hudScale===150 && __FORZERO__.preferences.touchSize===150`, 'Custom scales did not survive reload');
     assert.deepEqual(await evaluate('qaErrors'), [], 'mobile errors');
   }
   console.log('Desktop language persistence, race UI and mobile English touch controls passed.');

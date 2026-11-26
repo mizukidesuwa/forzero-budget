@@ -140,6 +140,10 @@ function walkCheck(dir, checkFn) {
   }
 }
 
+function stripLocalOnlySections(text) {
+  return `${text.replace(/\r?\n?<!-- LOCAL-ONLY-START -->[\s\S]*?<!-- LOCAL-ONLY-END -->\r?\n?/g, '\n').replace(/\n{3,}/g, '\n\n').trimEnd()}\n`;
+}
+
 if (!githubMode) {
   const { artifacts } = stageReleaseArtifacts(outDir);
   console.log(`Staged v${version} release artifacts to ${path.relative(ROOT, outDir)}:`);
@@ -155,14 +159,19 @@ fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(repoDir, { recursive: true });
 
 const rootFiles = [
+  '.editorconfig',
+  '.gitattributes',
   '.gitignore',
   'AGENTS.md',
   'CHANGELOG.md',
+  'CONTRIBUTING.md',
   'FORZERO-ROUTE-SKIN-DESIGN.md',
   'FORZERO-WORK-GUIDE.md',
   'HISTORY.md',
   'LICENSE',
   'README.md',
+  'SECURITY.md',
+  'jsconfig.json',
   'package.json',
   'package-lock.json',
 ];
@@ -171,14 +180,27 @@ for (const file of rootFiles) {
   const srcPath = path.join(ROOT, file);
   const dstPath = path.join(repoDir, file);
   assert(fs.existsSync(srcPath), `Missing repository root file: ${file}`);
-  fs.copyFileSync(srcPath, dstPath);
+  if (file === 'AGENTS.md') {
+    const sanitized = stripLocalOnlySections(fs.readFileSync(srcPath, 'utf8'));
+    assert(!sanitized.includes('LOCAL-ONLY-START') && !sanitized.includes('LOCAL-ONLY-END'), 'Exported AGENTS.md leaked LOCAL-ONLY block');
+    fs.writeFileSync(dstPath, sanitized, 'utf8');
+  } else {
+    fs.copyFileSync(srcPath, dstPath);
+  }
   repoStats.files += 1;
   repoStats.bytes += fs.statSync(dstPath).size;
 }
-for (const dir of ['src', 'scripts', 'szu-litchi-dev', '.github']) {
+for (const dir of ['src', 'scripts', '.github']) {
   const dirPath = path.join(ROOT, dir);
   if (fs.existsSync(dirPath)) copyFilteredTree(dirPath, path.join(repoDir, dir), repoStats);
 }
+copyFilteredTree(path.join(ROOT, 'szu-litchi-dev', 'online'), path.join(repoDir, 'szu-litchi-dev', 'online'), repoStats);
+const drivePathSrc = path.join(ROOT, 'szu-litchi-dev', 'rounds', 'drive-path.js');
+const drivePathDst = path.join(repoDir, 'szu-litchi-dev', 'rounds', 'drive-path.js');
+fs.mkdirSync(path.dirname(drivePathDst), { recursive: true });
+fs.copyFileSync(drivePathSrc, drivePathDst);
+repoStats.files += 1;
+repoStats.bytes += fs.statSync(drivePathDst).size;
 
 walkCheck(repoDir, (entry, full) => {
   const rel = path.relative(repoDir, full);

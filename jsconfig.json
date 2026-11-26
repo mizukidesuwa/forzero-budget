@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "checkJs": false,
+    "allowJs": true,
+    "noEmit": true
+  },
+  "include": [
+    "src/**/*.js",
+    "scripts/**/*.mjs",
+    "szu-litchi-dev/online/**/*.mjs"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist-v2",
+    "github-upload-*"
+  ]
+}

@@ -49,6 +49,10 @@ const appSource = fs.readFileSync(path.join(ROOT, 'src', 'ui', 'app.js'), 'utf8'
 const appLineCount = appSource.split(/\r?\n/).length;
 assert(appLineCount <= 1700, `src/ui/app.js exceeded 1700 lines (${appLineCount})`);
 
+const entrySource = fs.readFileSync(path.join(ROOT, 'src', 'entry.js'), 'utf8');
+assert(!/Object\.assign\s*\(\s*globalThis\b/.test(entrySource) && !/Object\.defineProperty\s*\(\s*globalThis\b/.test(entrySource),
+  'src/entry.js must not write directly to globalThis; use src/debug-bridge.js');
+
 const assetFiles = walkFiles(path.join(ROOT, 'src', 'world', 'assets'), ['.js']);
 for (const file of assetFiles) {
   const source = fs.readFileSync(file, 'utf8');
@@ -97,6 +101,13 @@ assert(fs.existsSync(releaseWorkflowPath), 'Missing .github/workflows/release.ym
 const releaseWorkflow = fs.readFileSync(releaseWorkflowPath, 'utf8');
 for (const token of ['npm run build:release', 'npm run verify:fast', 'npm run release:stage']) {
   assert(releaseWorkflow.includes(token), `.github/workflows/release.yml missing "${token}"`);
+}
+
+const ciWorkflowPath = path.join(ROOT, '.github', 'workflows', 'ci.yml');
+assert(fs.existsSync(ciWorkflowPath), 'Missing .github/workflows/ci.yml');
+const ciWorkflow = fs.readFileSync(ciWorkflowPath, 'utf8');
+for (const token of ['npm run lint', 'npm run build', 'npm test -- --skip-build', 'verify-drafting-ai.mjs', 'verify-deterministic-race.mjs', 'verify:map-assets-perf']) {
+  assert(ciWorkflow.includes(token), `.github/workflows/ci.yml missing "${token}"`);
 }
 
 console.log(`verify-hygiene passed: v${version}, app.js ${appLineCount} lines, ${assetFiles.length} asset modules, ${runtimeFiles.length} runtime files, 0 untranslated UI labels.`);

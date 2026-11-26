@@ -47,7 +47,7 @@
 
 - 修改 2.x 源码后运行 npm run build，再按改动面选择定向验证。
 - 数据、资产和地图改动优先运行 node scripts/verify-data.mjs、node scripts/verify-assets.mjs 和 node scripts/verify-maps.mjs [szu|ucl|shunde]。
-- 物理、竞速、确定性和对拍改动按需运行 node scripts/verify-210.mjs、node scripts/verify-212.mjs、node scripts/verify-esm-parity.mjs 和 node scripts/verify-runtime-parity.mjs。
+- 物理、竞速、确定性和对拍改动按需运行 node scripts/verify-drafting-ai.mjs、node scripts/verify-deterministic-race.mjs、node scripts/verify-esm-parity.mjs 和 node scripts/verify-runtime-parity.mjs。
 - 浏览器、存档、联机和性能改动按需运行 node scripts/verify-browser.mjs、node scripts/verify-save.mjs、node szu-litchi-dev/online/verify.mjs、node scripts/verify-four-player.mjs 和 node scripts/verify-performance.mjs。
 - 地图资产改动还要运行 npm run verify:map-assets-perf，并检查 scripts/fixtures/map-assets-2.1.2.json、scripts/fixtures/map-regression.json 与硬件性能基线。
 - 发行前运行 npm run build:release。版本以 package.json、scripts/build.mjs 和 src/index.html 的一致状态为准。
@@ -56,7 +56,7 @@
 
 - 发行同步时跳过 save/、player-data.json、dist-v2/ 临时内容和旧链调试产物，不覆盖玩家存档。
 - 准备公开仓库上传包 `github-upload-<version>/` 时，必须拆分为互不混杂的两部分（优先直接执行 `npm run release:github`）：
-  - `github-upload-<version>/repo/`：仅保留推送到 GitHub 主干的纯净工程与文档（根目录 `.gitignore`、`AGENTS.md`、`CHANGELOG.md`、`FORZERO-ROUTE-SKIN-DESIGN.md`、`FORZERO-WORK-GUIDE.md`、`HISTORY.md`、`LICENSE`、`README.md`、`package.json`、`package-lock.json` 与 `.github/`、`src/`、`scripts/`、`szu-litchi-dev/`）；严格排除所有构建分发包（`forzero-budget-*`、`*.zip`、`forzero-budget-mobile-*.html`、`szu-litchi-loop/dist/`、`dist-v2/`）、`node_modules/`、`legacy/`、`save/`、`player-data.json`、`.openai/`、`__pycache__/`、`chrome-*` 与临时调试产物，且须在 `repo/` 目录内通过 `node scripts/verify-hygiene.mjs`。
+  - `github-upload-<version>/repo/`：仅保留推送到 GitHub 主干的纯净工程与文档（根目录 `.editorconfig`、`.gitattributes`、`.gitignore`、`AGENTS.md`、`CHANGELOG.md`、`CONTRIBUTING.md`、`FORZERO-ROUTE-SKIN-DESIGN.md`、`FORZERO-WORK-GUIDE.md`、`HISTORY.md`、`LICENSE`、`README.md`、`SECURITY.md`、`jsconfig.json`、`package.json`、`package-lock.json` 与 `.github/`、`src/`、`scripts/`、`szu-litchi-dev/online/`、`szu-litchi-dev/rounds/drive-path.js`）；严格排除历史 1.9.1.1 大文件快照（`szu-litchi-dev/ride-update/` 等）、构建分发包（`forzero-budget-*`、`*.zip`、`forzero-budget-mobile-*.html`、`szu-litchi-loop/dist/`、`dist-v2/`）、`node_modules/`、`legacy/`、`save/`、`player-data.json`、`.openai/`、`__pycache__/`、`chrome-*` 与临时调试产物，且须在 `repo/` 目录内通过 `node scripts/verify-hygiene.mjs` 与 `npm test`。
   - `github-upload-<version>/release-assets/`：仅放挂到 GitHub Releases（`v<version>`）的玩家下载产物与校验清单（`forzero-budget-<version>.zip`、`forzero-budget-mobile-<version>.html`、`SHA256SUMS.txt`、`MANIFEST.json`、`RELEASE-NOTES.md`），确保压缩包不含 `save/` 或 `player-data.json`，并核对 SHA-256 与 `SHA256SUMS.txt` 一致。
 - 升级版本号并生成上传包时，同步保持 `README.md` 顶部的「直接下载游玩（玩家入口）」指向 GitHub Releases（`v<version>`）。
 - 旧版 szu-litchi-dev/ride-update/build.py 只用于明确的 1.9.1.1 回归任务，不作为 2.x 入口。
@@ -68,4 +68,3 @@
 - 完成代码修改并通过验证后，在 CHANGELOG.md 顶部的 Unreleased 或当前版本条目记录改动、核心路径、验证命令以及是否更新基线。
 - 新增源码目录、玩法模块或验证脚本时，同步更新 FORZERO-WORK-GUIDE.md 的索引。
 - 记录结论和实际验证，不写失败日志、临时调试过程或大段命令输出。
-

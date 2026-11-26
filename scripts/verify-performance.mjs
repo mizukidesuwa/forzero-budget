@@ -98,15 +98,15 @@ for (const [version, file] of editions) {
     const nav = await rpc('Page.navigate', { url: pathToFileURL(resolve(file)).href }, sessionId);
     assert.ok(!nav.errorText, nav.errorText);
     const deadline = Date.now() + 60_000;
-    while (!await evalPage("typeof ready!=='undefined'&&ready")) {
+    while (!await evalPage("globalThis.__FORZERO__?globalThis.__FORZERO__.ready===true:(typeof ready!=='undefined'&&ready)")) {
       if (Date.now() > deadline) throw Error(version + ': initialization timeout');
       await delay(100);
     }
     const coldMs = performance.now() - started;
-    const renderer = await evalPage(`(()=>{const g=canvas.getContext('webgl2'), e=g.getExtension('WEBGL_debug_renderer_info');return e?g.getParameter(e.UNMASKED_RENDERER_WEBGL):g.getParameter(g.RENDERER)})()`);
+    const renderer = await evalPage(`(()=>{const c=globalThis.__FORZERO__?globalThis.__FORZERO__.canvas:canvas;const g=c.getContext('webgl2'), e=g.getExtension('WEBGL_debug_renderer_info');return e?g.getParameter(e.UNMASKED_RENDERER_WEBGL):g.getParameter(g.RENDERER)})()`);
     console.log(version, 'renderer:', renderer);
     if (/swiftshader|software|llvmpipe/i.test(renderer)) throw Error('Browser selected software rendering; hardware GPU comparison cannot be claimed');
-    await evalPage("preferences.aa='fxaa';preferences.resolution='fast';setActiveWeather('day');race.freeRide()");
+    await evalPage("(()=>{const f=globalThis.__FORZERO__;if(f){f.preferences.aa='fxaa';f.preferences.resolution='fast';f.setActiveWeather('day');f.race.freeRide()}else{preferences.aa='fxaa';preferences.resolution='fast';setActiveWeather('day');race.freeRide()}})()");
     const scenes = [];
     const campusSequence = Array.from({ length: cycles }, () => ['szu', 'ucl', 'shunde']).flat();
     for (const [index, campus] of campusSequence.entries()) {
@@ -115,10 +115,11 @@ for (const [version, file] of editions) {
       if (index !== 0) {
         const beforeMetrics = await metrics();
         switchMs = await evalPage(`(async()=>{
-          arriveAtStation();ui.travel.click();
+          const f=globalThis.__FORZERO__, travelUi=f?f.ui:ui;
+          (f?f.arriveAtStation:arriveAtStation)();travelUi.travel.click();
           const start=performance.now();
-          ui.travelChoices.querySelector('[data-destination="${campus}"]').click();
-          while(activeCampus!=='${campus}'||pendingCampus){
+          travelUi.travelChoices.querySelector('[data-destination="${campus}"]').click();
+          while((f?f.activeCampus:activeCampus)!=='${campus}'||(f?f.pendingCampus:pendingCampus)){
             if(performance.now()-start>20000)throw Error('Map switch timeout: ${campus}');
             await new Promise(resolve=>requestAnimationFrame(resolve));
           }
@@ -129,14 +130,15 @@ for (const [version, file] of editions) {
           .map(name => [name, 1000 * ((afterMetrics[name] ?? 0) - (beforeMetrics[name] ?? 0))]));
       }
       const sample = await evalPage(`(async()=>{
-        const gl=canvas.getContext('webgl2'), frame=()=>new Promise(r=>requestAnimationFrame(()=>{gl.finish();r(performance.now())}));
+        const f=globalThis.__FORZERO__, c=f?f.canvas:canvas, r=f?f.race:race, cf=f?f.courseFrame:courseFrame, cg=f?f.courseGround:courseGround;
+        const gl=c.getContext('webgl2'), frame=()=>new Promise(res=>requestAnimationFrame(()=>{gl.finish();res(performance.now())}));
         for(let i=0;i<30;i++) await frame();
         const before={...gpuAudit},times=[];let last=await frame(),peak=performance.memory?.usedJSHeapSize??null;
         for(let i=0;i<300;i++){
           if(${followRoute}) {
-            const f=courseFrame(race.event.path, race.event.length * i / 300);
-            Object.assign(race.rider,{position:courseGround(race.event,f.p),heading:Math.atan2(f.f[2],f.f[0]),speed:0});
-            race.moved=true;cameraRevision++;
+            const framePos=cf(r.event.path, r.event.length * i / 300);
+            Object.assign(r.rider,{position:cg(r.event,framePos.p),heading:Math.atan2(framePos.f[2],framePos.f[0]),speed:0});
+            r.moved=true;if(f){f.cameraRevision++;}else{cameraRevision++;}
           }
           const now=await frame();times.push(now-last);last=now;
           if(peak!==null)peak=Math.max(peak,performance.memory.usedJSHeapSize);
@@ -144,7 +146,7 @@ for (const [version, file] of editions) {
         times.sort((a,b)=>a-b);const delta=Object.fromEntries(Object.keys(before).map(k=>[k,gpuAudit[k]-before[k]]));
         return {p95:times[284],median:times[150],drawCallsPerFrame:delta.draws/301,trianglesPerFrame:delta.triangles/301,
           buffersCreated:delta.created,buffersDeleted:delta.deleted,buffersLive:gpuAudit.created-gpuAudit.deleted,
-          sampledJsHeapPeak:peak,glError:gl.getError(),canvas:[canvas.width,canvas.height]};
+          sampledJsHeapPeak:peak,glError:gl.getError(),canvas:[c.width,c.height]};
       })()`);
       scenes.push({ campus, cycle: Math.floor(index / 3) + 1, switchMs, switchWork, ...sample });
       console.log(version, campus, JSON.stringify(scenes.at(-1)));

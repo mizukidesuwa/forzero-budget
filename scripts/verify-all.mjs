@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -6,23 +7,24 @@ const args = new Set(process.argv.slice(2));
 const fastOnly = args.has('--fast');
 const e2eOnly = args.has('--e2e');
 const skipBuild = args.has('--skip-build');
+const hasLegacyRuntime = fs.existsSync(path.join(ROOT, 'szu-litchi-dev', 'ride-update', 'game.js'));
 
 const FAST_CHECKS = [
   ['hygiene', ['scripts/verify-hygiene.mjs']],
   ['data', ['scripts/verify-data.mjs']],
   ['assets', ['scripts/verify-assets.mjs']],
   ['maps', ['scripts/verify-maps.mjs']],
-  ['240', ['scripts/verify-240.mjs']],
-  ['250', ['scripts/verify-250.mjs']],
+  ['chase-blind', ['scripts/verify-chase-blind.mjs']],
+  ['route-builder-chase', ['scripts/verify-route-builder-chase.mjs']],
   ['save', ['scripts/verify-save.mjs']],
   ['online', ['szu-litchi-dev/online/verify.mjs']],
   ['esm-parity', ['scripts/verify-esm-parity.mjs']],
-  ['runtime-parity', ['scripts/verify-runtime-parity.mjs']],
+  ...(hasLegacyRuntime ? [['runtime-parity', ['scripts/verify-runtime-parity.mjs']]] : []),
 ];
 
 const EXTRA_CHECKS = [
-  ['210', ['scripts/verify-210.mjs']],
-  ['212', ['scripts/verify-212.mjs']],
+  ['drafting-ai', ['scripts/verify-drafting-ai.mjs']],
+  ['deterministic-race', ['scripts/verify-deterministic-race.mjs']],
   ['map-assets-perf', ['scripts/verify-map-assets-perf.mjs']],
 ];
 
@@ -62,6 +64,9 @@ else if (e2eOnly) plan.push(...E2E_CHECKS);
 else plan.push(...FAST_CHECKS, ...EXTRA_CHECKS, ...E2E_CHECKS);
 
 for (const [label, nodeArgs, extraEnv] of plan) runStep(label, nodeArgs, extraEnv);
+if (!e2eOnly && !hasLegacyRuntime) {
+  console.log('[SKIP] runtime-parity (legacy 1.9.1.1 bundle not present in clean repo checkout)');
+}
 
 const totalSeconds = ((Date.now() - suiteStart) / 1000).toFixed(2);
 console.log(`verify-all passed: ${plan.length} checks in ${totalSeconds}s.`);

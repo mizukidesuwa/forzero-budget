@@ -4,18 +4,18 @@
 
 ## 2.5.0 生效源码索引
 
-2.5.0 在 2.4.0 基础上新增联机捉人（`chase`）、俯视地图点选路线工坊、`liveDeltaMs` 速度曲线实时插值，统一单源规则 `src/data/shared-rules.cjs`，从 `src/ui/app.js` 增量拆分 `seed-dialog.js`、`map-controls.js`、`friend-duel.js`、`medal-travel.js`、`workshop-ui.js` 与 `settings-dialog.js`，新增只读渲染相位插值 `TimeTrial.interpolatedRiderPose()` 与自定义路线网格回收，并补齐 `verify:hygiene` / `verify:fast` / `verify:e2e` / `verify:all` / `release:stage` 工程脚本。地图资产验收仍见 `scripts/verify-assets.mjs`、`scripts/verify-maps.mjs` 和下表。
+2.5.0 在 2.4.0 基础上新增联机捉人（`chase`）、俯视地图点选路线工坊、`liveDeltaMs` 速度曲线实时插值，统一单源规则 `src/data/shared-rules.cjs`，将测试桥接从 `src/entry.js` 收口到独立命名空间 `src/debug-bridge.js`（`globalThis.__FORZERO__`），从 `src/ui/app.js` 增量拆分 `seed-dialog.js`、`map-controls.js`、`friend-duel.js`、`medal-travel.js`、`workshop-ui.js` 与 `settings-dialog.js`，新增只读渲染相位插值 `TimeTrial.interpolatedRiderPose()` 与自定义路线网格回收，并补齐语义化验证脚本、`npm test`/`lint`、CI（`.github/workflows/ci.yml`）与 GitHub 分包流程。地图资产验收仍见 `scripts/verify-assets.mjs`、`scripts/verify-maps.mjs` 和下表。
 
 | 入口 | 依赖 | 定向测试 |
 | --- | --- | --- |
-| `src/entry.js` / `src/test-exports.js` | `src/ride/`、`src/world/`、`src/data/` | `node scripts/verify-esm-parity.mjs`、`node scripts/verify-runtime-parity.mjs` |
+| `src/entry.js`、`src/debug-bridge.js`、`src/test-exports.js` | `src/ride/`、`src/world/`、`src/data/` | `npm test`、`node scripts/verify-esm-parity.mjs`、`node scripts/verify-runtime-parity.mjs` |
 | `src/ui/language.js`、`src/ui/presentation-text.js`、`src/data/english-text.js` | 设置语言选择、界面词条和动态文案。翻译应用于界面与俯视地图文字。路线身份、记录键及场景招牌沿用原数据 | `npm run verify:hygiene`、`node scripts/verify-browser.mjs`、`node scripts/verify-four-player.mjs --drive` |
 | `src/ui/app.js`、`friend-duel.js`、`medal-travel.js`、`workshop-ui.js`、`settings-dialog.js` | 主舞台/循环胶水、友人对战弹窗、勋章/三站旅行与海拔图、车库/预算/皮肤导入 UI、二级设置面板 | `npm run build`、`npm run verify:hygiene`、`node scripts/verify-browser.mjs` |
 | `src/data/interface.js`、`src/ui/hud-controls.js`、`src/render/ride-camera.js` | HUD / 触屏按钮缩放和视角偏好、全屏视角控制、三档镜头 | `node scripts/verify-browser.mjs`、`node scripts/verify-save.mjs` |
 | `src/data/vehicles.js`、`parts.js`、`surfaces.js` | `src/ride/vehicles.js`、`physics.js` | `node scripts/verify-data.mjs` |
 | `src/data/shared-rules.cjs`、`szu-litchi-dev/online/shared-rules.cjs` | 联机捉人、路线规则/路网快照与皮肤限制单源真源（双端复用） | `npm run verify:hygiene`、`node scripts/verify-data.mjs`、`node szu-litchi-dev/online/verify.mjs` |
 | `src/data/routes.js`、`src/race/route-code.js`、`src/race/route-key.js`、`src/race/route-validation.js` | 版本化 fixed/seed/network RouteRef、R1 编码、网络 revision/边链校验、canonical key 和环境键 | `node scripts/verify-data.mjs`、路线编码回环和网络重建探针 |
-| `src/world/route-resolver.js`、`src/world/route-builder.js`、`src/world/seed-courses.js`、`src/ui/map-controls.js`、`src/ui/seed-dialog.js`、`src/ui/app.js` | fixed/seed/network `R1...` 路线导入、地图点选道路建线、道路边路线重建、方向/圈数变体和联机身份 | `npm run build`、`node scripts/verify-250.mjs`、`node scripts/verify-browser.mjs` |
+| `src/world/route-resolver.js`、`src/world/route-builder.js`、`src/world/seed-courses.js`、`src/ui/map-controls.js`、`src/ui/seed-dialog.js`、`src/ui/app.js` | fixed/seed/network `R1...` 路线导入、地图点选道路建线、道路边路线重建、方向/圈数变体和联机身份 | `npm run build`、`node scripts/verify-route-builder-chase.mjs`、`node scripts/verify-browser.mjs` |
 | `src/data/rider-skins.js`、`src/ride/rider-skin.js`、`src/ride/models.js` | shared-rider-v1 SkinModelSpec、AI JSON/ModelFile 导入、比例/挂点/图元白名单、完整非人类模型发射 | `node scripts/verify-data.mjs`、SkinModelSpec 导入和网格探针 |
 | `src/ride/vehicles.js`、`src/ride/models.js`、`src/data/vehicles.js`、`src/replay/ghost.js`、`src/online/client.js`、`szu-litchi-dev/online/server.mjs` | 独立骑手皮肤缓存与四载具座椅挂点适配、本地/Ghost/联机 profile、规范哈希、低频 manifest 和旧字段回退 | `node scripts/verify-data.mjs`、`node scripts/verify-save.mjs`、`node scripts/verify-four-player.mjs --drive`、`node szu-litchi-dev/online/verify.mjs` |
 | `src/world/traffic.js`、`src/render/traffic.js`、`src/ride/physics.js` | 按物理时间复用车流姿态，渲染点与碰撞姿态隔离 | `node scripts/verify-maps.mjs`、`node scripts/verify-esm-parity.mjs` |
@@ -23,8 +23,8 @@
 | `src/data/tuning-190.cjs` | 客户端及 `szu-litchi-dev/online/` 房间服务 | `node scripts/verify-data.mjs`、`node szu-litchi-dev/online/verify.mjs` |
 | `src/world/assets/`、`src/world/maps/ucl/gardens.js` 的 `extraGardenFences` | `src/world/maps/ucl.js` | `node scripts/verify-assets.mjs` |
 | `src/world/maps/{szu,ucl,shunde}/` 中的 `courses.js` 检查点与地图数据 | `src/world/query.js`、`src/world/scene-builder.js` | `node scripts/verify-maps.mjs [szu|ucl|shunde]` |
-| `src/data/modes.js`、`src/race/chase.js`、`src/race/online-chase.js`、`src/race/blind-nav.js`、`src/ui/mode-hud.js` | 单人影子追捕、联机捉人与夜骑盲区规则常量、纯状态机与 HUD 渲染 | `node scripts/verify-250.mjs`、`node scripts/verify-240.mjs`、`node scripts/verify-esm-parity.mjs`、`node scripts/verify-browser.mjs` |
-| `scripts/build.mjs`、`scripts/verify-hygiene.mjs`、`scripts/verify-all.mjs`、`scripts/stage-release.mjs` | esbuild 0.28.2、`metafile` 体积汇报、静态门禁、分层验收编排、校验暂存与 GitHub 分包上传（`--github`） | `npm run build:release`、`npm run verify:fast`、`npm run verify:e2e`、`npm run verify:all`、`npm run release:stage`、`npm run release:github` |
+| `src/data/modes.js`、`src/race/chase.js`、`src/race/online-chase.js`、`src/race/blind-nav.js`、`src/ui/mode-hud.js` | 单人影子追捕、联机捉人与夜骑盲区规则常量、纯状态机与 HUD 渲染 | `node scripts/verify-route-builder-chase.mjs`、`node scripts/verify-chase-blind.mjs`、`node scripts/verify-esm-parity.mjs`、`node scripts/verify-browser.mjs` |
+| `scripts/build.mjs`、`scripts/verify-hygiene.mjs`、`scripts/verify-all.mjs`、`scripts/stage-release.mjs` | esbuild 0.28.2、`metafile` 体积汇报、静态门禁、分层验收编排、校验暂存与 GitHub 分包上传（`--github`） | `npm run lint`、`npm test`、`npm run verify:e2e`、`npm run verify:all`、`npm run build:release`、`npm run release:stage`、`npm run release:github` |
 | `szu-litchi-dev/online/server.mjs`、`route-rules.cjs` | 桌面本地服务、canonical 路线 profile 和存档 | `node scripts/verify-save.mjs`、`node szu-litchi-dev/online/verify.mjs` |
 
 > 历史交付与早期架构见 [HISTORY.md](HISTORY.md)；版本流水见 [CHANGELOG.md](CHANGELOG.md)；1.8.6 车流见 [1.8.6-traffic.md](szu-litchi-dev/ride-update/1.8.6-traffic.md)。巨型 `perf-*.json`、截图与旧包已归档至 `D:\szubikeGPT-archive\`。
@@ -33,7 +33,8 @@
 
 - `npm run build:release` 生成 `dist-v2/desktop/`、`dist-v2/forzero-budget-2.5.0.zip` 和 `dist-v2/forzero-budget-mobile-2.5.0.html`。
 - `npm run release:stage` 将可分发归档、校验清单（`SHA256SUMS.txt`、`MANIFEST.json`、`RELEASE-NOTES.md`）暂存到 `dist-v2/release/v2.5.0/`；`npm run release:github` 按 `AGENTS.md` 规范生成拆分式 GitHub 上传目录 `github-upload-2.5.0/repo/`（纯净源码树并通过 `verify-hygiene`）与 `github-upload-2.5.0/release-assets/`（Releases 附件与 `RELEASE-NOTES.md`）。
-- `.github/workflows/pages.yml`（推送 `main` 后自动校验并发布静态网页到 GitHub Pages）与 `.github/workflows/release.yml`（推送 `v*` tag 后自动执行 `build:release`、`verify:fast`、`release:stage` 并发布 GitHub Release 附件）。
+- `.github/workflows/ci.yml`（推送/PR 到 `main` 时自动运行 `npm run lint`、`npm run build`、`npm test` 与核心玩法/地图性能检查）、`.github/workflows/pages.yml`（校验并发布静态网页到 GitHub Pages）与 `.github/workflows/release.yml`（推送 `v*` tag 后自动执行 `build:release`、`verify:fast`、`release:stage` 并发布 GitHub Release 附件）。
+- `npm run release:github` 仅将 `szu-litchi-dev/online/` 与 `szu-litchi-dev/rounds/drive-path.js` 导出至公开仓库 `repo/`，本地 `szu-litchi-dev/` 全量历史包仅保留作离线 `1.9.1.1` 对拍。
 - 2.5.0 桌面版优先读取同级 `forzero-budget-2.4.0/save/player-data.json`，并向下兼容 `2.3.4` 及前序存档。手机单文件可通过游戏设置导出和导入备份。
 
 ### 2.3.1 本地路径
