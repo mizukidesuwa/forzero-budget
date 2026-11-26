@@ -2,6 +2,7 @@
 
 ## 2.5.0 — 联机捉人、可视化路线工坊与工程健康重构
 
+- GitHub Pages 工作流改为从最新 GitHub Release 的桌面 ZIP 部署 `index.html`、`style.css` 与 `game.js`，并在发布 Release 时触发，避免当前源码快照缺少构建脚本时 Pages 构建失败；验证发布 ZIP 静态文件暂存，未更新基线。
 - 新增 **「联机捉人 · 1 追 N（三轮轮换）」** 联机赛制（`src/data/modes.js`、`szu-litchi-dev/online/room-rules.cjs`、`szu-litchi-dev/online/server.mjs`、`src/race/online-chase.js`、`src/online/client.js`、`src/ui/mode-hud.js`）：2–4 人房间轮流担任捉人者（3 轮），开局统一倒计时后逃跑者先发 6 秒；支持非对称视野显形（55m/85m）、每 4 秒周期雷达多目标扫描与逼近感知、8.5m/3.5m 服务端 `tag` 拦截判定、全抓即时结算或 120 秒超时脱逃计分，并将 `chase` 角色、抓获耗时与总分完整接入房间列表与战绩统计。
 - 新增 **「地图点选路线工坊」**（`src/world/route-builder.js`、`src/ui/map-controls.js`、`src/ui/minimap.js`、`src/world/seed-courses.js`、`src/core/state.js`）：在全屏俯视地图 `.map-tools` 接入二次面板开关，支持深大粤海与伦敦 Bloomsbury 路网节点高亮与鼠标点选连线（Dijkstra 防急转回溯寻路 + 闭环/撤销/清空），实时生成可分享 `R1...` 路线代码并一键构建可直接开跑和建房的自定义赛道（同步补齐 `makeNetworkCourse` 的 `cityAccess`、`referenceCornerScores` 与伦敦弯道修正，并入 `availableCourses` 列表）。
 - 升级 **`liveDeltaMs` 参考影子速度曲线实时插值**（`src/race/records.js`）：利用 `reference.samples` 在 `[refPrev, refNext]` 区间内的真实里程-时间曲线进行二分反查，消除平路与爬坡/碎石混段间的实时领先/落后秒数漂移，并保留无采样数据时的线性回退。
