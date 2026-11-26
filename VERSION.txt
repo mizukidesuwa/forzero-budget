@@ -1,3 +1,3 @@
-FORZERO: BUDGET 2.3.2
-GitHub upload target: mizukidesuwa/forzero-budget:main
+FORZERO: BUDGET 2.4.0
+GitHub upload target: mizukidesuwa/forzero:budget
 Built from dist-v2 release output.

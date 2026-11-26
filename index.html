@@ -6,13 +6,13 @@
 <meta name="theme-color" content="#0b0d0f">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 340 340'%3E%3Crect width='340' height='340' rx='52' fill='%230b0d0f'/%3E%3Cg transform='translate(0,116)'%3E%3Cg transform='translate(14,0) skewX(-10)' font-family='Arial Black, Arial, sans-serif'%3E%3Ctext x='10' y='65' font-size='59' font-weight='950' letter-spacing='-2' fill='%23ffffff'%3EFOR%3Ctspan fill='%23ff6433'%3EZERO%3C/tspan%3E:%3C/text%3E%3Ctext x='15' y='96' font-size='26' font-weight='900' letter-spacing='9' fill='%23ff6433'%3EBUDGET%3C/text%3E%3C/g%3E%3C/g%3E%3C/svg%3E">
 <meta name="description" content="FORZERO: BUDGET（有限竞速：地贫线）— 在深圳大学、伦敦与顺峰山公园之间自由骑行与计时竞速。">
-<title>FORZERO: BUDGET · 有限竞速：地贫线 2.3.3.1</title>
+<title>FORZERO: BUDGET · 有限竞速：地贫线 2.4.0</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <main class="shell">
   <header class="masthead">
-    <div class="identity"><span class="brand-badge" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 108"><g transform="translate(14,0) skewX(-10)" font-family="Arial Black, Arial, sans-serif"><text x="10" y="65" font-size="59" font-weight="950" letter-spacing="-2" fill="#FFFFFF">FOR<tspan fill="#FF6433">ZERO</tspan>:</text><text x="15" y="96" font-size="26" font-weight="900" letter-spacing="9" fill="#FF6433">BUDGET</text></g></svg></span><div><strong class="brand-zh">有限竞速：地贫线</strong><small lang="en">FORZERO: BUDGET · 2.3.3.1</small></div></div>
+    <div class="identity"><span class="brand-badge" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 108"><g transform="translate(14,0) skewX(-10)" font-family="Arial Black, Arial, sans-serif"><text x="10" y="65" font-size="59" font-weight="950" letter-spacing="-2" fill="#FFFFFF">FOR<tspan fill="#FF6433">ZERO</tspan>:</text><text x="15" y="96" font-size="26" font-weight="900" letter-spacing="9" fill="#FF6433">BUDGET</text></g></svg></span><div><strong class="brand-zh">有限竞速：地贫线</strong><small lang="en">FORZERO: BUDGET · 2.4.0</small></div></div>
     <div class="location" id="campusName">深圳大学 · 粤海校区</div>
   </header>
   <section class="stage" tabindex="0" id="stage" data-phase="free" aria-label="FORZERO: BUDGET 有限竞速：地贫线">
@@ -47,6 +47,7 @@
       <div class="route-hud">
         <div class="next" id="next" hidden></div>
         <div class="gate-flash" id="gateFlash" aria-live="polite" hidden></div>
+        <output id="blindHint" class="blind-hint" role="status" hidden></output>
         <output id="fpsCounter" class="fps-counter" aria-live="off" hidden>FPS --</output>
       </div>
       <button id="miniButton" class="mini" type="button" aria-label="打开俯视地图"><span>校园小地图</span><canvas id="miniMap" width="382" height="228" aria-hidden="true"></canvas></button>
@@ -238,17 +239,6 @@
         </details>
           <details class="workshop-group"><summary>外观定制</summary>
             <div class="setting-line"><label for="bikePaint">涂装</label><select id="bikePaint"></select></div>
-            <div class="setting-line"><label for="riderSkin">骑手皮肤</label><select id="riderSkin"></select></div>
-            <label for="riderSkinImport">导入 AI 皮肤模型文件</label>
-            <textarea id="riderSkinImport" rows="4" spellcheck="false" placeholder="粘贴 AI 生成的 SkinModelSpec JSON"></textarea>
-            <div class="settings-actions seed-actions">
-              <button class="action" type="button" id="riderSkinFile">选择模型文件</button>
-              <button class="action" type="button" id="riderSkinPrompt">复制 AI 提示词</button>
-              <button class="action" type="button" id="riderSkinClear" aria-controls="riderSkinImport">清空文本框</button>
-              <button class="action primary" type="button" id="riderSkinImportButton">导入并预览</button>
-            </div>
-            <input id="riderSkinFileInput" type="file" accept="application/json,.json" hidden>
-            <p class="bike-note" id="riderSkinStatus" role="status">AI 生成的模型文件只允许白名单图元、比例和挂点。</p>
             <div id="bikeStyles"></div>
           </details>
         <dl class="bike-stats" aria-live="polite">
@@ -274,6 +264,19 @@
           <p class="bike-note" id="vehNote2"></p>
           </details>
         </div>
+        <details class="workshop-group" id="riderSkinGroup"><summary>骑手皮肤</summary>
+          <div class="setting-line"><label for="riderSkin">当前皮肤</label><select id="riderSkin"></select></div>
+          <label for="riderSkinImport">导入 AI 皮肤模型文件</label>
+          <textarea id="riderSkinImport" rows="4" spellcheck="false" placeholder="粘贴 AI 生成的 SkinModelSpec JSON"></textarea>
+          <div class="settings-actions seed-actions">
+            <button class="action" type="button" id="riderSkinFile">选择模型文件</button>
+            <button class="action" type="button" id="riderSkinPrompt">复制 AI 提示词</button>
+            <button class="action" type="button" id="riderSkinClear" aria-controls="riderSkinImport">清空文本框</button>
+            <button class="action primary" type="button" id="riderSkinImportButton">导入并预览</button>
+          </div>
+          <input id="riderSkinFileInput" type="file" accept="application/json,.json" hidden>
+          <p class="bike-note" id="riderSkinStatus" role="status">AI 生成的模型文件只允许白名单图元、比例和挂点。</p>
+        </details>
       </div>
       <footer class="settings-actions">
         <button class="action primary" id="settingsContinue" type="button">返回骑行</button>
@@ -479,7 +482,7 @@
     </dialog>
     <div class="touch" aria-label="触屏骑行控制">
       <div class="touch-steer"><button type="button" data-drive="left">左转</button><button type="button" data-drive="right">右转</button></div>
-      <div class="touch-pedals"><button type="button" data-drive="sprint">冲刺</button><button type="button" data-drive="brake" title="刹车，停车后长按可倒车">刹车</button><button type="button" class="accent" data-drive="gas">加速</button></div>
+      <div class="touch-pedals"><button type="button" id="touchBell" class="touch-bell" hidden>摇铃</button><button type="button" data-drive="sprint">冲刺</button><button type="button" data-drive="brake" title="刹车，停车后长按可倒车">刹车</button><button type="button" class="accent" data-drive="gas">加速</button></div>
     </div>
   </section>
   <div class="bar">
@@ -487,7 +490,7 @@
       <button class="action seed-button" id="seedButton" type="button" aria-haspopup="dialog">每周挑战 / 种子</button>
       <button class="action" id="friendButton" type="button" aria-haspopup="dialog" aria-controls="friendDialog">友人对战</button>
       <button class="action" id="onlineButton" type="button" aria-haspopup="dialog" aria-controls="onlineDialog">联机</button>
-      <label class="race-mode"><select id="raceMode" aria-label="单人比赛模式"><option value="solo">单人计时</option><option value="team">AI 车队赛</option><option value="duel">1v1 街头单挑</option></select></label>
+      <label class="race-mode"><select id="raceMode" aria-label="单人比赛模式"><option value="solo">单人计时</option><option value="team">AI 车队赛</option><option value="duel">1v1 街头单挑</option><option value="chase">影子追捕</option><option value="blind">夜骑盲区</option></select></label>
       <label class="race-mode" id="aiOptions" hidden><select id="aiDifficulty" class="race-option" aria-label="AI 难度"><option value="standard">标准</option><option value="strong">强劲</option></select><small id="aiWins"></small></label>
       <button class="action primary" id="startTrial" type="button" aria-keyshortcuts="R">开始计时赛</button><small id="soloRulesStatus" class="mod-warning" role="status" hidden></small>
       <button class="action" id="pause" type="button" aria-keyshortcuts="P">暂停</button>
