@@ -6,24 +6,24 @@
 <meta name="theme-color" content="#0b0d0f">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 340 340'%3E%3Crect width='340' height='340' rx='52' fill='%230b0d0f'/%3E%3Cg transform='translate(0,116)'%3E%3Cg transform='translate(14,0) skewX(-10)' font-family='Arial Black, Arial, sans-serif'%3E%3Ctext x='10' y='65' font-size='59' font-weight='950' letter-spacing='-2' fill='%23ffffff'%3EFOR%3Ctspan fill='%23ff6433'%3EZERO%3C/tspan%3E:%3C/text%3E%3Ctext x='15' y='96' font-size='26' font-weight='900' letter-spacing='9' fill='%23ff6433'%3EBUDGET%3C/text%3E%3C/g%3E%3C/g%3E%3C/svg%3E">
 <meta name="description" content="FORZERO: BUDGET（有限竞速：地贫线）— 在深圳大学、伦敦与顺峰山公园之间自由骑行与计时竞速。">
-<title>FORZERO: BUDGET · 有限竞速：地贫线 2.3.1</title>
+<title>FORZERO: BUDGET · 有限竞速：地贫线 2.3.2</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <main class="shell">
   <header class="masthead">
-    <div class="identity"><span class="brand-badge" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 108"><g transform="translate(14,0) skewX(-10)" font-family="Arial Black, Arial, sans-serif"><text x="10" y="65" font-size="59" font-weight="950" letter-spacing="-2" fill="#FFFFFF">FOR<tspan fill="#FF6433">ZERO</tspan>:</text><text x="15" y="96" font-size="26" font-weight="900" letter-spacing="9" fill="#FF6433">BUDGET</text></g></svg></span><div><strong>有限竞速：地贫线</strong><small lang="en">FORZERO: BUDGET · 2.3.1</small></div></div>
+    <div class="identity"><span class="brand-badge" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 108"><g transform="translate(14,0) skewX(-10)" font-family="Arial Black, Arial, sans-serif"><text x="10" y="65" font-size="59" font-weight="950" letter-spacing="-2" fill="#FFFFFF">FOR<tspan fill="#FF6433">ZERO</tspan>:</text><text x="15" y="96" font-size="26" font-weight="900" letter-spacing="9" fill="#FF6433">BUDGET</text></g></svg></span><div><strong class="brand-zh">有限竞速：地贫线</strong><small lang="en">FORZERO: BUDGET · 2.3.2</small></div></div>
     <div class="location" id="campusName">深圳大学 · 粤海校区</div>
   </header>
   <section class="stage" tabindex="0" id="stage" data-phase="free" aria-label="FORZERO: BUDGET 有限竞速：地贫线">
     <canvas id="world" aria-label="FORZERO: BUDGET 三维骑行赛道"></canvas>
     <canvas id="weatherOverlay" aria-hidden="true" hidden></canvas>
-    <div class="boot-loader" id="bootLoader" role="status" aria-live="polite"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 150" role="img" aria-label="FORZERO: BUDGET 有限竞速：地贫线"><g transform="translate(14,0) skewX(-10)" font-family="Arial Black, Arial, sans-serif"><text x="10" y="65" font-size="59" font-weight="950" letter-spacing="-2" fill="#FFFFFF">FOR<tspan fill="#FF6433">ZERO</tspan>:</text><text x="15" y="96" font-size="26" font-weight="900" letter-spacing="9" fill="#FF6433">BUDGET</text><text x="15" y="134" font-size="24" font-weight="900" letter-spacing="3.5" fill="#FFFFFF" font-family="'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', sans-serif">有限竞速：<tspan fill="#FF6433">地贫线</tspan></text></g></svg><span>正在构建三维赛道…</span></div>
+    <div class="boot-loader" id="bootLoader" role="status" aria-live="polite"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 150" role="img" aria-label="FORZERO: BUDGET 有限竞速：地贫线"><g transform="translate(14,0) skewX(-10)" font-family="Arial Black, Arial, sans-serif"><text x="10" y="65" font-size="59" font-weight="950" letter-spacing="-2" fill="#FFFFFF">FOR<tspan fill="#FF6433">ZERO</tspan>:</text><text x="15" y="96" font-size="26" font-weight="900" letter-spacing="9" fill="#FF6433">BUDGET</text><text class="brand-zh" x="15" y="134" font-size="24" font-weight="900" letter-spacing="3.5" fill="#FFFFFF" font-family="'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', sans-serif">有限竞速：<tspan fill="#FF6433">地贫线</tspan></text></g></svg><span>正在构建三维赛道…</span></div>
     <div id="sceneHud">
       <div class="shade"></div>
       <div class="intro" id="intro">
         <div class="eyebrow">自由骑行</div>
-        <h1 class="intro-brand" aria-label="FORZERO: BUDGET 有限竞速：地贫线"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 150" role="img" aria-label="FORZERO: BUDGET 有限竞速：地贫线"><g transform="translate(14,0) skewX(-10)" font-family="Arial Black, Arial, sans-serif"><text x="10" y="65" font-size="59" font-weight="950" letter-spacing="-2" fill="#FFFFFF">FOR<tspan fill="#FF6433">ZERO</tspan>:</text><text x="15" y="96" font-size="26" font-weight="900" letter-spacing="9" fill="#FF6433">BUDGET</text><text x="15" y="134" font-size="24" font-weight="900" letter-spacing="3.5" fill="#FFFFFF" font-family="'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', sans-serif">有限竞速：<tspan fill="#FF6433">地贫线</tspan></text></g></svg></h1>
+        <h1 class="intro-brand" aria-label="FORZERO: BUDGET 有限竞速：地贫线"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 150" role="img" aria-label="FORZERO: BUDGET 有限竞速：地贫线"><g transform="translate(14,0) skewX(-10)" font-family="Arial Black, Arial, sans-serif"><text x="10" y="65" font-size="59" font-weight="950" letter-spacing="-2" fill="#FFFFFF">FOR<tspan fill="#FF6433">ZERO</tspan>:</text><text x="15" y="96" font-size="26" font-weight="900" letter-spacing="9" fill="#FF6433">BUDGET</text><text class="brand-zh" x="15" y="134" font-size="24" font-weight="900" letter-spacing="3.5" fill="#FFFFFF" font-family="'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', sans-serif">有限竞速：<tspan fill="#FF6433">地贫线</tspan></text></g></svg></h1>
         <p class="brief" id="courseBrief"></p>
         <span class="measure" id="courseFacts"></span><span class="measure" id="goldGoal"></span>
       </div>
@@ -112,6 +112,9 @@
         </div>
       </div>
       <div id="displaySettings">
+      <div class="setting-line"><label for="settingsLanguage">界面语言</label><select id="settingsLanguage">
+        <option value="zh-CN" lang="zh-CN">简体中文</option><option value="en" lang="en">English</option>
+      </select></div>
       <div class="setting-line"><label for="driverName">骑手姓名</label>
         <input id="driverName" type="text" maxlength="24" value="player" autocomplete="off" placeholder="player">
       </div>
