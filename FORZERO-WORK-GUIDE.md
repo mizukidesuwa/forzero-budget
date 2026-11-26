@@ -32,7 +32,8 @@
 ## 1. 2.5.0 构建产物与本地版
 
 - `npm run build:release` 生成 `dist-v2/desktop/`、`dist-v2/forzero-budget-2.5.0.zip` 和 `dist-v2/forzero-budget-mobile-2.5.0.html`。
-- `npm run release:stage` 将可分发归档、校验清单（`SHA256SUMS.txt`、`MANIFEST.json`）暂存到 `dist-v2/release/v2.5.0/`；`npm run release:github` 按 `AGENTS.md` 规范生成拆分式 GitHub 上传目录 `github-upload-2.5.0/repo/`（纯净源码树并通过 `verify-hygiene`）与 `github-upload-2.5.0/release-assets/`（Releases 附件与 `RELEASE-NOTES.md`）。
+- `npm run release:stage` 将可分发归档、校验清单（`SHA256SUMS.txt`、`MANIFEST.json`、`RELEASE-NOTES.md`）暂存到 `dist-v2/release/v2.5.0/`；`npm run release:github` 按 `AGENTS.md` 规范生成拆分式 GitHub 上传目录 `github-upload-2.5.0/repo/`（纯净源码树并通过 `verify-hygiene`）与 `github-upload-2.5.0/release-assets/`（Releases 附件与 `RELEASE-NOTES.md`）。
+- `.github/workflows/pages.yml`（推送 `main` 后自动校验并发布静态网页到 GitHub Pages）与 `.github/workflows/release.yml`（推送 `v*` tag 后自动执行 `build:release`、`verify:fast`、`release:stage` 并发布 GitHub Release 附件）。
 - 2.5.0 桌面版优先读取同级 `forzero-budget-2.4.0/save/player-data.json`，并向下兼容 `2.3.4` 及前序存档。手机单文件可通过游戏设置导出和导入备份。
 
 ### 2.3.1 本地路径

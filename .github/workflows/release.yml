@@ -1,0 +1,52 @@
+name: Build & Publish Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Check version & tag match
+        id: meta
+        run: |
+          VERSION=$(node -e "console.log(require('./package.json').version)")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.ref_type }}" = "tag" ] && [ "${{ github.ref_name }}" != "v$VERSION" ]; then
+            echo "Tag ${{ github.ref_name }} does not match package.json version v$VERSION" >&2
+            exit 1
+          fi
+      - run: npm ci
+      - run: npm run build:release
+      - run: npm run verify:fast -- --skip-build
+      - run: npm run release:stage -- --skip-build
+      - name: Create or update GitHub Release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          STAGE_DIR="dist-v2/release/v$VERSION"
+          TAG="v$VERSION"
+          FILES=(
+            "$STAGE_DIR/forzero-budget-$VERSION.zip"
+            "$STAGE_DIR/forzero-budget-mobile-$VERSION.html"
+            "$STAGE_DIR/SHA256SUMS.txt"
+            "$STAGE_DIR/MANIFEST.json"
+          )
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${FILES[@]}" --clobber
+            gh release edit "$TAG" --title "FORZERO: BUDGET $TAG" --notes-file "$STAGE_DIR/RELEASE-NOTES.md"
+          else
+            gh release create "$TAG" "${FILES[@]}" --title "FORZERO: BUDGET $TAG" --notes-file "$STAGE_DIR/RELEASE-NOTES.md"
+          fi

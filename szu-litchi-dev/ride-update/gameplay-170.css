@@ -1,0 +1,45 @@
+  .live-delta { margin-top:4px; font:600 .8rem var(--mono); color:#dce8d4; }
+  .live-delta[data-gap="ahead"] { color:#9df3a9; }
+  .live-delta[data-gap="behind"] { color:#f8c47a; }
+  .wind-pill { margin-top:6px; padding:4px 9px; border-radius:999px; border:1px solid #9bd8cf52; background:#142b29d9; color:#c8f4ea; font-size:.74rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .courier-hud { position:absolute; left:21px; top:20px; z-index:4; max-width:min(320px,calc(100% - 240px)); padding:10px 14px; border:1px solid #6fe3ba70; border-radius:13px; background:#132a23f0; color:#e6fbf3; box-shadow:0 10px 28px #08151178; }
+  .courier-hud strong { display:block; font-size:.92rem; color:#8ef5cf; }
+  .courier-hud span { display:block; margin-top:3px; font:500 .78rem var(--mono); color:#d8efe6; }
+  .courier-tag { color:#e9fff6; background:#153b2ee8; border-color:#74e9bd; }
+  .courier-tag::before { background:#74e9bd; }
+  #medalDialog { width:min(620px,calc(100% - 28px)); }
+  .medal-unlocks { color:#dec8ff; border-color:#9e77df4a; background:#251c39; margin-top:8px; }
+  .medal-scroll { max-height:min(54vh,430px); overflow:auto; margin-top:10px; scrollbar-width:thin; }
+  .medal-group-title { margin:12px 0 6px; color:var(--muted); font-size:.78rem; font-weight:600; }
+  .medal-list { list-style:none; margin:0; padding:0; border-top:1px solid var(--line); }
+  .medal-item { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:9px; padding:8px 2px; border-bottom:1px solid var(--line); }
+  .medal-info { min-width:0; }
+  .medal-info strong { display:block; font-size:.86rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .medal-info small { display:block; margin-top:2px; color:#b7c9bb; font:500 .74rem var(--mono); }
+  .medal-pill { display:inline-flex; align-items:center; justify-content:center; min-width:44px; padding:3px 8px; border-radius:999px; font-size:.74rem; font-weight:700; border:1px solid #8ea59640; background:#23352a; color:#b4c5b8; }
+  .medal-pill[data-tier="author"] { border-color:#c69effb8; background:#3b215d; color:#edd9ff; box-shadow:0 0 12px #b07cf940; }
+  .medal-pill[data-tier="gold"] { border-color:#f4d36eb8; background:#463616; color:#ffeaa3; }
+  .medal-pill[data-tier="silver"] { border-color:#c8d8e6b8; background:#2d3944; color:#e6f0f8; }
+  .medal-pill[data-tier="bronze"] { border-color:#d3956ab8; background:#3f291c; color:#f6cfb0; }
+  .medal-go { min-height:34px; padding:0 11px; font-size:.78rem; white-space:nowrap; }
+  .friend-score { grid-template-columns:auto minmax(0,1fr) auto auto auto; }
+  .friend-pick { width:18px; height:18px; accent-color:var(--lime); cursor:pointer; }
+  .friend-multi-bar { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding:8px 10px; border-radius:9px; background:#21382c; border:1px solid #9fd4ae45; }
+  .friend-multi-bar span { font-size:.81rem; color:#d7ecdf; }
+  @media (max-width:640px) {
+    .courier-hud { top:56px; left:11px; max-width:calc(100% - 178px); padding:7px 10px; }
+    .courier-hud strong { font-size:.8rem; }
+    .courier-hud span { font-size:.7rem; }
+    .wind-pill { font-size:.69rem; padding:3px 7px; }
+    .live-delta { font-size:.72rem; }
+  }
+  @media (max-height:500px) {
+    .courier-hud { top:50px; left:11px; max-width:min(280px,calc(100% - 220px)); padding:6px 10px; }
+  }
+.map-plate { position:relative; }
+.map-replay { position:absolute; z-index:2; inset:auto 8px 8px; display:flex; align-items:center; gap:7px; flex-wrap:wrap; padding:7px; border-radius:8px; background:#172a21ee; color:#eff7e5; font-size:.76rem; }
+.map-replay[hidden] { display:none; }
+.map-replay input { flex:1 1 110px; min-width:65px; accent-color:#e9b471; }
+.map-replay button,.map-replay select { min-height:32px; }
+.map-replay output { font-variant-numeric:tabular-nums; }
+.race-mode select { max-width:10rem; }

@@ -1,0 +1,144 @@
+[
+  {
+    "version": "1.9.1.1",
+    "renderer": "ANGLE (AMD, AMD Radeon(TM) 610M (0x000013C0) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+    "coldMs": 823.1479999999999,
+    "scenes": [
+      {
+        "campus": "szu",
+        "switchMs": 0,
+        "switchWork": null,
+        "p95": 4.5999999940395355,
+        "median": 4.199999988079071,
+        "drawCallsPerFrame": 66,
+        "trianglesPerFrame": 105889,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 160,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "ucl",
+        "switchMs": 887.5115000000001,
+        "switchWork": {
+          "TaskDuration": 812.1279999999999,
+          "ScriptDuration": 795.7379999999999,
+          "LayoutDuration": 4.994999999999999,
+          "RecalcStyleDuration": 2.911999999999998
+        },
+        "p95": 4.5,
+        "median": 4.200000002980232,
+        "drawCallsPerFrame": 75,
+        "trianglesPerFrame": 156575,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 178,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "shunde",
+        "switchMs": 181.8064999999997,
+        "switchWork": {
+          "TaskDuration": 102.38700000000023,
+          "ScriptDuration": 87.09599999999983,
+          "LayoutDuration": 2.8500000000000054,
+          "RecalcStyleDuration": 2.907
+        },
+        "p95": 4.5,
+        "median": 4.200000002980232,
+        "drawCallsPerFrame": 56,
+        "trianglesPerFrame": 74503,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 62,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          893,
+          420
+        ]
+      }
+    ]
+  },
+  {
+    "version": "2.0.0",
+    "renderer": "ANGLE (AMD, AMD Radeon(TM) 610M (0x000013C0) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+    "coldMs": 791.4571999999998,
+    "scenes": [
+      {
+        "campus": "szu",
+        "switchMs": 0,
+        "switchWork": null,
+        "p95": 4.5999999940395355,
+        "median": 4.199999988079071,
+        "drawCallsPerFrame": 66,
+        "trianglesPerFrame": 105889,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 160,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "ucl",
+        "switchMs": 896.0507999999991,
+        "switchWork": {
+          "TaskDuration": 818.9850000000001,
+          "ScriptDuration": 803.262,
+          "LayoutDuration": 4.992999999999998,
+          "RecalcStyleDuration": 2.8129999999999997
+        },
+        "p95": 4.699999988079071,
+        "median": 4.199999988079071,
+        "drawCallsPerFrame": 75,
+        "trianglesPerFrame": 156575,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 178,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "shunde",
+        "switchMs": 179.85080000000016,
+        "switchWork": {
+          "TaskDuration": 105.7459999999999,
+          "ScriptDuration": 86.47800000000005,
+          "LayoutDuration": 2.8280000000000043,
+          "RecalcStyleDuration": 3.1900000000000053
+        },
+        "p95": 4.5,
+        "median": 4.200000002980232,
+        "drawCallsPerFrame": 56,
+        "trianglesPerFrame": 74503,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 62,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          893,
+          420
+        ]
+      }
+    ]
+  }
+]

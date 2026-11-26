@@ -1,0 +1,9 @@
+{
+  "version": "2.1.2",
+  "shapeOrder": ["masonry", "scenery", "urban", "foliage", "road", "pavement", "water", "terrain"],
+  "campuses": {
+    "szu": { "shapeTriangles": [112028, 112510, 38162, 107488, 30438, 36136, 432, 1489], "meshCells": 559 },
+    "ucl": { "shapeTriangles": [190317, 60428, 0, 26796, 8299, 16812, 0, 2], "meshCells": 533 },
+    "shunde": { "shapeTriangles": [9044, 40424, 0, 50850, 3430, 1482, 686, 2], "meshCells": 320 }
+  }
+}

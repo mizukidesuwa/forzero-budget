@@ -1,0 +1,7 @@
+.gate-flash { position:absolute; left:50%; top:68px; transform:translateX(-50%); z-index:4; padding:7px 15px; border-radius:999px; border:1px solid #d5f2989e; background:#14281ded; color:#effbe2; font-size:.86rem; font-weight:700; white-space:nowrap; pointer-events:none; box-shadow:0 8px 24px #07120c88; }
+  .gate-flash[data-gap="ahead"] { border-color:#7ce896b8; color:#b8ffbe; }
+  .gate-flash[data-gap="behind"] { border-color:#f3b568b8; color:#ffe0b2; }
+  .next[data-alert="missed"] { border-color:#f3a858cc; background:#3a2212f2; color:#ffe6c2; }
+  .timing.gate-pop { border-color:#cde889b8; box-shadow:0 0 0 2px #b6e06840; }
+  @media (max-width:640px) { .gate-flash { top:56px; right:11px; left:auto; transform:none; max-width:calc(100% - 186px); padding:5px 10px; font-size:.74rem; overflow:hidden; text-overflow:ellipsis; } }
+  @media (max-height:500px) { .gate-flash { top:48px; left:50%; right:auto; transform:translateX(-50%); max-width:calc(100% - 360px); padding:4px 10px; font-size:.75rem; overflow:hidden; text-overflow:ellipsis; } }

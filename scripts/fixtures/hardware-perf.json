@@ -1,0 +1,1198 @@
+[
+  {
+    "version": "1.9.1.1",
+    "renderer": "ANGLE (AMD, AMD Radeon(TM) 610M (0x000013C0) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+    "coldMs": 815.0287,
+    "scenes": [
+      {
+        "campus": "szu",
+        "cycle": 1,
+        "switchMs": 0,
+        "switchWork": null,
+        "p95": 4.600000000093132,
+        "median": 4.199999999953434,
+        "drawCallsPerFrame": 80.13953488372093,
+        "trianglesPerFrame": 182586.38870431893,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 160,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "ucl",
+        "cycle": 1,
+        "switchMs": 890.8000000000466,
+        "switchWork": {
+          "TaskDuration": 820.041,
+          "ScriptDuration": 803.9920000000001,
+          "LayoutDuration": 5.310999999999996,
+          "RecalcStyleDuration": 3.028000000000003
+        },
+        "p95": 7.599999999976717,
+        "median": 5.5,
+        "drawCallsPerFrame": 80.48504983388705,
+        "trianglesPerFrame": 121992.11295681063,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 178,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "shunde",
+        "cycle": 1,
+        "switchMs": 159.5,
+        "switchWork": {
+          "TaskDuration": 77.86099999999996,
+          "ScriptDuration": 65.04100000000012,
+          "LayoutDuration": 3.353000000000002,
+          "RecalcStyleDuration": 2.5270000000000015
+        },
+        "p95": 7.300000000046566,
+        "median": 5.299999999930151,
+        "drawCallsPerFrame": 61.53488372093023,
+        "trianglesPerFrame": 82385.81063122924,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 62,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          893,
+          420
+        ]
+      },
+      {
+        "campus": "szu",
+        "cycle": 2,
+        "switchMs": 293.69999999995343,
+        "switchWork": {
+          "TaskDuration": 220.01900000000018,
+          "ScriptDuration": 206.9589999999999,
+          "LayoutDuration": 2.0750000000000073,
+          "RecalcStyleDuration": 3.2960000000000074
+        },
+        "p95": 8,
+        "median": 5.800000000046566,
+        "drawCallsPerFrame": 79.53488372093024,
+        "trianglesPerFrame": 182220.60797342192,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 160,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "ucl",
+        "cycle": 2,
+        "switchMs": 855.5999999999767,
+        "switchWork": {
+          "TaskDuration": 786.1590000000001,
+          "ScriptDuration": 772.713,
+          "LayoutDuration": 1.010000000000011,
+          "RecalcStyleDuration": 2.787999999999999
+        },
+        "p95": 7.899999999906868,
+        "median": 5.400000000023283,
+        "drawCallsPerFrame": 80.48504983388705,
+        "trianglesPerFrame": 121992.11295681063,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 178,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "shunde",
+        "cycle": 2,
+        "switchMs": 146.90000000002328,
+        "switchWork": {
+          "TaskDuration": 74.52199999999998,
+          "ScriptDuration": 61.1189999999997,
+          "LayoutDuration": 1.472000000000001,
+          "RecalcStyleDuration": 2.936000000000008
+        },
+        "p95": 7.700000000069849,
+        "median": 5.5,
+        "drawCallsPerFrame": 61.35548172757475,
+        "trianglesPerFrame": 82337.01328903655,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 62,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          893,
+          420
+        ]
+      },
+      {
+        "campus": "szu",
+        "cycle": 3,
+        "switchMs": 296.5,
+        "switchWork": {
+          "TaskDuration": 215.17700000000062,
+          "ScriptDuration": 206.36999999999972,
+          "LayoutDuration": 0.9819999999999968,
+          "RecalcStyleDuration": 2.1320000000000228
+        },
+        "p95": 7.899999999906868,
+        "median": 5.800000000046566,
+        "drawCallsPerFrame": 78.81395348837209,
+        "trianglesPerFrame": 182056.23588039866,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 160,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "ucl",
+        "cycle": 3,
+        "switchMs": 838,
+        "switchWork": {
+          "TaskDuration": 758.616,
+          "ScriptDuration": 746.6910000000003,
+          "LayoutDuration": 1.1050000000000089,
+          "RecalcStyleDuration": 2.8979999999999837
+        },
+        "p95": 7.900000000023283,
+        "median": 5.400000000023283,
+        "drawCallsPerFrame": 80.48504983388705,
+        "trianglesPerFrame": 121992.11295681063,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 178,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "shunde",
+        "cycle": 3,
+        "switchMs": 144.19999999995343,
+        "switchWork": {
+          "TaskDuration": 66.14499999999967,
+          "ScriptDuration": 55.179000000000755,
+          "LayoutDuration": 0.9809999999999958,
+          "RecalcStyleDuration": 2.6549999999999905
+        },
+        "p95": 7.900000000023283,
+        "median": 5.5,
+        "drawCallsPerFrame": 61.29900332225914,
+        "trianglesPerFrame": 82321.6511627907,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 62,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          893,
+          420
+        ]
+      },
+      {
+        "campus": "szu",
+        "cycle": 4,
+        "switchMs": 286.4000000000233,
+        "switchWork": {
+          "TaskDuration": 205.6319999999996,
+          "ScriptDuration": 196.29399999999998,
+          "LayoutDuration": 0.7830000000000059,
+          "RecalcStyleDuration": 2.463999999999994
+        },
+        "p95": 8.900000000023283,
+        "median": 5.899999999906868,
+        "drawCallsPerFrame": 78.61461794019934,
+        "trianglesPerFrame": 182010.78737541527,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 160,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "ucl",
+        "cycle": 4,
+        "switchMs": 889.5999999999767,
+        "switchWork": {
+          "TaskDuration": 808.6039999999999,
+          "ScriptDuration": 801.1030000000003,
+          "LayoutDuration": 1.0949999999999989,
+          "RecalcStyleDuration": 2.2230000000000025
+        },
+        "p95": 6.599999999976717,
+        "median": 5.100000000093132,
+        "drawCallsPerFrame": 80.48504983388705,
+        "trianglesPerFrame": 121992.11295681063,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 178,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "shunde",
+        "cycle": 4,
+        "switchMs": 148.79999999993015,
+        "switchWork": {
+          "TaskDuration": 65.28699999999965,
+          "ScriptDuration": 55.54300000000012,
+          "LayoutDuration": 1.0510000000000104,
+          "RecalcStyleDuration": 2.829999999999999
+        },
+        "p95": 6.699999999953434,
+        "median": 5.199999999953434,
+        "drawCallsPerFrame": 61.42857142857143,
+        "trianglesPerFrame": 82356.89368770763,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 62,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          893,
+          420
+        ]
+      }
+    ],
+    "sampledProcessPeak": 2214387712,
+    "memorySamples": [
+      {
+        "at": 751.469,
+        "bytes": 376008704,
+        "processes": 4
+      },
+      {
+        "at": 1433.0921,
+        "bytes": 1735974912,
+        "processes": 12
+      },
+      {
+        "at": 2095.8502,
+        "bytes": 1502498816,
+        "processes": 12
+      },
+      {
+        "at": 2742.0675,
+        "bytes": 1501212672,
+        "processes": 12
+      },
+      {
+        "at": 3371.0044,
+        "bytes": 1645363200,
+        "processes": 12
+      },
+      {
+        "at": 4092.6847,
+        "bytes": 1665130496,
+        "processes": 14
+      },
+      {
+        "at": 4807.8485,
+        "bytes": 1704083456,
+        "processes": 12
+      },
+      {
+        "at": 5482.1793,
+        "bytes": 1706643456,
+        "processes": 12
+      },
+      {
+        "at": 6192.7079,
+        "bytes": 1768001536,
+        "processes": 12
+      },
+      {
+        "at": 6889.4004,
+        "bytes": 1773309952,
+        "processes": 12
+      },
+      {
+        "at": 7571.3147,
+        "bytes": 1781968896,
+        "processes": 12
+      },
+      {
+        "at": 8246.3802,
+        "bytes": 2214387712,
+        "processes": 12
+      },
+      {
+        "at": 8923.3138,
+        "bytes": 2184683520,
+        "processes": 12
+      },
+      {
+        "at": 9594.829,
+        "bytes": 2182680576,
+        "processes": 12
+      },
+      {
+        "at": 10249.4757,
+        "bytes": 1967116288,
+        "processes": 12
+      },
+      {
+        "at": 10921.0315,
+        "bytes": 1940955136,
+        "processes": 12
+      },
+      {
+        "at": 11599.5067,
+        "bytes": 1940357120,
+        "processes": 12
+      },
+      {
+        "at": 12299.3609,
+        "bytes": 1915895808,
+        "processes": 12
+      },
+      {
+        "at": 13064.218,
+        "bytes": 1953865728,
+        "processes": 13
+      },
+      {
+        "at": 13779.0876,
+        "bytes": 1934352384,
+        "processes": 12
+      },
+      {
+        "at": 14499.2409,
+        "bytes": 1907355648,
+        "processes": 12
+      },
+      {
+        "at": 15185.3502,
+        "bytes": 1920626688,
+        "processes": 12
+      },
+      {
+        "at": 15885.9113,
+        "bytes": 1918373888,
+        "processes": 12
+      },
+      {
+        "at": 16582.6234,
+        "bytes": 1887834112,
+        "processes": 12
+      },
+      {
+        "at": 17262.3398,
+        "bytes": 1846026240,
+        "processes": 12
+      },
+      {
+        "at": 17913.9778,
+        "bytes": 1857183744,
+        "processes": 12
+      },
+      {
+        "at": 18611.3371,
+        "bytes": 1847525376,
+        "processes": 12
+      },
+      {
+        "at": 19310.0416,
+        "bytes": 1814736896,
+        "processes": 12
+      },
+      {
+        "at": 19990.5534,
+        "bytes": 1856950272,
+        "processes": 12
+      },
+      {
+        "at": 20696.6096,
+        "bytes": 1856147456,
+        "processes": 12
+      },
+      {
+        "at": 21394.2879,
+        "bytes": 1838972928,
+        "processes": 12
+      },
+      {
+        "at": 22103.019,
+        "bytes": 2189557760,
+        "processes": 12
+      },
+      {
+        "at": 22807.9459,
+        "bytes": 2196041728,
+        "processes": 12
+      },
+      {
+        "at": 23510.3916,
+        "bytes": 2167603200,
+        "processes": 12
+      },
+      {
+        "at": 24189.1838,
+        "bytes": 2166005760,
+        "processes": 12
+      },
+      {
+        "at": 24818.3847,
+        "bytes": 2009923584,
+        "processes": 12
+      },
+      {
+        "at": 25525.7113,
+        "bytes": 1979822080,
+        "processes": 12
+      },
+      {
+        "at": 26224.601,
+        "bytes": 1978933248,
+        "processes": 12
+      },
+      {
+        "at": 26896.851,
+        "bytes": 1954566144,
+        "processes": 12
+      },
+      {
+        "at": 27602.0169,
+        "bytes": 1776713728,
+        "processes": 12
+      },
+      {
+        "at": 28338.0866,
+        "bytes": 1735835648,
+        "processes": 12
+      },
+      {
+        "at": 29048.2543,
+        "bytes": 1725927424,
+        "processes": 12
+      }
+    ]
+  },
+  {
+    "version": "2.3.0",
+    "renderer": "ANGLE (AMD, AMD Radeon(TM) 610M (0x000013C0) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+    "coldMs": 906.6451000000015,
+    "scenes": [
+      {
+        "campus": "szu",
+        "cycle": 1,
+        "switchMs": 0,
+        "switchWork": null,
+        "p95": 9.5,
+        "median": 4.199999999953434,
+        "drawCallsPerFrame": 78.2624584717608,
+        "trianglesPerFrame": 174565.5049833887,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 161,
+        "sampledJsHeapPeak": 286000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "ucl",
+        "cycle": 1,
+        "switchMs": 1120.5999999999767,
+        "switchWork": {
+          "TaskDuration": 1049.7179999999998,
+          "ScriptDuration": 1032.2209999999998,
+          "LayoutDuration": 5.704000000000001,
+          "RecalcStyleDuration": 3.878000000000003
+        },
+        "p95": 17.29999999993015,
+        "median": 5.300000000046566,
+        "drawCallsPerFrame": 80.45514950166113,
+        "trianglesPerFrame": 124634.6611295681,
+        "buffersCreated": 1,
+        "buffersDeleted": 0,
+        "buffersLive": 188,
+        "sampledJsHeapPeak": 286000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "shunde",
+        "cycle": 1,
+        "switchMs": 171.70000000006985,
+        "switchWork": {
+          "TaskDuration": 92.29600000000016,
+          "ScriptDuration": 79.47199999999998,
+          "LayoutDuration": 3.5180000000000002,
+          "RecalcStyleDuration": 2.832000000000001
+        },
+        "p95": 20.899999999906868,
+        "median": 5.200000000069849,
+        "drawCallsPerFrame": 61.388704318936874,
+        "trianglesPerFrame": 82387.64784053156,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 64,
+        "sampledJsHeapPeak": 286000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "szu",
+        "cycle": 2,
+        "switchMs": 331.0999999999767,
+        "switchWork": {
+          "TaskDuration": 262.3770000000003,
+          "ScriptDuration": 247.5879999999999,
+          "LayoutDuration": 2.240999999999993,
+          "RecalcStyleDuration": 4.032999999999995
+        },
+        "p95": 86.89999999990687,
+        "median": 15,
+        "drawCallsPerFrame": 77.13953488372093,
+        "trianglesPerFrame": 174075.53820598006,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 162,
+        "sampledJsHeapPeak": 286000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "ucl",
+        "cycle": 2,
+        "switchMs": 1115.4000000000233,
+        "switchWork": {
+          "TaskDuration": 1034.2849999999996,
+          "ScriptDuration": 1020.6429999999998,
+          "LayoutDuration": 2.0519999999999983,
+          "RecalcStyleDuration": 4.396999999999984
+        },
+        "p95": 21.70000000006985,
+        "median": 14.099999999976717,
+        "drawCallsPerFrame": 80.45514950166113,
+        "trianglesPerFrame": 124634.6611295681,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 188,
+        "sampledJsHeapPeak": 286000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "shunde",
+        "cycle": 2,
+        "switchMs": 168.20000000006985,
+        "switchWork": {
+          "TaskDuration": 80.71499999999965,
+          "ScriptDuration": 69.34299999999993,
+          "LayoutDuration": 1.3139999999999956,
+          "RecalcStyleDuration": 3.7659999999999916
+        },
+        "p95": 20.5,
+        "median": 13.5,
+        "drawCallsPerFrame": 61.29235880398671,
+        "trianglesPerFrame": 82426.89700996678,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 64,
+        "sampledJsHeapPeak": 286000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "szu",
+        "cycle": 3,
+        "switchMs": 408,
+        "switchWork": {
+          "TaskDuration": 352.9210000000003,
+          "ScriptDuration": 340.23999999999967,
+          "LayoutDuration": 1.8559999999999965,
+          "RecalcStyleDuration": 4.2700000000000236
+        },
+        "p95": 22.300000000046566,
+        "median": 14,
+        "drawCallsPerFrame": 77.39202657807309,
+        "trianglesPerFrame": 174133.10631229237,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 162,
+        "sampledJsHeapPeak": 286000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "ucl",
+        "cycle": 3,
+        "switchMs": 1091.8000000000466,
+        "switchWork": {
+          "TaskDuration": 1013.4819999999997,
+          "ScriptDuration": 1003.1220000000003,
+          "LayoutDuration": 1.7070000000000003,
+          "RecalcStyleDuration": 3.2620000000000147
+        },
+        "p95": 16.599999999976717,
+        "median": 12.5,
+        "drawCallsPerFrame": 80.45514950166113,
+        "trianglesPerFrame": 124634.6611295681,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 188,
+        "sampledJsHeapPeak": 286000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "shunde",
+        "cycle": 3,
+        "switchMs": 167.09999999997672,
+        "switchWork": {
+          "TaskDuration": 88.90200000000092,
+          "ScriptDuration": 76.77000000000066,
+          "LayoutDuration": 1.5499999999999958,
+          "RecalcStyleDuration": 4.6160000000000085
+        },
+        "p95": 17.699999999953434,
+        "median": 12.20000000006985,
+        "drawCallsPerFrame": 61.67774086378738,
+        "trianglesPerFrame": 82531.72093023256,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 64,
+        "sampledJsHeapPeak": 286000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "szu",
+        "cycle": 4,
+        "switchMs": 429.29999999993015,
+        "switchWork": {
+          "TaskDuration": 372.2549999999991,
+          "ScriptDuration": 359.88799999999975,
+          "LayoutDuration": 1.9440000000000013,
+          "RecalcStyleDuration": 3.450999999999982
+        },
+        "p95": 19.79999999993015,
+        "median": 14.099999999976717,
+        "drawCallsPerFrame": 77.33222591362126,
+        "trianglesPerFrame": 174119.47176079734,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 162,
+        "sampledJsHeapPeak": 286000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "ucl",
+        "cycle": 4,
+        "switchMs": 1096.9000000000233,
+        "switchWork": {
+          "TaskDuration": 1044.518,
+          "ScriptDuration": 1008.1559999999996,
+          "LayoutDuration": 1.3749999999999873,
+          "RecalcStyleDuration": 4.06200000000001
+        },
+        "p95": 24.5,
+        "median": 14.900000000023283,
+        "drawCallsPerFrame": 80.45514950166113,
+        "trianglesPerFrame": 124634.6611295681,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 188,
+        "sampledJsHeapPeak": 286000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "shunde",
+        "cycle": 4,
+        "switchMs": 208.79999999993015,
+        "switchWork": {
+          "TaskDuration": 100.32099999999922,
+          "ScriptDuration": 86.90400000000054,
+          "LayoutDuration": 2.2139999999999938,
+          "RecalcStyleDuration": 4.178000000000015
+        },
+        "p95": 24.100000000093132,
+        "median": 15.399999999906868,
+        "drawCallsPerFrame": 61.33554817275748,
+        "trianglesPerFrame": 82373.18936877076,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 64,
+        "sampledJsHeapPeak": 286000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      }
+    ],
+    "sampledProcessPeak": 2162569216,
+    "memorySamples": [
+      {
+        "at": 29907.8986,
+        "bytes": 365293568,
+        "processes": 4
+      },
+      {
+        "at": 30579,
+        "bytes": 1635958784,
+        "processes": 12
+      },
+      {
+        "at": 31269.6944,
+        "bytes": 1459314688,
+        "processes": 12
+      },
+      {
+        "at": 31928.982,
+        "bytes": 1458024448,
+        "processes": 12
+      },
+      {
+        "at": 32576.0564,
+        "bytes": 1578504192,
+        "processes": 12
+      },
+      {
+        "at": 33254.6257,
+        "bytes": 1648283648,
+        "processes": 14
+      },
+      {
+        "at": 34026.4334,
+        "bytes": 1687224320,
+        "processes": 12
+      },
+      {
+        "at": 34732.2845,
+        "bytes": 1666113536,
+        "processes": 12
+      },
+      {
+        "at": 35437.6496,
+        "bytes": 1667121152,
+        "processes": 12
+      },
+      {
+        "at": 36114.3291,
+        "bytes": 1734664192,
+        "processes": 12
+      },
+      {
+        "at": 36801.0219,
+        "bytes": 1733951488,
+        "processes": 12
+      },
+      {
+        "at": 37485.8883,
+        "bytes": 1740976128,
+        "processes": 12
+      },
+      {
+        "at": 38169.9749,
+        "bytes": 1740169216,
+        "processes": 12
+      },
+      {
+        "at": 38843.6177,
+        "bytes": 1707323392,
+        "processes": 12
+      },
+      {
+        "at": 39555.7913,
+        "bytes": 2152685568,
+        "processes": 12
+      },
+      {
+        "at": 40263.1962,
+        "bytes": 2162569216,
+        "processes": 12
+      },
+      {
+        "at": 41033.2213,
+        "bytes": 2157215744,
+        "processes": 12
+      },
+      {
+        "at": 41793.4832,
+        "bytes": 2111320064,
+        "processes": 12
+      },
+      {
+        "at": 42632.5982,
+        "bytes": 2108907520,
+        "processes": 12
+      },
+      {
+        "at": 43397.5856,
+        "bytes": 2103783424,
+        "processes": 12
+      },
+      {
+        "at": 44230.3041,
+        "bytes": 1640402944,
+        "processes": 12
+      },
+      {
+        "at": 44930.9908,
+        "bytes": 1639084032,
+        "processes": 12
+      },
+      {
+        "at": 45639.7579,
+        "bytes": 1635708928,
+        "processes": 12
+      },
+      {
+        "at": 46342.1218,
+        "bytes": 1635811328,
+        "processes": 12
+      },
+      {
+        "at": 47083.6458,
+        "bytes": 1817407488,
+        "processes": 12
+      },
+      {
+        "at": 47878.8054,
+        "bytes": 1901191168,
+        "processes": 12
+      },
+      {
+        "at": 48655.378,
+        "bytes": 1901490176,
+        "processes": 12
+      },
+      {
+        "at": 49366.9298,
+        "bytes": 1868161024,
+        "processes": 12
+      },
+      {
+        "at": 50074.1683,
+        "bytes": 1844727808,
+        "processes": 12
+      },
+      {
+        "at": 50817.0677,
+        "bytes": 1827885056,
+        "processes": 12
+      },
+      {
+        "at": 51518.9205,
+        "bytes": 1825357824,
+        "processes": 12
+      },
+      {
+        "at": 52212.1251,
+        "bytes": 1827287040,
+        "processes": 12
+      },
+      {
+        "at": 52932.9422,
+        "bytes": 1880887296,
+        "processes": 12
+      },
+      {
+        "at": 53647.7043,
+        "bytes": 1852440576,
+        "processes": 12
+      },
+      {
+        "at": 54376.2153,
+        "bytes": 1839935488,
+        "processes": 12
+      },
+      {
+        "at": 55217.4641,
+        "bytes": 1838706688,
+        "processes": 12
+      },
+      {
+        "at": 55929.031,
+        "bytes": 1764524032,
+        "processes": 12
+      },
+      {
+        "at": 56632.7192,
+        "bytes": 1763446784,
+        "processes": 12
+      },
+      {
+        "at": 57329.6634,
+        "bytes": 1896693760,
+        "processes": 12
+      },
+      {
+        "at": 58043.3924,
+        "bytes": 1896177664,
+        "processes": 12
+      },
+      {
+        "at": 58764.0443,
+        "bytes": 1870979072,
+        "processes": 12
+      },
+      {
+        "at": 59459.3163,
+        "bytes": 1871065088,
+        "processes": 12
+      },
+      {
+        "at": 60185.5606,
+        "bytes": 1670426624,
+        "processes": 9
+      },
+      {
+        "at": 60904.3283,
+        "bytes": 1481408512,
+        "processes": 9
+      },
+      {
+        "at": 61621.5668,
+        "bytes": 1468891136,
+        "processes": 9
+      },
+      {
+        "at": 62329.6368,
+        "bytes": 1636818944,
+        "processes": 9
+      },
+      {
+        "at": 63034.9171,
+        "bytes": 1719103488,
+        "processes": 9
+      },
+      {
+        "at": 63730.9751,
+        "bytes": 1715171328,
+        "processes": 9
+      },
+      {
+        "at": 64435.4184,
+        "bytes": 1713618944,
+        "processes": 9
+      },
+      {
+        "at": 65132.743,
+        "bytes": 1708511232,
+        "processes": 9
+      },
+      {
+        "at": 65830.7052,
+        "bytes": 1653731328,
+        "processes": 9
+      },
+      {
+        "at": 66522.4818,
+        "bytes": 1648975872,
+        "processes": 9
+      },
+      {
+        "at": 67239.5169,
+        "bytes": 1701113856,
+        "processes": 9
+      },
+      {
+        "at": 67947.6766,
+        "bytes": 1677238272,
+        "processes": 9
+      },
+      {
+        "at": 68648.2622,
+        "bytes": 1669193728,
+        "processes": 9
+      },
+      {
+        "at": 69352.2317,
+        "bytes": 1649324032,
+        "processes": 9
+      },
+      {
+        "at": 70047.2777,
+        "bytes": 1597104128,
+        "processes": 9
+      },
+      {
+        "at": 70747.7345,
+        "bytes": 1588498432,
+        "processes": 9
+      },
+      {
+        "at": 71513.9469,
+        "bytes": 1705627648,
+        "processes": 9
+      },
+      {
+        "at": 72205.7096,
+        "bytes": 1705500672,
+        "processes": 9
+      },
+      {
+        "at": 72896.9299,
+        "bytes": 1705295872,
+        "processes": 9
+      },
+      {
+        "at": 73587.0976,
+        "bytes": 1670242304,
+        "processes": 9
+      },
+      {
+        "at": 74277.7926,
+        "bytes": 1665818624,
+        "processes": 9
+      },
+      {
+        "at": 74970.1271,
+        "bytes": 1632661504,
+        "processes": 9
+      },
+      {
+        "at": 75683.3281,
+        "bytes": 1632272384,
+        "processes": 9
+      },
+      {
+        "at": 76410.2511,
+        "bytes": 1598685184,
+        "processes": 9
+      },
+      {
+        "at": 77107.4159,
+        "bytes": 1678475264,
+        "processes": 9
+      },
+      {
+        "at": 77812.9338,
+        "bytes": 1672560640,
+        "processes": 9
+      },
+      {
+        "at": 78532.9737,
+        "bytes": 1669779456,
+        "processes": 9
+      },
+      {
+        "at": 79294.4839,
+        "bytes": 1633017856,
+        "processes": 9
+      },
+      {
+        "at": 80073.3925,
+        "bytes": 1628008448,
+        "processes": 9
+      },
+      {
+        "at": 80888.9413,
+        "bytes": 1606414336,
+        "processes": 9
+      },
+      {
+        "at": 81719.4775,
+        "bytes": 1595457536,
+        "processes": 9
+      },
+      {
+        "at": 82534.0246,
+        "bytes": 1631334400,
+        "processes": 9
+      },
+      {
+        "at": 83334.6423,
+        "bytes": 1628045312,
+        "processes": 9
+      },
+      {
+        "at": 84075.6634,
+        "bytes": 1628246016,
+        "processes": 9
+      },
+      {
+        "at": 84815.3019,
+        "bytes": 1618804736,
+        "processes": 9
+      },
+      {
+        "at": 85557.8691,
+        "bytes": 1582247936,
+        "processes": 9
+      },
+      {
+        "at": 86273.4938,
+        "bytes": 1570750464,
+        "processes": 9
+      },
+      {
+        "at": 86997.3035,
+        "bytes": 1496608768,
+        "processes": 9
+      }
+    ]
+  }
+]

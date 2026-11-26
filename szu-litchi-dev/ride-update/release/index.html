@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0d0f">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 340 340'%3E%3Crect width='340' height='340' rx='52' fill='%230b0d0f'/%3E%3Cg transform='translate(0,116)'%3E%3Cg transform='translate(14,0) skewX(-10)' font-family='Arial Black, Arial, sans-serif'%3E%3Ctext x='10' y='65' font-size='59' font-weight='950' letter-spacing='-2' fill='%23ffffff'%3EFOR%3Ctspan fill='%23ff6433'%3EZERO%3C/tspan%3E:%3C/text%3E%3Ctext x='15' y='96' font-size='26' font-weight='900' letter-spacing='9' fill='%23ff6433'%3EBUDGET%3C/text%3E%3C/g%3E%3C/g%3E%3C/svg%3E">
+<meta name="description" content="FORZERO: BUDGET（有限竞速：地贫线）— 在深圳大学、伦敦与顺峰山公园之间自由骑行与计时竞速。">
+<title>FORZERO: BUDGET · 有限竞速：地贫线 1.9.1.1</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="shell">
+  <header class="masthead">
+    <div class="identity"><span class="brand-badge" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 108"><g transform="translate(14,0) skewX(-10)" font-family="Arial Black, Arial, sans-serif"><text x="10" y="65" font-size="59" font-weight="950" letter-spacing="-2" fill="#FFFFFF">FOR<tspan fill="#FF6433">ZERO</tspan>:</text><text x="15" y="96" font-size="26" font-weight="900" letter-spacing="9" fill="#FF6433">BUDGET</text></g></svg></span><div><strong>有限竞速：地贫线</strong><small lang="en">FORZERO: BUDGET · 1.9.1.1</small></div></div>
+    <div class="location" id="campusName">深圳大学 · 粤海校区</div>
+  </header>
+  <section class="stage" tabindex="0" id="stage" data-phase="free" aria-label="FORZERO: BUDGET 有限竞速：地贫线">
+    <canvas id="world" aria-label="FORZERO: BUDGET 三维骑行赛道"></canvas>
+    <canvas id="weatherOverlay" aria-hidden="true" hidden></canvas>
+    <div class="boot-loader" id="bootLoader" role="status" aria-live="polite"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 150" role="img" aria-label="FORZERO: BUDGET 有限竞速：地贫线"><g transform="translate(14,0) skewX(-10)" font-family="Arial Black, Arial, sans-serif"><text x="10" y="65" font-size="59" font-weight="950" letter-spacing="-2" fill="#FFFFFF">FOR<tspan fill="#FF6433">ZERO</tspan>:</text><text x="15" y="96" font-size="26" font-weight="900" letter-spacing="9" fill="#FF6433">BUDGET</text><text x="15" y="134" font-size="24" font-weight="900" letter-spacing="3.5" fill="#FFFFFF" font-family="'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', sans-serif">有限竞速：<tspan fill="#FF6433">地贫线</tspan></text></g></svg><span>正在构建三维赛道…</span></div>
+    <div id="sceneHud">
+      <div class="shade"></div>
+      <div class="intro" id="intro">
+        <div class="eyebrow">自由骑行</div>
+        <h1 class="intro-brand" aria-label="FORZERO: BUDGET 有限竞速：地贫线"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 150" role="img" aria-label="FORZERO: BUDGET 有限竞速：地贫线"><g transform="translate(14,0) skewX(-10)" font-family="Arial Black, Arial, sans-serif"><text x="10" y="65" font-size="59" font-weight="950" letter-spacing="-2" fill="#FFFFFF">FOR<tspan fill="#FF6433">ZERO</tspan>:</text><text x="15" y="96" font-size="26" font-weight="900" letter-spacing="9" fill="#FF6433">BUDGET</text><text x="15" y="134" font-size="24" font-weight="900" letter-spacing="3.5" fill="#FFFFFF" font-family="'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', sans-serif">有限竞速：<tspan fill="#FF6433">地贫线</tspan></text></g></svg></h1>
+        <p class="brief" id="courseBrief"></p>
+        <span class="measure" id="courseFacts"></span><span class="measure" id="goldGoal"></span>
+      </div>
+      <section class="timing" id="timing" aria-label="比赛用时" hidden>
+        <span class="readout-title" id="timedTitle">计时赛</span>
+        <output class="clock" id="clock">00:00.00</output>
+        <div class="time-checkpoints"><span><span id="progressLabel">检查点</span> <b id="checkpointCount" aria-live="polite">0 / 7</b></span><span class="dots" id="dots" aria-hidden="true"></span></div>
+        <div class="split"><span id="ghostName"></span><strong id="splitGap"></strong></div>
+        <div class="live-delta" id="liveDelta" hidden></div>
+        <div class="wind-pill" id="windPill" hidden></div>
+        <div class="coach-feedback" id="sectorFeedback" aria-live="polite" hidden><span id="sectorLabel"></span><strong id="sectorGap"></strong></div>
+        <output class="exit-feedback" id="exitFeedback" hidden></output>
+        <output id="onlineRank" class="online-rank" hidden></output>
+        <output id="onlineLatency" class="online-latency" hidden></output>
+      </section>
+      <div class="speedometer"><div class="speed-badges" id="speedBadges"><span id="bikePosture" class="status-pill posture-pill" hidden></span><span id="draftPill" class="draft-pill" hidden>尾流破风</span><span id="puddleStatus" class="draft-pill" hidden>积水打滑</span></div><span class="speed-mat" id="surfaceType">柏油路面</span><div class="speed-readout"><strong id="velocity">0</strong><small>km/h</small><span id="slopeGrade" class="slope-grade" hidden></span></div><div class="sprint-meter" id="sprintMeter" role="meter" aria-label="冲刺耐力" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i id="sprintFill"></i></div><span class="sprint-hint" id="sprintHint">冲刺耐力</span><div id="bikeFeedback" class="bike-feedback" hidden>
+        <label>抓地 <meter id="bikeGripMeter" min="0" max="100" value="100"></meter></label>
+      </div><span class="brake-hint" id="brakeHint" hidden></span></div>
+      <div class="courier-hud" id="courierHud" hidden><strong id="courierTitle"></strong><span id="courierDetail"></span></div>
+      <div class="hud-navigation">
+      <div class="next" id="next" hidden></div>
+      <div class="gate-flash" id="gateFlash" aria-live="polite" hidden></div>
+      <button id="miniButton" class="mini" type="button" aria-label="打开俯视地图"><span>校园小地图</span><canvas id="miniMap" width="382" height="228" aria-hidden="true"></canvas></button>
+      </div>
+      <div class="rider-tag" id="riderTag" hidden>player</div>
+      <div class="rider-tag friend-tag" id="friendTag" hidden></div>
+      <div class="rider-tag online-tag" id="onlineTag0" hidden></div>
+      <div class="rider-tag online-tag" id="onlineTag1" hidden></div>
+      <div class="rider-tag online-tag" id="onlineTag2" hidden></div>
+      <div class="rider-tag courier-tag" id="courierTag" hidden></div>
+      <div class="rider-tag chair-cheer" id="chairCheer" hidden></div>
+      <div class="gate-tag" id="gateTag" hidden></div>
+    </div>
+    <section class="map-screen" id="mapScreen" aria-labelledby="mapTitle" hidden>
+      <div class="map-head"><h2 id="mapTitle">校园俯视地图</h2><span id="mapLegend">橙色是 player</span></div>
+      <div class="map-plate"><canvas id="bigMap" aria-label="俯视地图，显示校园道路、湖泊、教学楼、检查点和骑手位置">校园俯视地图</canvas><div id="mapReplay" class="map-replay" hidden><button id="replayPlay" class="action" type="button">播放</button><select id="replaySpeed" aria-label="播放倍速"><option value="1">1×</option><option value="2">2×</option></select><input id="replaySeek" type="range" min="0" max="1" value="0" aria-label="回放时间轴"><output id="replayDetail"></output></div><div class="map-tools"><button class="float-button" id="mapZoom" type="button" aria-pressed="false">看赛道</button><button class="float-button" id="mapCompare" type="button" aria-pressed="true" hidden>走线对比</button><button class="float-button" id="hospitalRoute"
+          type="button" aria-pressed="false" hidden>标出 UCLH 路线</button><output class="map-place" id="mapPlace" hidden></output></div></div>
+      <aside class="map-side">
+        <h3 id="mapCourse">计时赛路线</h3>
+        <figure class="elevation-panel" id="elevationPanel" hidden>
+          <figcaption id="elevationStats"></figcaption>
+          <canvas id="elevationChart" width="300" height="66" role="img" aria-label="赛道坡度剖面"></canvas>
+        </figure>
+        <ol id="stationList"></ol>
+        <div class="map-foot"><span id="mapClock" class="map-time"></span><span id="mapNext"></span><div class="references"><span id="szuReferences"><a href="https://www.szu.edu.cn/xxgk/xydt.htm" rel="noopener noreferrer" target="_blank">校方校园地图</a><span> · </span><a href="https://www.thepaper.cn/newsDetail_forward_18845502" rel="noopener noreferrer" target="_blank">楼宇实景</a><span> · </span><a href="https://www.lib.szu.edu.cn/about/floor-plan" rel="noopener noreferrer" target="_blank">图书馆</a></span><span id="uclReference" hidden><a href="https://maps.ucl.ac.uk/downloads/" rel="noopener noreferrer" target="_blank">UCL 校园地图</a><span> · </span><a href="https://www.nicholashare.co.uk/projects/view/new-student-centre-ucl" rel="noopener noreferrer" target="_blank">学生中心实景</a><span> · </span><a href="https://www.london.ac.uk/about/history/history-senate-house/senate-house-architecture-design" rel="noopener noreferrer" target="_blank">Senate House</a><span> · </span><a href="https://www.ucl.ac.uk/ioe/about-ioe/contact-ioe/visitor-accessibility" rel="noopener noreferrer" target="_blank">IOE</a><span> · </span><a href="https://tfl.gov.uk/maps/track/tube" rel="noopener noreferrer" target="_blank">TfL</a></span></div></div>
+      </aside>
+    </section>
+    <div class="stage-controls">
+      <button class="float-button mode-button" id="freeRide" type="button" aria-pressed="true" title="切换到自由骑行" hidden>自由骑行</button>
+      <button class="float-button" id="mapToggle" type="button" aria-pressed="false"><span id="mapText">俯视地图</span><kbd>M</kbd></button>
+      <button class="float-button" id="courierButton" type="button" aria-pressed="false" title="自由骑行校园闪送">闪送</button>
+      <button class="float-button" id="medalButton" type="button" aria-haspopup="dialog" aria-controls="medalDialog">勋章</button>
+      <button class="float-button bike-shop-button" id="bikeButton" type="button" aria-haspopup="dialog" aria-controls="settingsDialog">车库</button>
+      <button class="float-button settings-button" id="settingsButton" type="button" aria-haspopup="dialog" aria-controls="settingsDialog"><i aria-hidden="true"></i>设置</button>
+      <button class="float-button icon" id="expand" type="button" aria-label="全屏" title="全屏"><i class="corners" aria-hidden="true"></i></button>
+    </div>
+    <div class="callout" id="callout" hidden>
+      <strong id="callTitle"></strong><p id="callValue"></p><small id="callDetail" hidden></small>
+      <div class="race-review" id="raceReview" role="region" aria-label="完赛复盘" tabindex="0" hidden>
+        <div class="corner-review" id="cornerReview" hidden>
+          <strong id="reviewCornerName"></strong><span id="reviewCornerDetail"></span><span id="reviewCornerSpeed"></span>
+        </div>
+        <div class="review-title"><strong>分段用时</strong><span id="reviewReference"></span></div>
+        <table class="review-table" aria-label="分段成绩">
+          <thead><tr><th scope="col">路段</th><th scope="col">用时 (秒)</th><th scope="col">差距 (秒)</th><th scope="col">练习</th></tr></thead>
+          <tbody id="sectorRows"></tbody>
+        </table>
+      </div>
+      <div class="finish-actions">
+        <button id="callAction" class="action primary" type="button" hidden></button>
+        <button id="reviewMapButton" class="action" type="button" hidden>俯视图走线对比</button>
+        <button id="practiceExit" class="action" type="button" hidden>退出单练</button>
+        <button id="friendExport" class="action" type="button" hidden>导出影子文件</button>
+      </div>
+    </div>
+    <p id="notice" class="notice" role="status" hidden></p>
+    <dialog id="settingsDialog" class="settings-dialog" aria-labelledby="settingsTitle">
+      <header class="settings-head"><div class="settings-head-main"><h2 id="settingsTitle">设置</h2><p id="settingsState" hidden></p></div><button class="action settings-guide-btn" id="settingsGuideBtn" type="button">玩法说明</button></header>
+      <div id="settingsTuneBar" class="online-tuning-banner" hidden>
+        <span id="settingsTuneText"></span>
+        <div class="online-tuning-actions">
+          <button class="action" type="button" id="settingsTuneReady">完成改装</button>
+          <button class="action" type="button" id="settingsTuneSkip" hidden>立即发车</button>
+        </div>
+      </div>
+      <div id="displaySettings">
+      <div class="setting-line"><label for="driverName">骑手姓名</label>
+        <input id="driverName" type="text" maxlength="24" value="player" autocomplete="off" placeholder="player">
+      </div>
+      <div class="setting-line"><label for="settingsResolution">渲染分辨率</label><select id="settingsResolution">
+        <option value="auto">自动</option><option value="sharp">清晰 125%</option><option value="fast">性能 75%</option>
+      </select></div>
+      <div class="setting-line"><label for="settingsAA">抗锯齿</label><select id="settingsAA">
+        <option value="auto">自动</option><option value="fxaa">FXAA</option><option value="msaa">MSAA + FXAA</option><option value="off">关闭</option>
+      </select></div>
+      <div class="setting-line"><label for="settingsWeather">时段与天气</label><select id="settingsWeather">
+        <option value="day">正午晴天</option><option value="sunset">黄昏日落</option><option value="night">夜骑灯光</option><option value="rain">小雨湿地</option>
+      </select></div>
+      <div class="setting-line"><label for="settingsWindSpeed">地图风速（m/s）<small>0 为无风，0–15 m/s（周赛自带风场除外）</small></label><input id="settingsWindSpeed" type="number" min="0" max="15" step="0.5" value="0"></div>
+      <div class="setting-line"><label for="settingsWindMode">风场模式</label><select id="settingsWindMode"><option value="gust">阵风</option><option value="steady">恒定</option></select></div>
+      <div class="setting-line"><label for="settingsWindDir">地图风向</label><select id="settingsWindDir">
+        <option value="0">偏西风</option><option value="1">西北风</option><option value="2">偏北风</option><option value="3">东北风</option><option value="4">偏东风</option><option value="5">东南风</option><option value="6">偏南风</option><option value="7">西南风</option>
+      </select></div>
+      <div class="setting-line"><label for="settingsGhost">显示竞赛影子</label><input id="settingsGhost" type="checkbox" checked></div>
+      <div class="setting-line">
+        <label for="settingsBrakeLine">刹车线<small>绿可加速 · 黄收力 · 红减速</small></label>
+        <input id="settingsBrakeLine" type="checkbox" checked>
+      </div>
+      <div class="setting-line">
+        <label for="settingsSound">动态骑行音效<small>风噪 · 胎噪 · 飞轮棘轮与提示音</small></label>
+        <input id="settingsSound" type="checkbox" checked>
+      </div>
+      <div class="setting-line">
+        <label for="settingsTraffic">车流密度<small>计时赛发车前选择</small></label>
+        <select id="settingsTraffic"><option value="off">关闭</option><option value="sparse">稀疏（默认）</option><option value="standard">标准</option></select>
+      </div><div class="setting-line">
+        <label for="settingsCollision">车辆碰撞箱<small>本局开启后，与巡游车 / 车流产生实体碰撞</small></label>
+        <input id="settingsCollision" type="checkbox">
+      </div>
+      <div class="setting-line"><label for="settingsHudScale">HUD 缩放<small>计时、速度、小地图和赛道提示</small></label><select id="settingsHudScale">
+        <option value="auto">自动（推荐）</option><option value="65">65%</option><option value="80">80%</option><option value="100">100%</option><option value="115">115%</option><option value="130">130%</option>
+      </select></div>
+      <div class="setting-line"><label for="settingsTouchSize">触屏按键大小<small>仅触屏模式生效，可调节按钮与热区尺寸</small></label><select id="settingsTouchSize">
+        <option value="compact">紧凑</option><option value="standard">标准（推荐）</option><option value="large">超大</option>
+      </select></div>
+      <div class="settings-result" id="settingsStatus">等待 3D 画面</div>
+      <div class="setting-line"><label>存档备份<small>启动器自动写入 save/player-data.json</small></label><div class="save-actions"><button class="action" id="saveExport" type="button">导出备份</button><button class="action" id="saveImport" type="button">导入备份</button><input id="saveFile" type="file" accept=".json,application/json" hidden></div></div>
+      <p class="bike-note" id="saveStatus" role="status"></p>
+      </div>
+      <div class="guide-panel" id="guideSettings" hidden>
+        <section class="guide-card">
+          <h3>操控与触屏</h3>
+          <ul>
+            <li>电脑：<code>W A S D</code> 或方向键骑行，<code>Shift</code> 冲刺，<code>F</code> 回赛道（+2 秒），<code>M</code> 俯视地图，<code>P</code> 暂停，<code>B / H</code> 摇车铃。</li>
+            <li>手机：左手「左转 ↔ 右转」支持拇指直接滑动切换；右手「加速」上滑进「冲刺」、左滑切「刹车」，按键外缘自带扩边容错热区。</li>
+            <li>触屏手感：可在「设置 → 触屏按键大小」切换紧凑 / 标准 / 超大档位。</li>
+          </ul>
+        </section>
+        <section class="guide-card">
+          <h3>姿态与破风</h3>
+          <ul>
+            <li>高速巡航自动进入「伏身破风」（降风阻、提极速），坡道低速或冲刺触发「起身摇车」（提爆发力）；仅在触发时显示于速度表上方。</li>
+            <li>紧跟前方车流或联机对手 2–14 米可触发「尾流破风」，降低空气阻力并加快冲刺耐力回复。</li>
+          </ul>
+        </section>
+        <section class="guide-card">
+          <h3>路面、抓地与遣返</h3>
+          <ul>
+            <li>柏油路面极速最高，碎石路面需提前减速与渐进制动，草地会明显降速；左下角「抓地」进度条变橙/红时表示接近侧滑极限。</li>
+            <li>在车库可比较不同载具的碎石极速和抓地。顺峰山湖心亭从青云塔山脚一侧上栈道，低速居中通过。</li>
+            <li>顺峰山落水或冲出山路悬崖会触发强制遣返（计时赛 +2 秒罚时，自由骑行传回最近路面）。</li>
+          </ul>
+        </section>
+        <section class="guide-card">
+          <h3>模式、工坊与联机</h3>
+          <ul>
+            <li>支持深圳大学、伦敦 UCL 与顺峰山三站直达，可玩自由骑行 / 闪送打卡 / 计时赛（含区间单练与 0.90× 紫牌大师）/ 周赛种子 / 友人多影子对战。</li>
+            <li>「车库」支持流派预设、5 槽配件取舍调校与外观定制；「联机」支持 BO1 / BO3 / 积分联赛 / 盲盒随机 / 铁人三项及赛前改车、车流、风场与碰撞箱规则。</li>
+          </ul>
+        </section>
+      </div>
+      <div class="bike-settings" id="bikeSettings" hidden>
+        <p class="bike-note" id="bikeLock" hidden>完赛或退出后可更换载具与配件。</p>
+        <div class="setting-line"><label for="vehiclePicker">载具</label><select id="vehiclePicker"></select></div>
+        <p class="bike-note" id="vehicleNote" hidden></p>
+        <div class="workshop-budget">
+          <div class="setting-line"><label for="budgetPicker">单人预算</label><select id="budgetPicker"><option value="open">不限预算</option><option value="400">地贫 ¥400</option><option value="700">紧凑 ¥700</option></select></div>
+          <p class="bike-note"><output id="budgetReadout" aria-live="polite"></output> <button class="action" id="budgetHighlight" type="button" hidden>查看超额配件</button></p>
+          <p class="mod-warning" id="budgetNotice" hidden>违禁魔改 · 娱乐不计榜</p>
+        </div>
+        <div id="bikeParts">
+        <div class="workshop-presets" id="bikePresets" aria-label="流派预设"></div>
+          <p class="bike-note" id="bikePresetName"></p>
+          <dl class="bike-stats workshop-speeds" aria-live="polite">
+            <div><dt>铺装极速</dt><dd id="bikeTopSpeed"></dd></div>
+            <div><dt>碎石极速</dt><dd id="bikeGravel"></dd></div>
+            <div><dt>草地极速</dt><dd id="bikeGrass"></dd></div>
+            <div><dt>冲刺极速</dt><dd id="bikeSprintSpeed"></dd></div>
+          </dl>
+          <div class="workshop-ability" id="bikeAbility" aria-label="相对原厂能力"></div>
+          <details class="workshop-group" open><summary>性能调校</summary>
+        <div class="setting-line"><label for="bikeTyres">轮胎</label><select id="bikeTyres">
+          <option value="stock">均衡胎</option><option value="race">竞速胎</option><option value="traction">越野胎</option>
+        </select></div>
+        <p class="bike-note" id="tyreNote"></p>
+        <div class="setting-line"><label for="bikeGears">传动</label><select id="bikeGears">
+          <option value="stock">标准齿比</option><option value="short">短链 · 低齿比</option><option value="long">长齿比</option>
+        </select></div>
+        <p class="bike-note" id="gearNote"></p>
+        <div class="setting-line"><label for="bikeBrakes">刹车</label><select id="bikeBrakes">
+          <option value="stock">均衡刹车</option><option value="control">渐进刹车</option><option value="power">强力刹车</option>
+        </select></div>
+        <p class="bike-note" id="brakeNote"></p>
+        <div class="setting-line"><label for="bikeFrame">车架几何</label><select id="bikeFrame">
+          <option value="stock">综合车架</option><option value="aero">气动车架</option><option value="agile">灵活短轴</option>
+        </select></div>
+        <p class="bike-note" id="frameNote"></p>
+        <div class="setting-line"><label for="bikeSprint">冲刺调校</label><select id="bikeSprint">
+          <option value="stock">均衡冲刺</option><option value="burst">爆发冲刺</option><option value="endurance">耐力冲刺</option>
+        </select></div>
+        <p class="bike-note" id="sprintNote"></p>
+        </details>
+          <details class="workshop-group"><summary>外观定制</summary>
+            <div class="setting-line"><label for="bikePaint">涂装</label><select id="bikePaint"></select></div>
+            <div id="bikeStyles"></div>
+          </details>
+        <dl class="bike-stats" aria-live="polite">
+          <div><dt>弯道抓地</dt><dd id="bikeGrip"></dd></div>
+          <div><dt>低速推力</dt><dd id="bikeAcceleration"></dd></div>
+          <div><dt>直线制动</dt><dd id="bikeBrakePower"></dd></div>
+          <div><dt>带刹抓地</dt><dd id="bikeBrakeGrip"></dd></div>
+        </dl>
+        </div>
+        <div id="motorTuning" hidden>
+          <dl class="bike-stats workshop-speeds" aria-live="polite">
+            <div><dt>铺装极速</dt><dd id="vehTopSpeed"></dd></div>
+            <div><dt>碎石极速</dt><dd id="vehGravel"></dd></div>
+            <div><dt>草地极速</dt><dd id="vehGrass"></dd></div>
+          </dl>
+          <div class="workshop-ability" id="vehAbility" aria-label="相对原厂能力"></div>
+          <details class="workshop-group" open><summary>性能调校</summary>
+          <div class="setting-line"><label for="vehSlot0" id="vehLabel0">槽位一</label><select id="vehSlot0"></select></div>
+          <p class="bike-note" id="vehNote0"></p>
+          <div class="setting-line"><label for="vehSlot1" id="vehLabel1">槽位二</label><select id="vehSlot1"></select></div>
+          <p class="bike-note" id="vehNote1"></p>
+          <div class="setting-line"><label for="vehSlot2" id="vehLabel2">槽位三</label><select id="vehSlot2"></select></div>
+          <p class="bike-note" id="vehNote2"></p>
+          </details>
+        </div>
+      </div>
+      <footer class="settings-actions">
+        <button class="action primary" id="settingsContinue" type="button">返回骑行</button>
+        <button class="action" id="recover" type="button" aria-keyshortcuts="F" hidden>回到赛道 · 加 2 秒</button>
+        <button class="action exit" id="settingsExit" type="button" hidden>退出比赛</button>
+        <button class="action" id="settingsUnfullscreen" type="button" hidden>退出全屏</button>
+      </footer>
+    </dialog>
+    <dialog id="seedDialog" class="settings-dialog" aria-labelledby="seedTitle">
+      <form id="seedForm">
+        <h2 id="seedTitle">种子赛道</h2>
+        <div class="setting-line"><label for="weeklyCode">本周挑战 <small>本机时间 · 周一更新</small></label>
+          <input id="weeklyCode" readonly aria-label="本周公开种子码"></div>
+        <div class="settings-actions seed-actions">
+          <button class="action primary" type="button" id="weeklyPlay">参加本周挑战</button>
+          <button class="action" type="button" id="weeklyCopy">复制本周种子</button>
+          <button class="action" type="button" id="weeklyBoard" aria-haspopup="dialog">本周友人对战</button>
+        </div>
+        <div class="setting-line">
+          <label for="seedInput">种子码 <small id="seedCampus"></small></label>
+          <input id="seedInput" type="text" maxlength="15" autocomplete="off" spellcheck="false" autocapitalize="characters" aria-describedby="seedStatus">
+        </div>
+        <p class="bike-note" id="seedStatus" role="status">同一张地图输入同一种子码，得到同一条赛道。</p>
+        <div class="settings-actions seed-actions">
+          <button class="action primary" id="seedApply" type="submit">生成并选中</button>
+          <button class="action" id="seedRandom" type="button">随机一条</button>
+          <button class="action" id="seedClose" type="button">返回</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="friendDialog" class="settings-dialog" aria-labelledby="friendTitle">
+      <header class="settings-head friend-head">
+        <h2 id="friendTitle">友人对战</h2>
+        <button class="action" id="friendClose" type="button">返回</button>
+      </header>
+      <fieldset class="friend-filters" id="friendFilters" aria-label="筛选成绩">
+        <label>地图<select id="friendCampus"></select></label>
+        <label>赛道<select id="friendCourse"></select></label>
+        <label>车型<select id="friendVehicle"></select></label>
+      </fieldset>
+      <p id="friendBoardNote" class="friend-board-note" role="status"></p>
+      <div class="friend-multi-bar" id="friendMultiBar" hidden><span id="friendMultiCount"></span><button class="action primary" id="friendMultiPlay" type="button">多影子群跑</button></div>
+      <div class="friend-scores" id="friendScores" aria-label="友人成绩" role="region"></div>
+      <template id="friendScoreTemplate">
+        <li><div class="friend-score">
+          <input class="friend-pick" type="checkbox" aria-label="加入多影子群跑">
+          <span class="friend-score-name"></span>
+          <span class="friend-score-time"></span>
+          <button class="action friend-play" type="button">对战</button>
+          <button class="action friend-remove" type="button">移除</button>
+        </div></li>
+      </template>
+      <input type="file" id="friendFile" accept=".json,application/json" hidden>
+      <button class="friend-drop" id="friendDrop" type="button" aria-describedby="friendStatus">
+        <strong>导入影子文件</strong>
+        <span>拖入文件，或点击选择</span>
+      </button>
+      <p id="friendStatus" class="bike-note" role="status">影子保存在当前浏览器。完赛后可导出自己的影子。</p>
+    </dialog>
+    <dialog id="onlineDialog" class="settings-dialog" aria-labelledby="onlineHeading">
+      <header class="settings-head friend-head">
+        <h2 id="onlineHeading">联机骑行</h2>
+        <button class="action" id="onlineClose" type="button">返回</button>
+      </header>
+      <div id="onlineSetup">
+        <div class="online-create">
+          <label for="onlineFormat">赛制</label>
+          <select id="onlineFormat">
+            <option value="bo1">BO1 · 一局定胜负</option>
+            <option value="bo3">BO3 · 最多三局</option>
+            <option value="league">积分联赛 · 五轮</option>
+            <option value="random">盲盒随机 · 三轮随机种子</option>
+            <option value="triathlon">铁人三项 · 三轮全载具</option>
+          </select>
+          <button class="action primary" id="onlineCreate" type="button">创建房间</button>
+        </div>
+        <div class="online-rules-row">
+          <label>车型
+            <select id="onlineVehicleRule">
+              <option value="bike">统一自行车</option>
+              <option value="trail">统一越野小摩托</option>
+              <option value="ebike">统一电动自行车</option>
+              <option value="chair">统一电动轮椅</option>
+              <option value="any">自由混选</option>
+            </select>
+          </label>
+          <label>天气
+            <select id="onlineWeather">
+              <option value="day">正午晴天</option>
+              <option value="sunset">黄昏日落</option>
+              <option value="night">夜骑灯光</option>
+              <option value="rain">小雨湿地</option>
+            </select>
+          </label>
+        </div>
+        <div class="online-rules-row">
+          <label>改车时间（秒）
+            <input id="onlineTuningTime" type="number" min="0" max="180" step="5" value="30">
+          </label>
+          <label>配车规则<select id="onlineBudget"><option value="open">不限预算</option><option value="400">¥400 地贫赛</option><option value="700">¥700 紧凑赛</option><option value="party">允许违禁整活件</option></select></label>
+          <label>盲盒预算<select id="onlineBlind"><option value="off">关闭</option><option value="on">每轮随机预算</option></select></label>
+          <label>风场模式<select id="onlineWindMode"><option value="gust">阵风</option><option value="steady">恒定</option></select></label>
+          <label>车流密度<select id="onlineTraffic">
+            <option value="off">关闭</option><option value="sparse" selected>稀疏</option><option value="standard">标准</option>
+          </select></label>
+          <label>车辆碰撞箱
+            <select id="onlineCollision">
+              <option value="off">关闭（默认）</option>
+              <option value="on">开启</option>
+            </select>
+          </label>
+        </div>
+        <div class="online-rules-row">
+          <label>地图风速（m/s）
+            <input id="onlineWindSpeed" type="number" min="0" max="15" step="0.5" value="0">
+          </label>
+          <label>地图风向
+            <select id="onlineWindDir">
+              <option value="0">偏西风</option><option value="1">西北风</option>
+              <option value="2">偏北风</option><option value="3">东北风</option>
+              <option value="4">偏东风</option><option value="5">东南风</option>
+              <option value="6">偏南风</option><option value="7">西南风</option>
+            </select>
+          </label>
+        </div>
+        <div class="online-host">
+          <label for="onlineHostInput">房主地址</label>
+          <input id="onlineHostInput" placeholder="加入时填房主 IP（如 26.1.2.3）" autocomplete="off" spellcheck="false">
+        </div>
+        <form class="online-join" id="onlineJoinForm">
+          <label for="onlineCodeInput">房间码</label>
+          <input id="onlineCodeInput" maxlength="8" placeholder="8 位房间码" autocomplete="off" spellcheck="false" autocapitalize="characters">
+          <button class="action" id="onlineJoin" type="submit">加入房间</button>
+        </form>
+      </div>
+      <section id="onlineLobby" hidden>
+        <div class="online-room-head"><h3 id="onlineTitle"></h3><output id="onlineCode" aria-label="房间码"></output></div>
+        <p id="onlineBike" class="bike-note"></p>
+        <p id="onlineHostHint" class="bike-note online-host-hint" hidden></p>
+        <div class="online-host-controls" id="onlineHostControls" hidden>
+          <label>地图<select id="onlineLobbyCampus"><option value="szu">深大粤海</option><option value="ucl">伦敦 Bloomsbury</option><option value="shunde">顺峰山公园</option></select></label>
+          <label>赛道<select id="onlineLobbyCourse"></select></label>
+          <button class="action" id="onlineLobbySeed" type="button">摇新种子</button>
+          <label>车型<select id="onlineLobbyVehicle">
+            <option value="bike">统一自行车</option><option value="trail">统一越野小摩托</option>
+            <option value="ebike">统一电动自行车</option><option value="chair">统一电动轮椅</option>
+            <option value="any">自由混选</option>
+          </select></label>
+          <label>天气<select id="onlineLobbyWeather">
+            <option value="day">正午晴天</option><option value="sunset">黄昏日落</option>
+            <option value="night">夜骑灯光</option><option value="rain">小雨湿地</option>
+          </select></label>
+          <label>改车时间（秒）<input id="onlineLobbyTuning" type="number" min="0" max="180" step="5" value="30"></label>
+          <label>配车规则<select id="onlineLobbyBudget"><option value="open">不限预算</option><option value="400">¥400 地贫赛</option><option value="700">¥700 紧凑赛</option><option value="party">允许违禁整活件</option></select></label>
+          <label>盲盒预算<select id="onlineLobbyBlind"><option value="off">关闭</option><option value="on">每轮随机预算</option></select></label>
+          <label>风场模式<select id="onlineLobbyWindMode"><option value="gust">阵风</option><option value="steady">恒定</option></select></label>
+          <label>车流密度<select id="onlineLobbyTraffic">
+            <option value="off">关闭</option><option value="sparse">稀疏</option><option value="standard">标准</option>
+          </select></label>
+          <label>车辆碰撞箱<select id="onlineLobbyCollision">
+            <option value="off">关闭</option><option value="on">开启</option>
+          </select></label>
+          <label>风速（m/s）<input id="onlineLobbyWindSpeed" type="number" min="0" max="15" step="0.5" value="0"></label>
+          <label>风向<select id="onlineLobbyWindDir">
+            <option value="0">偏西风</option><option value="1">西北风</option>
+            <option value="2">偏北风</option><option value="3">东北风</option>
+            <option value="4">偏东风</option><option value="5">东南风</option>
+            <option value="6">偏南风</option><option value="7">西南风</option>
+          </select></label>
+        </div>
+        <div class="online-tuning-banner" id="onlineTuningBanner" hidden></div>
+        <ul class="online-list" id="onlinePlayers" aria-label="房内骑手"></ul>
+        <ol class="online-list online-standing" id="onlineStanding" aria-label="总排名" hidden></ol>
+        <ol class="online-list" id="onlineRounds" aria-label="各轮成绩" hidden></ol>
+        <div class="settings-actions online-actions">
+          <button class="action primary" id="onlineReady" type="button">准备</button>
+          <button class="action primary" id="onlineStart" type="button">发车</button>
+          <button class="action" id="onlineGarage" type="button">车库改装</button>
+          <button class="action" id="onlineInvite" type="button">复制邀请</button>
+          <button class="action exit" id="onlineLeave" type="button">退出房间</button>
+        </div>
+      </section>
+      <p class="bike-note" id="onlineStatus" role="status"></p>
+    </dialog>
+    <dialog id="travelDialog" class="settings-dialog" aria-labelledby="travelTitle">
+      <header class="settings-head"><h2 id="travelTitle">站点旅行</h2><button class="action" type="button" id="travelClose">返回</button></header>
+      <p>当前站点 · <strong id="travelStation"></strong></p><div id="travelChoices"></div>
+    </dialog>
+    <dialog id="medalDialog" class="settings-dialog" aria-labelledby="medalTitle">
+      <header class="settings-head friend-head">
+        <h2 id="medalTitle">赛道勋章总览</h2>
+        <button class="action" id="medalClose" type="button">返回</button>
+      </header>
+      <p id="medalSummary" class="bike-note" role="status"></p>
+      <p id="medalUnlocks" class="bike-note medal-unlocks" role="status"></p>
+      <div class="medal-scroll" role="region" aria-label="20条固定路线勋章">
+        <h3 class="medal-group-title">深圳大学 · 粤海校区（9 条）</h3>
+        <ul class="medal-list" id="medalListSzu"></ul>
+        <h3 class="medal-group-title">伦敦 · Bloomsbury（7 条）</h3>
+        <ul class="medal-list" id="medalListUcl"></ul>
+        <h3 class="medal-group-title">顺峰山公园（4 条）</h3><ul class="medal-list" id="medalListPark"></ul>
+      </div>
+    </dialog>
+    <div class="touch" aria-label="触屏骑行控制">
+      <div class="touch-steer"><button type="button" data-drive="left">左转</button><button type="button" data-drive="right">右转</button></div>
+      <div class="touch-pedals"><button type="button" data-drive="sprint">冲刺</button><button type="button" data-drive="brake" title="刹车，停车后长按可倒车">刹车</button><button type="button" class="accent" data-drive="gas">加速</button></div>
+    </div>
+  </section>
+  <div class="bar">
+    <div class="actions" aria-label="骑行控制"><button class="action travel" id="travel" type="button" aria-haspopup="dialog" aria-controls="travelDialog">到深大站</button><div class="course-field"><label for="coursePicker">赛道</label><select id="coursePicker"></select></div>
+      <button class="action seed-button" id="seedButton" type="button" aria-haspopup="dialog">每周挑战 / 种子</button>
+      <button class="action" id="friendButton" type="button" aria-haspopup="dialog" aria-controls="friendDialog">友人对战</button>
+      <button class="action" id="onlineButton" type="button" aria-haspopup="dialog" aria-controls="onlineDialog">联机</button>
+      <label class="race-mode"><select id="raceMode" aria-label="单人比赛模式"><option value="solo">单人计时</option><option value="team">AI 车队赛</option><option value="duel">1v1 街头单挑</option></select></label>
+      <button class="action primary" id="startTrial" type="button" aria-keyshortcuts="R">开始计时赛</button><small id="soloRulesStatus" class="mod-warning" role="status" hidden></small>
+      <button class="action" id="pause" type="button" aria-keyshortcuts="P">暂停</button>
+    </div>
+    <output id="friendReady" class="friend-ready" aria-live="polite" hidden></output>
+    <div class="hints">
+      <span class="keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 或方向键骑行</span>
+      <span class="keys discard"><span id="sprintKeys"><kbd>Shift</kbd> 冲刺 </span><kbd>Esc</kbd> 设置</span>
+      <span class="best-time">个人最佳 <strong id="best">—</strong></span>
+    </div>
+  </div>
+</main>
+<script src="game.js"></script>
+</body>
+</html>
+

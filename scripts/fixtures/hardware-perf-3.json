@@ -1,0 +1,118 @@
+[
+  {
+    "version": "1.9.1.1",
+    "renderer": "ANGLE (AMD, AMD Radeon(TM) 610M (0x000013C0) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+    "coldMs": 811.4445999999999,
+    "scenes": [
+      {
+        "campus": "szu",
+        "switchMs": 0,
+        "p95": 5.199999988079071,
+        "median": 4.200000002980232,
+        "drawCallsPerFrame": 66,
+        "trianglesPerFrame": 105889,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 160,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "ucl",
+        "switchMs": 964.5364999999999,
+        "p95": 4.600000008940697,
+        "median": 4.200000002980232,
+        "drawCallsPerFrame": 75,
+        "trianglesPerFrame": 156575,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 178,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "shunde",
+        "switchMs": 195.9168999999997,
+        "p95": 4.5,
+        "median": 4.200000002980232,
+        "drawCallsPerFrame": 56,
+        "trianglesPerFrame": 74503,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 62,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          893,
+          420
+        ]
+      }
+    ]
+  },
+  {
+    "version": "2.0.0",
+    "renderer": "ANGLE (AMD, AMD Radeon(TM) 610M (0x000013C0) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+    "coldMs": 818.7681999999995,
+    "scenes": [
+      {
+        "campus": "szu",
+        "switchMs": 0,
+        "p95": 4.5,
+        "median": 4.200000002980232,
+        "drawCallsPerFrame": 66,
+        "trianglesPerFrame": 105889,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 160,
+        "sampledJsHeapPeak": 254000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "ucl",
+        "switchMs": 916.9992000000002,
+        "p95": 4.5,
+        "median": 4.200000002980232,
+        "drawCallsPerFrame": 75,
+        "trianglesPerFrame": 156575,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 178,
+        "sampledJsHeapPeak": 254000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "shunde",
+        "switchMs": 186.55199999999968,
+        "p95": 4.5999999940395355,
+        "median": 4.199999988079071,
+        "drawCallsPerFrame": 56,
+        "trianglesPerFrame": 74503,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 62,
+        "sampledJsHeapPeak": 254000000,
+        "glError": 0,
+        "canvas": [
+          893,
+          420
+        ]
+      }
+    ]
+  }
+]

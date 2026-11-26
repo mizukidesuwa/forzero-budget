@@ -1,0 +1,582 @@
+[
+  {
+    "version": "1.9.1.1",
+    "renderer": "ANGLE (AMD, AMD Radeon(TM) 610M (0x000013C0) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+    "coldMs": 827.5889,
+    "scenes": [
+      {
+        "campus": "szu",
+        "cycle": 1,
+        "switchMs": 0,
+        "switchWork": null,
+        "p95": 4.5999999940395355,
+        "median": 4.200000002980232,
+        "drawCallsPerFrame": 80.14285714285714,
+        "trianglesPerFrame": 182587.14617940199,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 160,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "ucl",
+        "cycle": 1,
+        "switchMs": 885.9000000059605,
+        "switchWork": {
+          "TaskDuration": 817.1890000000002,
+          "ScriptDuration": 800.3550000000001,
+          "LayoutDuration": 4.916000000000004,
+          "RecalcStyleDuration": 3.1550000000000016
+        },
+        "p95": 4.5,
+        "median": 4.200000002980232,
+        "drawCallsPerFrame": 80.48504983388705,
+        "trianglesPerFrame": 121992.11295681063,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 178,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "shunde",
+        "cycle": 1,
+        "switchMs": 152.69999998807907,
+        "switchWork": {
+          "TaskDuration": 80.52700000000002,
+          "ScriptDuration": 66.98500000000007,
+          "LayoutDuration": 2.7640000000000025,
+          "RecalcStyleDuration": 2.3389999999999938
+        },
+        "p95": 4.600000008940697,
+        "median": 4.200000002980232,
+        "drawCallsPerFrame": 61.548172757475086,
+        "trianglesPerFrame": 82389.42524916944,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 62,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          893,
+          420
+        ]
+      },
+      {
+        "campus": "szu",
+        "cycle": 2,
+        "switchMs": 288.5,
+        "switchWork": {
+          "TaskDuration": 215.47299999999981,
+          "ScriptDuration": 200.9439999999998,
+          "LayoutDuration": 1.3919999999999975,
+          "RecalcStyleDuration": 2.912000000000005
+        },
+        "p95": 4.5,
+        "median": 4.200000002980232,
+        "drawCallsPerFrame": 79.59800664451828,
+        "trianglesPerFrame": 182235,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 160,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "ucl",
+        "cycle": 2,
+        "switchMs": 838,
+        "switchWork": {
+          "TaskDuration": 763.4810000000001,
+          "ScriptDuration": 753.2269999999999,
+          "LayoutDuration": 0.793000000000002,
+          "RecalcStyleDuration": 2.1900000000000115
+        },
+        "p95": 4.5,
+        "median": 4.200000002980232,
+        "drawCallsPerFrame": 80.48504983388705,
+        "trianglesPerFrame": 121992.11295681063,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 178,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "shunde",
+        "cycle": 2,
+        "switchMs": 135.1000000089407,
+        "switchWork": {
+          "TaskDuration": 58.27999999999989,
+          "ScriptDuration": 47.69500000000004,
+          "LayoutDuration": 0.8420000000000025,
+          "RecalcStyleDuration": 2.0659999999999985
+        },
+        "p95": 4.5,
+        "median": 4.200000002980232,
+        "drawCallsPerFrame": 61.42857142857143,
+        "trianglesPerFrame": 82356.89368770763,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 62,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          893,
+          420
+        ]
+      },
+      {
+        "campus": "szu",
+        "cycle": 3,
+        "switchMs": 294.6000000089407,
+        "switchWork": {
+          "TaskDuration": 218.9969999999999,
+          "ScriptDuration": 207.99199999999996,
+          "LayoutDuration": 1.1710000000000054,
+          "RecalcStyleDuration": 2.264000000000002
+        },
+        "p95": 4.5999999940395355,
+        "median": 4.200000002980232,
+        "drawCallsPerFrame": 79.08970099667773,
+        "trianglesPerFrame": 182119.10631229237,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 160,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "ucl",
+        "cycle": 3,
+        "switchMs": 783.5,
+        "switchWork": {
+          "TaskDuration": 710.4189999999999,
+          "ScriptDuration": 699.5170000000002,
+          "LayoutDuration": 0.9239999999999943,
+          "RecalcStyleDuration": 2.2430000000000088
+        },
+        "p95": 4.5,
+        "median": 4.200000002980232,
+        "drawCallsPerFrame": 80.48504983388705,
+        "trianglesPerFrame": 121992.11295681063,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 178,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "shunde",
+        "cycle": 3,
+        "switchMs": 133.09999999403954,
+        "switchWork": {
+          "TaskDuration": 57.35199999999985,
+          "ScriptDuration": 46.69699999999999,
+          "LayoutDuration": 0.8729999999999988,
+          "RecalcStyleDuration": 2.1260000000000168
+        },
+        "p95": 4.5,
+        "median": 4.199999988079071,
+        "drawCallsPerFrame": 61.30564784053156,
+        "trianglesPerFrame": 82323.4584717608,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 62,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          893,
+          420
+        ]
+      },
+      {
+        "campus": "szu",
+        "cycle": 4,
+        "switchMs": 309.70000000298023,
+        "switchWork": {
+          "TaskDuration": 238.26699999999957,
+          "ScriptDuration": 224.51100000000056,
+          "LayoutDuration": 1.0619999999999936,
+          "RecalcStyleDuration": 2.850000000000019
+        },
+        "p95": 4.5999999940395355,
+        "median": 4.199999988079071,
+        "drawCallsPerFrame": 78.64784053156146,
+        "trianglesPerFrame": 182018.36212624583,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 160,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "ucl",
+        "cycle": 4,
+        "switchMs": 807.6000000089407,
+        "switchWork": {
+          "TaskDuration": 735.125,
+          "ScriptDuration": 723.7930000000006,
+          "LayoutDuration": 0.7720000000000088,
+          "RecalcStyleDuration": 2.2989999999999955
+        },
+        "p95": 4.600000008940697,
+        "median": 4.200000002980232,
+        "drawCallsPerFrame": 80.48504983388705,
+        "trianglesPerFrame": 121992.11295681063,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 178,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "shunde",
+        "cycle": 4,
+        "switchMs": 130,
+        "switchWork": {
+          "TaskDuration": 53.73099999999997,
+          "ScriptDuration": 42.900999999999634,
+          "LayoutDuration": 0.7800000000000029,
+          "RecalcStyleDuration": 2.0439999999999903
+        },
+        "p95": 4.4000000059604645,
+        "median": 4.200000002980232,
+        "drawCallsPerFrame": 61.3156146179402,
+        "trianglesPerFrame": 82326.16943521595,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 62,
+        "sampledJsHeapPeak": 269000000,
+        "glError": 0,
+        "canvas": [
+          893,
+          420
+        ]
+      }
+    ]
+  },
+  {
+    "version": "2.0.0",
+    "renderer": "ANGLE (AMD, AMD Radeon(TM) 610M (0x000013C0) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+    "coldMs": 809.2079999999987,
+    "scenes": [
+      {
+        "campus": "szu",
+        "cycle": 1,
+        "switchMs": 0,
+        "switchWork": null,
+        "p95": 4.5999999940395355,
+        "median": 4.200000002980232,
+        "drawCallsPerFrame": 78.25249169435216,
+        "trianglesPerFrame": 172975.4219269103,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 160,
+        "sampledJsHeapPeak": 254000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "ucl",
+        "cycle": 1,
+        "switchMs": 894.7999999970198,
+        "switchWork": {
+          "TaskDuration": 826.9530000000001,
+          "ScriptDuration": 809.6370000000001,
+          "LayoutDuration": 5.157000000000002,
+          "RecalcStyleDuration": 3.131000000000002
+        },
+        "p95": 4.5999999940395355,
+        "median": 4.200000002980232,
+        "drawCallsPerFrame": 80.48504983388705,
+        "trianglesPerFrame": 121992.11295681063,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 178,
+        "sampledJsHeapPeak": 254000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "shunde",
+        "cycle": 1,
+        "switchMs": 161.29999999701977,
+        "switchWork": {
+          "TaskDuration": 91.90599999999982,
+          "ScriptDuration": 76.73200000000003,
+          "LayoutDuration": 2.9680000000000053,
+          "RecalcStyleDuration": 2.9670000000000045
+        },
+        "p95": 5.0999999940395355,
+        "median": 4.200000002980232,
+        "drawCallsPerFrame": 61.548172757475086,
+        "trianglesPerFrame": 82389.42524916944,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 62,
+        "sampledJsHeapPeak": 254000000,
+        "glError": 0,
+        "canvas": [
+          893,
+          420
+        ]
+      },
+      {
+        "campus": "szu",
+        "cycle": 2,
+        "switchMs": 291.5,
+        "switchWork": {
+          "TaskDuration": 217.42999999999978,
+          "ScriptDuration": 205.8979999999999,
+          "LayoutDuration": 1.451000000000001,
+          "RecalcStyleDuration": 2.371999999999999
+        },
+        "p95": 4.5,
+        "median": 4.200000002980232,
+        "drawCallsPerFrame": 77.7109634551495,
+        "trianglesPerFrame": 172624.03322259136,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 160,
+        "sampledJsHeapPeak": 254000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "ucl",
+        "cycle": 2,
+        "switchMs": 855,
+        "switchWork": {
+          "TaskDuration": 781.2479999999997,
+          "ScriptDuration": 770.467,
+          "LayoutDuration": 0.9629999999999985,
+          "RecalcStyleDuration": 2.1669999999999883
+        },
+        "p95": 4.5,
+        "median": 4.199999988079071,
+        "drawCallsPerFrame": 80.48504983388705,
+        "trianglesPerFrame": 121992.11295681063,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 178,
+        "sampledJsHeapPeak": 254000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "shunde",
+        "cycle": 2,
+        "switchMs": 135.29999999701977,
+        "switchWork": {
+          "TaskDuration": 57.55700000000008,
+          "ScriptDuration": 47.67300000000007,
+          "LayoutDuration": 0.910000000000001,
+          "RecalcStyleDuration": 2.0590000000000055
+        },
+        "p95": 4.5,
+        "median": 4.199999988079071,
+        "drawCallsPerFrame": 61.42857142857143,
+        "trianglesPerFrame": 82356.89368770763,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 62,
+        "sampledJsHeapPeak": 254000000,
+        "glError": 0,
+        "canvas": [
+          893,
+          420
+        ]
+      },
+      {
+        "campus": "szu",
+        "cycle": 3,
+        "switchMs": 263.5,
+        "switchWork": {
+          "TaskDuration": 189.88899999999998,
+          "ScriptDuration": 178.34199999999979,
+          "LayoutDuration": 0.8769999999999889,
+          "RecalcStyleDuration": 2.347999999999989
+        },
+        "p95": 4.5999999940395355,
+        "median": 4.200000002980232,
+        "drawCallsPerFrame": 77.20598006644518,
+        "trianglesPerFrame": 172508.89700996678,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 160,
+        "sampledJsHeapPeak": 254000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "ucl",
+        "cycle": 3,
+        "switchMs": 834.5,
+        "switchWork": {
+          "TaskDuration": 763.0219999999995,
+          "ScriptDuration": 750.7830000000002,
+          "LayoutDuration": 0.9539999999999965,
+          "RecalcStyleDuration": 2.4699999999999998
+        },
+        "p95": 4.5,
+        "median": 4.200000002980232,
+        "drawCallsPerFrame": 80.48504983388705,
+        "trianglesPerFrame": 121992.11295681063,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 178,
+        "sampledJsHeapPeak": 254000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "shunde",
+        "cycle": 3,
+        "switchMs": 136.29999999701977,
+        "switchWork": {
+          "TaskDuration": 59.924999999999784,
+          "ScriptDuration": 49.38899999999968,
+          "LayoutDuration": 0.8379999999999915,
+          "RecalcStyleDuration": 2.1440000000000072
+        },
+        "p95": 5.299999997019768,
+        "median": 4.200000002980232,
+        "drawCallsPerFrame": 61.30564784053156,
+        "trianglesPerFrame": 82323.4584717608,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 62,
+        "sampledJsHeapPeak": 254000000,
+        "glError": 0,
+        "canvas": [
+          893,
+          420
+        ]
+      },
+      {
+        "campus": "szu",
+        "cycle": 4,
+        "switchMs": 310.30000001192093,
+        "switchWork": {
+          "TaskDuration": 238.82000000000048,
+          "ScriptDuration": 222.83199999999948,
+          "LayoutDuration": 1.5229999999999966,
+          "RecalcStyleDuration": 3.3950000000000093
+        },
+        "p95": 5.699999988079071,
+        "median": 4.200000002980232,
+        "drawCallsPerFrame": 76.76744186046511,
+        "trianglesPerFrame": 172408.91029900333,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 160,
+        "sampledJsHeapPeak": 254000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "ucl",
+        "cycle": 4,
+        "switchMs": 815.4000000059605,
+        "switchWork": {
+          "TaskDuration": 752.4339999999992,
+          "ScriptDuration": 735.2020000000001,
+          "LayoutDuration": 1.2810000000000044,
+          "RecalcStyleDuration": 4.20100000000001
+        },
+        "p95": 4.600000008940697,
+        "median": 4.200000002980232,
+        "drawCallsPerFrame": 80.48504983388705,
+        "trianglesPerFrame": 121992.11295681063,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 178,
+        "sampledJsHeapPeak": 254000000,
+        "glError": 0,
+        "canvas": [
+          881,
+          420
+        ]
+      },
+      {
+        "campus": "shunde",
+        "cycle": 4,
+        "switchMs": 134.1000000089407,
+        "switchWork": {
+          "TaskDuration": 57.52699999999944,
+          "ScriptDuration": 46.83999999999955,
+          "LayoutDuration": 0.8099999999999913,
+          "RecalcStyleDuration": 2.1029999999999935
+        },
+        "p95": 4.5,
+        "median": 4.200000002980232,
+        "drawCallsPerFrame": 61.3156146179402,
+        "trianglesPerFrame": 82326.16943521595,
+        "buffersCreated": 0,
+        "buffersDeleted": 0,
+        "buffersLive": 62,
+        "sampledJsHeapPeak": 254000000,
+        "glError": 0,
+        "canvas": [
+          893,
+          420
+        ]
+      }
+    ]
+  }
+]
