@@ -1,9 +1,4 @@
-const ROUTE_RULES = Object.freeze({
-  schemaVersion: 1, codePrefix: 'R', maxCodeLength: 256, maxEdges: 32,
-  maxEdgeIdLength: 48, maxLaps: 9, maxRouteIdLength: 64, maxSeedLength: 16,
-  maxNetworkRevisionLength: 40,
-});
-const CAMPUS_NETWORKS = Object.freeze({ szu: 'szu-network-v1', ucl: 'ucl-network-v1', shunde: 'shunde-network-v1' });
+const { ROUTE_RULES, CAMPUS_NETWORKS } = require('./shared-rules.cjs');
 const TOKEN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const NETWORK = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
 

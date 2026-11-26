@@ -8,8 +8,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import rules from './room-rules.cjs';
 import tuning190 from './tuning-190.cjs';
 import routeRules from './route-rules.cjs';
+import sharedRules from './shared-rules.cjs';
 
-const {ROOM_ROUNDS,ALL_ROUND_VEHICLES,lockRoomVehicle,tally,settle,retire,beginTuning,beginRoomRound,
+const {ROOM_ROUNDS,ALL_ROUND_VEHICLES,ONLINE_CHASE_RULES,lockRoomVehicle,tally,settle,settleChaseRound,tagChaseRunner,retire,beginTuning,beginRoomRound,
   roomVehicle,roomParts,roomBuildProblem,roomBudgetProblems,blindBudget} = rules;
 
 const LIMIT = 4;
@@ -21,35 +22,26 @@ const VEHICLE_RULES = new Set(['bike','trail','ebike','chair','any']);
 const VEHICLES = new Set(['bike','trail','ebike','chair']);
 const WEATHERS = new Set(['day','sunset','night','rain']);
 const PAINTS = new Set(['classic','shared','bay','red','white','amethyst','obsidian']);
-const SKIN_VERSION = 1;
+const SKIN_CONSTANTS = sharedRules.SKIN_CONSTANTS;
+const SKIN_VERSION = SKIN_CONSTANTS.schemaVersion;
 const SKIN_IDS = new Set(['default']);
 const REMOVED_SKIN_IDS = new Set(['yellow-orb']);
 const SKIN_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,47}$/;
 const SKIN_PRIMITIVES = new Set(['ellipsoid','tube','box']);
-const SKIN_TRIANGLE_COSTS = Object.freeze({ellipsoid:288,tube:40,box:12});
-const SKIN_ACCESSORIES = new Set(['eye','belly','scarf','vest','tail','antenna']);
-const SKIN_VEHICLES = new Set(['bike','ebike','chair','trail']);
-const SKIN_HEAD_MODES = new Set(['separate','integrated']);
-const SKIN_LIMB_MODES = new Set(['full','simplified','hidden']);
-const SKIN_ANIMATION_PROFILES = new Set(['seated','seated-soft','upright']);
+const SKIN_TRIANGLE_COSTS = SKIN_CONSTANTS.modelTriangleCosts;
+const SKIN_ACCESSORIES = new Set(SKIN_CONSTANTS.accessories);
+const SKIN_VEHICLES = new Set(SKIN_CONSTANTS.vehicles);
+const SKIN_HEAD_MODES = new Set(SKIN_CONSTANTS.headModes);
+const SKIN_LIMB_MODES = new Set(SKIN_CONSTANTS.limbModes);
+const SKIN_ANIMATION_PROFILES = new Set(SKIN_CONSTANTS.animationProfiles);
 const SKIN_ANCHORS = new Set(['body','head','neck','back','leftHand','rightHand','leftFoot','rightFoot']);
 const SKIN_ACCESSORY_ANCHORS = new Set(['body','head','back','leftHand','rightHand']);
 const SKIN_PART_ID = /^[a-z][a-z0-9_-]{0,31}$/;
 const SKIN_MATERIAL = /^[a-z][a-zA-Z0-9_-]{0,23}$/;
 const FORBIDDEN_SKIN_PART = /helmet|backpack/i;
-const SKIN_GEOMETRY_RULES = Object.freeze({
-  depth:[.45,.96], height:[1.08,1.90], width:[.40,1.10],
-  bodySpan:[.26,.78], headSpan:[.18,.56],
-  bodyEllipsoid:[[.15,.27],[.21,.35],[.14,.29]],
-  bodyBox:[[.30,.54],[.42,.70],[.28,.58]],
-  headEllipsoid:[[.11,.22],[.11,.22],[.11,.22]],
-  headBox:[[.22,.44],[.22,.44],[.22,.44]],
-  bodyCenter:[[-.35,.15],[1.05,1.30],[-.10,.10]],
-  headCenter:[[-.05,.20],[1.45,1.72],[-.10,.10]],
-  hipOffset:{xFactor:.72,xMinimum:.76,yFactor:.75,zFactor:.72},
-});
-const RIDER_HIP = [-.222,.990,0];
-const MAX_SKIN_SPEC_BYTES = 50_000;
+const SKIN_GEOMETRY_RULES = SKIN_CONSTANTS.geometryRules;
+const RIDER_HIP = SKIN_CONSTANTS.riderHip;
+const MAX_SKIN_SPEC_BYTES = SKIN_CONSTANTS.maxSpecBytes;
 const BICYCLE_LOOK = {
   category:['campus','road','climb','gravel'], rim:['auto','spokes','deep'], sidewall:['black','tan'],
   accessory:['none','bottle','basket','computer'], trim:['coal','brown','orange'],
@@ -76,8 +68,8 @@ function sanitizeSkinSpec(value, requestedId) {
     if (!/^[a-z][a-zA-Z0-9_-]{0,23}$/.test(key)||typeof color!=='string'||!/^#[0-9a-f]{6}$/i.test(color)) return null;
     cleanPalette[key]=color.toLowerCase();
   }
-  const proportionRanges={heightScale:[.94,1.06],bodyWidthScale:[.88,1.14],bodyDepthScale:[.88,1.14],headWidthScale:[.90,1.12],headHeightScale:[.90,1.12],limbRadiusScale:[.85,1.12],handScale:[.85,1.15],footScale:[.85,1.15],neckWidthScale:[.88,1.14],neckLengthScale:[.04,.22]};
-  const proportionDefaults={heightScale:1,bodyWidthScale:1,bodyDepthScale:1,headWidthScale:1,headHeightScale:1,limbRadiusScale:1,handScale:1,footScale:1,neckWidthScale:1,neckLengthScale:.08};
+  const proportionRanges=SKIN_CONSTANTS.proportionRules;
+  const proportionDefaults=SKIN_CONSTANTS.proportionDefaults;
   if (!value.proportions||typeof value.proportions!=='object'||Array.isArray(value.proportions)) return null;
   const proportions={};
   for (const [key,[min,max]] of Object.entries(proportionRanges)) {
@@ -85,7 +77,7 @@ function sanitizeSkinSpec(value, requestedId) {
     if (!Number.isFinite(number)||number<min||number>max) return null;
     proportions[key]=number;
   }
-  const boundRanges={width:[.76,1.10],height:[1.42,1.92],depth:[.60,.96]};
+  const boundRanges=SKIN_CONSTANTS.boundsRules;
   if (!value.bounds||typeof value.bounds!=='object'||Array.isArray(value.bounds)) return null;
   const bounds={};
   for (const [key,[min,max]] of Object.entries(boundRanges)) {
@@ -542,6 +534,7 @@ function applyCommand(room,player,body) {
       break;
     }
     case 'finish':
+      if (room.format==='chase') throw new RoomError('捉人模式无需冲线。',409);
       if (room.phase!=='race' || body.round!==room.round.number || !room.roster.some(item=>item.id===player.id)) throw new RoomError('这一轮已结算。');
       if (!Number.isInteger(body.ms)||body.ms<1||body.ms>MATCH_LIMIT+120_000||Date.now()<room.round.goAt) {
         throw new RoomError('完赛时间与本轮时间不符。');
@@ -549,6 +542,18 @@ function applyCommand(room,player,body) {
       if (!room.round.results.some(item=>item.id===player.id)) room.round.results.push({id:player.id,ms:body.ms});
       settle(room);
       break;
+    case 'tag': {
+      if (room.phase!=='race' || room.format!=='chase' || body.round!==room.round?.number || !room.round?.chase) {
+        throw new RoomError('这一轮已结算。');
+      }
+      const chase = room.round.chase;
+      if (player.id!==chase.hunterId) throw new RoomError('只有捉人者可以提交拦截。',403);
+      if (Date.now()<room.round.goAt+chase.headStartMs-500) throw new RoomError('逃跑者先行时间尚未结束。');
+      if (typeof body.targetId!=='string') throw new RoomError('拦截目标无效。',400);
+      const ms = Math.max(1,Math.min(chase.durationMs,Math.round(Number(body.ms)||Math.max(1,Date.now()-room.round.goAt))));
+      if (!tagChaseRunner(room,player.id,body.targetId,ms)) throw new RoomError('无法拦截该目标或目标已被抓获。');
+      break;
+    }
     case 'retire':
       if (body.round===room.round?.number) retire(room,player.id);
       break;
@@ -629,7 +634,8 @@ export function createRideServer({page,assets,soundDir,iceServers=[{urls:'stun:s
         publish(room);
       }
       if (room.phase==='race' && now>=room.round.deadline) {
-        for (const player of room.roster) retire(room,player.id);
+        if (room.format==='chase') settleChaseRound(room,true);
+        else for (const player of room.roster) retire(room,player.id);
         publish(room);
       }
     }
@@ -978,6 +984,7 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href===import.meta.url) {
       soundDir = fileURLToPath(new URL('./sound',import.meta.url));
       saveDir = fileURLToPath(new URL('./save',import.meta.url));
       previousSaveFile = [
+        new URL('../forzero-budget-2.4.0/save/player-data.json',import.meta.url),
         new URL('../forzero-budget-2.3.4/save/player-data.json',import.meta.url),
         new URL('../forzero-budget-2.3.3.1/save/player-data.json',import.meta.url),
         new URL('../forzero-budget-2.3.3/save/player-data.json',import.meta.url),
