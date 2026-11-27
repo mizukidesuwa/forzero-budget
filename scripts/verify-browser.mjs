@@ -272,7 +272,15 @@ try {
     const largeHeight = await evaluate("document.querySelector('[data-drive=gas]').getBoundingClientRect().height");
     assert.ok(Math.abs(largeHeight / normalHeight - 1.5) < .03, 'Touch buttons did not reach 150% height');
     assert.equal(await evaluate("getComputedStyle(document.querySelector('.speedometer')).scale"), '1.5');
-    await evaluate('__FORZERO__.ui.startTrial.click()');
+    await evaluate(`(()=>{
+      const f=__FORZERO__, r=f.race;
+      f.ui.startTrial.click();
+      if(r.phase!=='count' || r.countdownTicks<=0) throw Error('Mobile trial did not start its countdown');
+      // Layout checks use the game countdown without relying on frame timing in a headless browser.
+      const countdownTicks=r.countdownTicks;
+      for(let i=0;i<countdownTicks;i++) r.step();
+      f.updateHud();
+    })()`);
     await wait("__FORZERO__.race.phase==='race' && !__FORZERO__.ui.next.hidden && !__FORZERO__.ui.fpsCounter.hidden", 'Mobile race guidance did not appear');
     for (const [width,height] of [[320,568],[390,844],[844,390]]) {
       await rpc('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:2,mobile:true},sessionId);

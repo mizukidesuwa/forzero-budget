@@ -1,5 +1,9 @@
 # 更新日志（CHANGELOG）
 
+## Unreleased
+
+- 手机 HUD 布局验收通过游戏的固定物理步进完成发车倒计时，覆盖原有的引导、触控和相机布局断言。通过 `node scripts/verify-browser.mjs`、`npm run lint` 和 `npm run typecheck`。地图、资产和物理基线沿用原有数据。
+
 ## 2.5.3 — 存档、工坊影子、联机轮换与发行修复
 
 - 导入备份时刷新受影响的个人最佳缓存，并在返回自由骑行或重新发车时应用恢复的车辆配置，保持当局配件和发车资格一致。关联 `src/ui/save-sync.js`、`src/race/time-trial.js` 和 `src/ui/workshop-ui.js`。
@@ -8,7 +12,7 @@
 - GitHub 导出在独立暂存目录完成校验，只替换内容完整的旧导出。当前版本性能检查独立运行并对帧耗时、JS 堆和浏览器进程内存设立上限，历史对比通过显式参数启用。关联 `scripts/stage-release.mjs` 和 `scripts/verify-performance.mjs`。
 - Windows 便携包要求提供完整的 Node.js 许可。发行工作流校验官方 Windows x64 归档的 SHA-256 后从同一归档取用二进制和许可。桌面启动器优先迁移同级 2.5.2 存档。关联 `scripts/build.mjs`、`.github/workflows/release.yml` 和 `server/server.mjs`。
 - 通过 `npm run lint`、`npm run typecheck`、`npm run build:release:win`、`npm run verify:fast -- --skip-build`、导出源码树内的 `npm test` 与 `npm run verify:all -- --skip-build`。核对附件 SHA-256、官方 Node.js 许可及空 `PATH` 建房。地图、资产、物理和历史性能基线沿用原有数据。
-- `scripts/verify-hygiene.mjs` 继续报告 `src/ui/app.js` 行数，超过 1700 行时提示复核职责边界并继续校验。同步开发与贡献说明。通过 `npm run lint`、`npm run typecheck` 和 1700 行、1701 行的定向验证。无需更新基线。
+- `scripts/verify-hygiene.mjs` 继续报告 `src/ui/app.js` 行数，超过 1700 行时提示复核职责边界并继续校验。同步开发、贡献说明与 PR 模板。通过 `npm run lint`、`npm run typecheck` 和 1700 行、1701 行的定向验证。无需更新基线。
 
 ## 2.5.2 — Windows 免安装便携 Node.js 运行时发行包
 
