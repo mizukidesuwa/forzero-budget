@@ -34,17 +34,17 @@
 
 > 历史交付与早期架构见 [HISTORY.md](HISTORY.md)；版本流水见 [CHANGELOG.md](CHANGELOG.md)；1.8.6 车流见本地归档 `szu-litchi-dev/ride-update/1.8.6-traffic.md`。巨型 `perf-*.json`、截图与旧包已归档至 `D:\szubikeGPT-archive\`。
 
-## 1. 2.5.5 构建产物与本地版
+## 1. 2.5.6 构建产物与本地版
 
 - Windows 便携版构建需要同一个官方 Node.js 22 Windows x64 归档内的 `node.exe` 和完整的 `LICENSE`。将 `FORZERO_NODE_EXE` 指向解压后的二进制，再执行 `npm run build:release:win`。构建器默认从二进制同目录读取 `LICENSE`，也可通过 `FORZERO_NODE_LICENSE` 指定该归档里的许可文件。
 - `npm run verify:all` 默认只测当前构建，性能报告写入 `dist-v2/hardware-perf.verify.json`。当前预算为硬件渲染 p95 120 ms、软件渲染 p95 250 ms、JS 堆峰值 640 MiB 和浏览器进程内存峰值 3 GiB。需要历史硬件对比时，再给 `scripts/verify-performance.mjs` 传入 `--baseline=<目录>`。目录内需有历史桌面版的 `index.html`。
-- `npm run build:release` 生成轻量 `dist-v2/desktop/`、`dist-v2/forzero-budget-2.5.5.zip` 和 `dist-v2/forzero-budget-mobile-2.5.5.html`；执行 `npm run build:release:win`（或 `-- --bundle-node`）额外生成内置便携 `runtime/node.exe` 的 Windows 免安装版 **`dist-v2/forzero-budget-windows-x64-2.5.5.zip`**。
-- `npm run release:stage` 将可分发归档、校验清单（`SHA256SUMS.txt`、`MANIFEST.json`、`RELEASE-NOTES.md`）暂存到 `dist-v2/release/v2.5.5/`；`npm run release:github` 按 `AGENTS.md` 规范生成拆分式 GitHub 上传目录 `github-upload-2.5.5/repo/`（纯净源码树，含 `src/`、`server/`、`scripts/`、`.github/` 且不含 `szu-litchi-dev/` 或任何 `.exe`/`.zip` 二进制）与 `github-upload-2.5.5/release-assets/`（Releases 附件与 `RELEASE-NOTES.md`）。
+- `npm run build:release` 生成轻量 `dist-v2/desktop/`、`dist-v2/forzero-budget-2.5.6.zip` 和 `dist-v2/forzero-budget-mobile-2.5.6.html`；执行 `npm run build:release:win`（或 `-- --bundle-node`）额外生成内置便携 `runtime/node.exe` 的 Windows 免安装版 **`dist-v2/forzero-budget-windows-x64-2.5.6.zip`**。
+- `npm run release:stage` 将可分发归档、校验清单（`SHA256SUMS.txt`、`MANIFEST.json`、`RELEASE-NOTES.md`）暂存到 `dist-v2/release/v2.5.6/`；`npm run release:github` 按 `AGENTS.md` 规范生成拆分式 GitHub 上传目录 `github-upload-2.5.6/repo/`（纯净源码树，含 `src/`、`server/`、`scripts/`、`.github/` 且不含 `szu-litchi-dev/` 或任何 `.exe`/`.zip` 二进制）与 `github-upload-2.5.6/release-assets/`（Releases 附件与 `RELEASE-NOTES.md`）。
 - GitHub 导出先校验候选源码，再在隔离副本中运行 `npm ci` 和 `npm test`。验证通过后才替换旧导出，测试生成的依赖和构建文件留在隔离目录。
 - `.github/workflows/ci.yml` 在 `main` 推送、PR 和 `v*` 标签上运行 Windows 和 Ubuntu 校验及 Chrome 桌面、手机和四客户端联机验收。通过后，`main` 可部署 Pages，版本标签可进入 Release。Release 在 Windows 上按本次构建清单暂存附件，解压并用包内 Node.js 验收启动，再上传附件。
 - `dist-v2/build-manifest.json` 指定本次构建的手机 HTML 和发行附件及其校验值。浏览器验收 `node scripts/verify-browser.mjs` 和手机预览 `node scripts/serve-phone.mjs` 从该清单选择手机文件。手动指定其他构建时使用 `FORZERO_BUILD_DIR`，或通过 `FORZERO_MOBILE_HTML` 提供明确文件。
 - 本地 `szu-litchi-dev/` 已移除；公开 GitHub 仓库与发行产物不再携带历史 1.x 构建链。
-- 2.5.5 桌面版优先读取同级轻量版或 Windows 免安装版目录中的 `2.5.4` 存档，其次是 `2.5.3`、`2.5.2`、`2.5.1.1` 与 `2.5.1`、`2.5.0`，并向下兼容 `2.4.0`、`2.3.4` 及前序存档。手机单文件可通过游戏设置导出和导入备份。
+- 2.5.6 桌面版优先读取同级轻量版或 Windows 免安装版目录中的 `2.5.5` 或 `2.5.4` 存档，其次是 `2.5.3`、`2.5.2`、`2.5.1.1` 与 `2.5.1`、`2.5.0`，并向下兼容 `2.4.0`、`2.3.4` 及前序存档。手机单文件可通过游戏设置导出和导入备份。
 
 ### 2.3.1 本地路径
 

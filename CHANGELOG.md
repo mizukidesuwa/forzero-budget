@@ -1,12 +1,13 @@
 # 更新日志（CHANGELOG）
 
-## 2.5.5 — 桌面存档隔离、玩法成绩与联机修复
+## 2.5.6 — 桌面存档隔离、玩法成绩与联机修复
 
 - 桌面版按安装实例隔离浏览器缓存和友人档案，读取该安装的磁盘快照后才开启自动保存。服务端校验写入请求的安装身份，防止旧标签页在端口复用后覆盖另一份存档。旧的无实例标记浏览器缓存原样保留，桌面恢复沿用磁盘存档和同级版本迁移。关联 `src/core/browser-storage.js`、`src/ui/save-sync.js`、`src/replay/ghost.js` 和 `server/server.mjs`。
 - 从同级 2.5.4 升级时优先读取上一版存档，并支持 Windows 免安装版和轻量版的解压目录名。关联 `scripts/verify-save.mjs` 和 `scripts/verify-desktop-start.mjs`。
 - 影子追捕和夜骑盲区的进度进入备份和桌面存档，最佳成绩按方向、圈数和车型记录。导入写入失败时回滚本次已写入的个人数据。关联 `src/ui/save-sync.js`、`src/race/chase.js` 和 `src/race/blind-nav.js`。
 - 耐力赛分段单练只展示该段的完赛结果。普通联机赛按房间规则发车，实时排名使用远端姿态的 X/Z 坐标。关联 `src/race/race-review.js`、`src/race/launch-options.js`、`src/ui/app.js` 和 `src/online/client.js`。
 - 手机预览默认从当前构建清单选取并校验 HTML。GitHub 导出在候选源码的隔离副本完成依赖安装和测试，通过后再替换旧导出。关联 `scripts/serve-phone.mjs`、`scripts/stage-release.mjs` 和 `scripts/verify-release-staging.mjs`。
+- 耐力单练的浏览器验收通过固定物理步进完成骑行，完赛后仍检查三次实际游戏帧更新，避免托管 CI 的渲染帧率触发自动暂停。2.5.5 标签的发布流程在浏览器验收失败后停止，本版接续发行。关联 `scripts/verify-browser.mjs`。
 - 通过 `npm run lint`、`npm run typecheck`、`npm run build`、`npm run build:release` 和 `npm run verify:all -- --skip-build` 的 17 项检查。Chrome 覆盖同端口双安装、导入写入失败及回滚失败、耐力单练实骑、联机预选追捕后的发车与实时排名。隔离导出通过 12 项快速检查，桌面 ZIP 和手机 HTML 的 SHA-256 一致。旧版 1.9.1.1 对拍因本地无旧包跳过，沿用原有基线。
 - 移除未接入当前验证流程的旧版桌面验收脚本 `server/browser.mjs`、`server/browser-mock.js` 和 `server/verify-version-folder.mjs`，归档历史性能采样报告。通过 `npm run build`（临时输出）、`npm run typecheck`、`npm run verify:hygiene` 和 `npm test -- --skip-build`。正式基线校验值一致。
 

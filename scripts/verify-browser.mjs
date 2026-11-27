@@ -125,35 +125,37 @@ try {
     if (!start || r.event.id!=='endurance' || !r.event.stages?.length) throw Error('Endurance map practice is missing');
     start.click();
     if (r.phase!=='count' || r.practice?.fromGate!==0 || r.practice?.toGate!==1) throw Error('First segment did not start');
+    // Run the real countdown and physics with fixed steps so a slow renderer cannot pause practice.
+    const countdownTicks=r.countdownTicks;
+    for (let i=0;i<countdownTicks;i++) r.step();
+    let nearest=0;
+    for (let step=0;r.phase==='race' && step<5400;step++) {
+      const {rider,event}=r, rows=event.path.rows, p=rider.position;
+      let error=Infinity;
+      for (let k=Math.max(0,nearest-7);k<Math.min(rows.length,nearest+76);k++) {
+        const q=rows[k].p,d=(p[0]-q[0])**2+(p[2]-q[2])**2;
+        if (d<error) { error=d;nearest=k; }
+      }
+      const distance=rows[nearest].distance;
+      const target=f.along(event.path,Math.min(event.length,distance+f.clamp(1.7+rider.speed*.29,1.85,5.8)));
+      const turn=Math.atan2(target[2]-p[2],target[0]-p[0])-rider.heading-rider.yawRate*.085;
+      const angle=Math.atan2(Math.sin(turn),Math.cos(turn));
+      let goal=Math.min(10.8,f.plannedSpeed(event,distance+.65)*1.04);
+      if (Math.abs(angle)>.38) goal=Math.min(goal,7.9);
+      if (Math.abs(angle)>.75) goal=Math.min(goal,5.4);
+      r.step({gas:rider.speed<goal-.06,brake:rider.speed>goal+.32,left:angle<-.025,right:angle>.025,sprint:false});
+    }
+    if (r.phase!=='done') throw Error('Practice driver missed the finish gate at '+r.progressEstimate+' m');
+
+    // Observe actual game frames after the finish. An exception in the finish HUD stops this count.
     const advance=r.advance;
-    let nearest=0,steps=0;
     globalThis.qaPractice={framesAfterFinish:0,originalCourse};
     r.advance=function(dt,input) {
-      if (this.phase==='done') {
-        if (++qaPractice.framesAfterFinish===3) delete this.advance;
-        return advance.call(this,dt,input);
-      }
-      if (this.phase!=='race') return advance.call(this,dt,input);
-      for (let j=0;j<40 && this.phase==='race' && steps<4800;j++,steps++) {
-        const rider=this.rider,event=this.event,rows=event.path.rows,p=rider.position;
-        let error=Infinity;
-        for (let k=Math.max(0,nearest-7);k<Math.min(rows.length,nearest+76);k++) {
-          const q=rows[k].p,d=(p[0]-q[0])**2+(p[2]-q[2])**2;
-          if (d<error) { error=d;nearest=k; }
-        }
-        const distance=rows[nearest].distance;
-        const target=f.along(event.path,Math.min(event.length,distance+f.clamp(1.7+rider.speed*.29,1.85,5.8)));
-        const turn=Math.atan2(target[2]-p[2],target[0]-p[0])-rider.heading-rider.yawRate*.085;
-        const angle=Math.atan2(Math.sin(turn),Math.cos(turn));
-        let goal=Math.min(10.8,f.plannedSpeed(event,distance+.65)*1.04);
-        if (Math.abs(angle)>.38) goal=Math.min(goal,7.9);
-        if (Math.abs(angle)>.75) goal=Math.min(goal,5.4);
-        advance.call(this,1/110,{gas:rider.speed<goal-.06,brake:rider.speed>goal+.32,left:angle<-.025,right:angle>.025,sprint:false});
-      }
-      if (steps>=4800 && this.phase!=='done') throw Error('Practice driver missed the finish gate');
+      if (this.phase==='done' && ++qaPractice.framesAfterFinish===3) delete this.advance;
+      return advance.call(this,dt,input);
     };
   })()`);
-  await wait('qaPractice.framesAfterFinish===3', 'Endurance segment did not finish with the frame loop still running');
+  await wait('qaPractice.framesAfterFinish===3', 'Game frame loop did not continue after endurance practice');
   assert.deepEqual(await evaluate(`(()=>{
     const {race:r,ui:u}=__FORZERO__;
     return [r.phase,r.practiceBest.get(r.practice.key)>0,u.raceReview.hidden,u.practiceExit.hidden,u.callTitle.textContent];
