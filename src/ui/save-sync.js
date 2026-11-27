@@ -1,11 +1,15 @@
 import { getPreferences, worldState } from '../core/state.js';
 import { CampusCourier, readExplorerProgress } from '../race/courier.js';
+import saveRules from '../data/shared-rules.cjs';
 import { friendArchiveTransaction, friendScoreKey, readFriendScores, readSavedFriendGhost } from '../replay/ghost.js';
 import { setActiveWeather } from '../render/atmosphere.js';
-import { readDriverProfile, savedBike, savedVehicleTunings } from '../ride/vehicles.js';
+import { CUSTOM_SKIN_KEY, restoreRiderSkinLibrary } from '../ride/rider-skin.js';
+import { DRIVER_KEY, readDriverProfile, savedBike, savedVehicleTunings } from '../ride/vehicles.js';
 
 export const SAVE_FORMAT = 'litchi-save';
 export const SAVE_VERSION = 1;
+const { MAX_SAVE_BYTES } = saveRules;
+const saveEncoder = new TextEncoder();
 let saveSyncTimer = null;
 let saveSyncBusy = false;
 let saveHydrated = false;
@@ -34,7 +38,14 @@ export function applyPendingSaveVehicle({ restarting = false } = {}) {
   const room = saveCallbacks.getOnlineRoom();
   if ((!restarting && race && race.phase !== 'free') || room?.state?.phase === 'race' || saveCallbacks.isVehicleRestoreLocked()) return;
   restoreVehiclePending = false;
-  if (driverProfile) Object.assign(driverProfile, readDriverProfile());
+  if (driverProfile) {
+    const profile = readDriverProfile();
+    if (!profile.skinSpec) {
+      delete driverProfile.skinSpec;
+      delete driverProfile.skinSpecHash;
+    }
+    Object.assign(driverProfile,profile);
+  }
   if (vehicleTunings) Object.assign(vehicleTunings, savedVehicleTunings());
   if (race) {
     if (race.phase !== 'free') race.freeRide();
@@ -46,12 +57,14 @@ export function applyPendingSaveVehicle({ restarting = false } = {}) {
   saveCallbacks.showBikeSetup();
 }
 
+const isSaveKey = key => key === CUSTOM_SKIN_KEY || key.startsWith('szu-litchi-') || key.startsWith('checkpoints:');
+
 export function collectLocalStorageSave() {
   const storage = {};
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key && (key.startsWith('szu-litchi-') || key.startsWith('checkpoints:'))) {
+      if (key && isSaveKey(key)) {
         storage[key] = localStorage.getItem(key);
       }
     }
@@ -82,6 +95,14 @@ export async function buildSaveSnapshot() {
   };
 }
 
+export function encodeSaveSnapshot(snapshot) {
+  const complete = JSON.stringify(snapshot);
+  if (saveEncoder.encode(complete).length <= MAX_SAVE_BYTES) return { body:complete, archiveTooLarge:false };
+  const personal = JSON.stringify({ ...snapshot, friends:null });
+  if (saveEncoder.encode(personal).length > MAX_SAVE_BYTES) throw new Error('个人存档过大。');
+  return { body:personal, archiveTooLarge:Array.isArray(snapshot.friends) };
+}
+
 export async function applySaveSnapshot(snapshot, { preferIncoming = false } = {}) {
   if (!snapshot || snapshot.format !== SAVE_FORMAT || snapshot.version !== SAVE_VERSION ||
       !snapshot.storage || typeof snapshot.storage !== 'object' || Array.isArray(snapshot.storage)) {
@@ -91,7 +112,7 @@ export async function applySaveSnapshot(snapshot, { preferIncoming = false } = {
   try {
     for (const [key, value] of Object.entries(snapshot.storage)) {
       if (typeof value !== 'string') continue;
-      if (!key.startsWith('szu-litchi-') && !key.startsWith('checkpoints:')) continue;
+      if (!isSaveKey(key) || key===CUSTOM_SKIN_KEY) continue;
       const existing = localStorage.getItem(key);
       if (key.startsWith('checkpoints:') && existing && !preferIncoming) {
         try {
@@ -104,6 +125,10 @@ export async function applySaveSnapshot(snapshot, { preferIncoming = false } = {
         if (key.startsWith('checkpoints:') && value !== existing) updatedRecords.add(key);
       }
     }
+    let profile = null;
+    try { profile = JSON.parse(snapshot.storage[DRIVER_KEY] ?? localStorage.getItem(DRIVER_KEY)); } catch {}
+    const raw = snapshot.storage[CUSTOM_SKIN_KEY];
+    restoreRiderSkinLibrary(typeof raw==='string' ? raw : null, profile, preferIncoming);
   } catch { throw new Error('无法写入浏览器存档。'); }
   finally { worldState.race?.refreshRestoredRecords(updatedRecords); }
 
@@ -158,18 +183,29 @@ export async function flushLocalSave(keepalive = false) {
     const snapshot = keepalive
       ? { format: SAVE_FORMAT, version: SAVE_VERSION, updatedAt: new Date().toISOString(), storage: collectLocalStorageSave(), friends: null }
       : await buildSaveSnapshot();
-    const response = await fetch('/app/save', {
+    let { body, archiveTooLarge } = encodeSaveSnapshot(snapshot);
+    const post = body => fetch('/app/save', {
       method: 'POST',
       keepalive,
       cache: 'no-store',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(snapshot),
+      body,
     });
-    if (response.status === 409) {
+    let response = await post(body);
+    if (response.status===413 && Array.isArray(snapshot.friends) && !archiveTooLarge) {
+      ({ body } = encodeSaveSnapshot({ ...snapshot, friends:null }));
+      archiveTooLarge = true;
+      response = await post(body);
+    }
+    if (response.status === 409 || response.status === 413) {
       const data = await response.json();
       if (ui?.saveStatus) saveCallbacks.setText(ui.saveStatus, data.error);
+    } else if (response.ok && archiveTooLarge && ui?.saveStatus) {
+      saveCallbacks.setText(ui.saveStatus, '友人对战档案过大，已自动保存个人成绩、车库和皮肤库。');
     }
-  } catch {}
+  } catch (error) {
+    if (error?.message==='个人存档过大。' && ui?.saveStatus) saveCallbacks.setText(ui.saveStatus,error.message);
+  }
   finally { saveSyncBusy = false; }
 }
 
@@ -203,10 +239,10 @@ export async function hydrateLocalSave() {
 
 export async function exportSaveFile() {
   const ui = worldState.ui;
-  let snapshot;
-  try { snapshot = await buildSaveSnapshot(); }
+  let snapshot, output;
+  try { snapshot = await buildSaveSnapshot(); output = encodeSaveSnapshot(snapshot); }
   catch (error) { if (ui?.saveStatus) saveCallbacks.setText(ui.saveStatus, error.message); return; }
-  const url = URL.createObjectURL(new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' }));
+  const url = URL.createObjectURL(new Blob([output.body], { type: 'application/json' }));
   const link = document.createElement('a');
   link.href = url;
   link.download = `litchi-save-${new Date().toISOString().slice(0, 10)}.json`;
@@ -215,7 +251,9 @@ export async function exportSaveFile() {
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   if (ui?.saveStatus) {
-    saveCallbacks.setText(ui.saveStatus, snapshot.friends === null
+    saveCallbacks.setText(ui.saveStatus, output.archiveTooLarge
+      ? '友人对战档案过大，已导出个人成绩、车库和皮肤库。'
+      : snapshot.friends === null
       ? '已导出个人存档，暂时无法读取友人对战记录。'
       : '已导出存档备份（含个人最佳、全车型改装与友人对战）。');
   }
@@ -225,7 +263,7 @@ export async function importSaveFile(file) {
   const ui = worldState.ui;
   if (!file) return;
   try {
-    if (file.size > 10_000_000) throw new Error('存档文件过大。');
+    if (file.size > MAX_SAVE_BYTES) throw new Error('存档文件过大。');
     const parsed = JSON.parse(await file.text());
     await applySaveSnapshot(parsed, { preferIncoming: true });
     scheduleLocalSave();

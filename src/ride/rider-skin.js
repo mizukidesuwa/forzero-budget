@@ -62,7 +62,7 @@ import {
 /** @type {Readonly<Record<string, Readonly<SkinSpec>>>} */
 const BUILTIN_SKINS = Object.freeze({ default: defaultRiderSkin });
 const REMOVED_SKIN_IDS = new Set(['yellow-orb']);
-const CUSTOM_SKIN_KEY = 'forzero-rider-skins-v1';
+export const CUSTOM_SKIN_KEY = 'forzero-rider-skins-v1';
 /** @type {Readonly<Record<string, Readonly<SkinSpec>>>} */
 let riderSkinRegistry = BUILTIN_SKINS;
 
@@ -72,16 +72,22 @@ function skinStorage() {
 
 /** @returns {Readonly<SkinSpec>[]} */
 function readCustomSkinSpecs() {
-  const storage = skinStorage();
-  if (!storage) return [];
+  try { return parseCustomSkinSpecs(skinStorage()?.getItem(CUSTOM_SKIN_KEY)); } catch { return []; }
+}
+
+/**
+ * @param {string | null | undefined} raw
+ * @returns {Readonly<SkinSpec>[]}
+ */
+function parseCustomSkinSpecs(raw) {
   try {
-    const value = JSON.parse(storage.getItem(CUSTOM_SKIN_KEY) ?? '[]');
+    const value = JSON.parse(raw ?? '[]');
     if (!Array.isArray(value)) return [];
     /** @type {Readonly<SkinSpec>[]} */
     const specs = [];
     for (const item of value) {
       const spec = normalizeSkinSpec(item);
-      if (spec && !REMOVED_SKIN_IDS.has(spec.id) && spec.class === 'model') specs.push(spec);
+      if (spec?.class === 'model' && !REMOVED_SKIN_IDS.has(spec.id) && !Object.hasOwn(BUILTIN_SKINS, spec.id)) specs.push(spec);
     }
     return specs;
   } catch { return []; }
@@ -159,6 +165,24 @@ export function skinSpecHash(input) {
 
 export function refreshRiderSkinRegistry() {
   return rebuildRegistry();
+}
+
+/**
+ * Merge a backed-up library and recover a selected model embedded in older saves.
+ * @param {string | null | undefined} raw
+ * @param {{skinId?: unknown, skinSpec?: unknown} | null} profile
+ * @param {boolean} preferIncoming
+ */
+export function restoreRiderSkinLibrary(raw, profile, preferIncoming) {
+  const incoming = parseCustomSkinSpecs(raw);
+  const embedded = skinForProfile(profile);
+  const custom = new Map(readCustomSkinSpecs().map(spec => [spec.id, spec]));
+  for (const spec of incoming) if (preferIncoming || !custom.has(spec.id)) custom.set(spec.id, spec);
+  if (embedded.class === 'model' && embedded.id === profile?.skinId && !custom.has(embedded.id) && !Object.hasOwn(BUILTIN_SKINS, embedded.id)) {
+    custom.set(embedded.id, embedded);
+  }
+  if (incoming.length || custom.size) skinStorage()?.setItem(CUSTOM_SKIN_KEY, JSON.stringify([...custom.values()]));
+  rebuildRegistry([...custom.values()]);
 }
 
 /**

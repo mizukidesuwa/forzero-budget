@@ -5,7 +5,10 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { pathToFileURL } from 'node:url';
-import vm from 'node:vm';
+import { encodeSaveSnapshot } from '../src/ui/save-sync.js';
+import { readGhostFile } from '../src/replay/ghost.js';
+import saveRules from '../src/data/shared-rules.cjs';
+import { campuses, coursesByCampus } from '../src/world/scene-builder.js';
 
 const desktop = resolve(process.env.FORZERO_RELEASE_DIR ??
   (existsSync('dist-v2/desktop/index.html') ? 'dist-v2/desktop' : '.'));
@@ -14,6 +17,28 @@ const fixture = (name, updatedAt) => ({
   format: 'litchi-save', version: 1, updatedAt,
   storage: { 'szu-litchi-driver': JSON.stringify({ name }) }, friends: [],
 });
+const regressed = JSON.parse(await readFile(new URL('./fixtures/map-regression.json',import.meta.url),'utf8')).szu.ghost;
+const longGhost = {
+  ...regressed,
+  run:{...regressed.run,samples:Array.from({length:8100},(_,i)=>[
+    i===8099 ? regressed.run.time : i*regressed.run.time/8099,
+    ...regressed.run.samples[0].slice(1),
+  ])},
+};
+const replay = JSON.stringify(longGhost);
+const { course, rider, run } = readGhostFile(replay,coursesByCampus,campuses);
+const score = {campus:course.campus,courseId:course.id,seed:course.seed,layout:course.layout,name:rider.name,vehicle:rider.vehicle,time:run.time};
+const saved = fixture('档案验收','2026-11-27T16:00:00.000Z');
+const complete = encodeSaveSnapshot({...saved,friends:[{score,replay}]});
+assert.equal(complete.archiveTooLarge,false);
+assert.equal(JSON.parse(complete.body).friends[0].replay,replay);
+const oversized = {...saved,friends:Array.from({length:40},()=>({score,replay}))};
+assert.ok(Buffer.byteLength(JSON.stringify(oversized))>saveRules.MAX_SAVE_BYTES);
+const personal = encodeSaveSnapshot(oversized);
+assert.equal(personal.archiveTooLarge,true);
+assert.ok(Buffer.byteLength(personal.body)<=saveRules.MAX_SAVE_BYTES);
+assert.deepEqual(JSON.parse(personal.body),{...saved,friends:null});
+assert.throws(()=>encodeSaveSnapshot({...saved,storage:{'szu-litchi-test':'骑'.repeat(3_500_000)}}),/个人存档过大/);
 const temp = await mkdtemp(join(tmpdir(), 'forzero-save-check-'));
 class Response extends Writable {
   chunks = [];
@@ -48,6 +73,7 @@ try {
   const v251Dir = join(temp, 'forzero-budget-2.5.1', 'save');
   const v2511Dir = join(temp, 'forzero-budget-2.5.1.1', 'save');
   const v252Dir = join(temp, 'forzero-budget-2.5.2', 'save');
+  const v253Dir = join(temp, 'forzero-budget-2.5.3', 'save');
   const newDir = join(temp, `forzero-budget-${version}`);
   await mkdir(previousDir, { recursive: true });
   await mkdir(v232Dir, { recursive: true });
@@ -59,6 +85,7 @@ try {
   await mkdir(v251Dir, { recursive: true });
   await mkdir(v2511Dir, { recursive: true });
   await mkdir(v252Dir, { recursive: true });
+  await mkdir(v253Dir, { recursive: true });
   await mkdir(oldDir, { recursive: true });
   await mkdir(v200Dir, { recursive: true });
   await mkdir(legacyDir, { recursive: true });
@@ -74,11 +101,8 @@ try {
   await cp(desktop, newDir, { recursive: true, filter: source => source !== join(desktop, 'save') });
   const serverPath = join(newDir, 'server.mjs');
   const serverUrl = pathToFileURL(serverPath).href;
-  const source = await readFile(serverPath, 'utf8');
-  const expression = source.match(/previousSaveFile\s*=\s*(\[[\s\S]*?\n\s*\]);/)?.[1];
-  assert.ok(expression, 'Cannot find candidate server migration list');
-  const previous = vm.runInNewContext(expression.replaceAll('import.meta.url', JSON.stringify(serverUrl)), { URL });
-  const { createAppShell } = await import(serverUrl);
+  const { createAppShell, previousDesktopSaveFiles } = await import(serverUrl);
+  const previous = previousDesktopSaveFiles(new URL(serverUrl),version);
   const saveDir = join(newDir, 'save');
   const control = await requestSave(createAppShell, saveDir, [pathToFileURL(backup)]);
   assert.deepEqual(control.data, expected, 'The 2.1.0 fixture save must be readable');
@@ -129,10 +153,15 @@ try {
   const v252File = join(v252Dir, 'player-data.json');
   await writeFile(v252File, JSON.stringify(v252));
   assert.deepEqual((await requestSave(createAppShell, saveDir, previous)).data, v252);
-  assert.equal((await requestSave(createAppShell, saveDir, previous, 'POST', v252)).status, 200);
+  const v253 = fixture('2.5.3 QA', '2026-11-27T18:10:40.000Z');
+  const v253File = join(v253Dir, 'player-data.json');
+  await writeFile(v253File, JSON.stringify(v253));
+  assert.deepEqual((await requestSave(createAppShell, saveDir, previous)).data, v253);
+  assert.equal((await requestSave(createAppShell, saveDir, previous, 'POST', v253)).status, 200);
   const migrated = (await requestSave(createAppShell, saveDir, [])).data;
-  assert.deepEqual(migrated.storage, v252.storage);
-  assert.deepEqual(migrated.friends, v252.friends ?? []);
+  assert.deepEqual(migrated.storage, v253.storage);
+  assert.deepEqual(migrated.friends, v253.friends ?? []);
+  assert.deepEqual(JSON.parse(await readFile(v253File, 'utf8')), v253);
   assert.deepEqual(JSON.parse(await readFile(v252File, 'utf8')), v252);
   assert.deepEqual(JSON.parse(await readFile(v2511File, 'utf8')), v2511);
   assert.deepEqual(JSON.parse(await readFile(v251File, 'utf8')), v251);
@@ -143,6 +172,7 @@ try {
   assert.deepEqual(JSON.parse(await readFile(v233File, 'utf8')), v233);
   assert.deepEqual(JSON.parse(await readFile(v232File, 'utf8')), v232);
   assert.deepEqual(JSON.parse(await readFile(priorFile, 'utf8')), prior);
+  await rm(v253File);
   await rm(v252File);
   await rm(v2511File);
   await rm(v251File);

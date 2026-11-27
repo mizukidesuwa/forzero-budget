@@ -79,7 +79,7 @@ try {
     pages.push(page);
   }
   console.log('[3/7] Creating the test room...');
-  await pages[0].evalPage("(()=>{const u=__FORZERO__.ui;u.onlineButton.click();u.onlineTuningTime.value='0';u.onlineCreate.click()})()");
+  await pages[0].evalPage("(()=>{const u=__FORZERO__.ui;u.onlineButton.click();u.onlineFormat.value='bo1';u.onlineTuningTime.value='0';u.onlineCreate.click()})()");
   await wait(pages[0], '__FORZERO__.onlineRoom&&__FORZERO__.onlineRoom.course&&__FORZERO__.onlineRoom.clockReady', 'create room');
   const code = await pages[0].evalPage('__FORZERO__.onlineRoom.state.code');
   assert.match(code, /^[A-Z0-9]{8}$/);
@@ -118,9 +118,10 @@ try {
   await pages[0].evalPage('__FORZERO__.ui.onlineStart.click()');
   for (const page of pages) await wait(page, "__FORZERO__.onlineRoom.state.phase==='race' && __FORZERO__.onlineRoom.state.round", 'race start');
   const goAt = await pages[0].evalPage('__FORZERO__.onlineRoom.state.round.goAt');
+  const original = await pages[0].evalPage('(()=>{const s=__FORZERO__.onlineRoom.state;return {route:s.route.code,weather:s.weather,matchId:s.matchId,roundId:s.round.id,poseNumber:s.round.poseNumber}})()');
   await delay(Math.max(0, goAt - Date.now() + 250));
   for (const page of pages) {
-    await wait(page, "__FORZERO__.onlineRoom.startedRound===__FORZERO__.onlineRoom.state.round.number && [...__FORZERO__.onlineRoom.peers.values()].every(p=>p.samples.length>0)", 'receive race positions', 60_000);
+    await wait(page, "__FORZERO__.onlineRoom.startedRound===__FORZERO__.onlineRoom.state.round.id && [...__FORZERO__.onlineRoom.peers.values()].every(p=>p.samples.length>0)", 'receive race positions', 60_000);
   }
   console.log('PASS: all four players received position packets from all three opponents');
   if (drive) {
@@ -164,7 +165,7 @@ try {
   } else {
     console.log('[7/7] Submitting simulated finish times and checking ranking...');
     for (let i = 0; i < pages.length; i++) {
-      const result = await pages[i].evalPage(`(async()=>{const s=__FORZERO__.onlineRoom;const r=await fetch(s.url+'/command?id='+s.id,{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+s.token},body:JSON.stringify({action:'finish',round:s.state.round.number,ms:${35000 + i * 1000}})});return {ok:r.ok,status:r.status}})()`);
+      const result = await pages[i].evalPage(`(async()=>{const s=__FORZERO__.onlineRoom;const r=await fetch(s.url+'/command?id='+s.id,{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+s.token},body:JSON.stringify({action:'finish',round:s.state.round.number,roundId:s.state.round.id,ms:${35000 + i * 1000}})});return {ok:r.ok,status:r.status}})()`);
       assert.equal(result.ok, true, `simulated finish ${i}: HTTP ${result.status}`);
     }
   }
@@ -174,6 +175,29 @@ try {
   assert.ok(standing.every(p => p.finishes === 1));
   if (!drive) assert.deepEqual(standing.map(p => p.points), [4, 3, 2, 1]);
   console.log(drive ? 'PASS: four accelerated driven laps and room settlement' : 'PASS: four simulated finish submissions and ranking');
+
+  const weather = original.weather==='rain' ? 'day' : 'rain';
+  await pages[0].evalPage(`(()=>{const select=__FORZERO__.ui.onlineLobbyWeather;select.value=${JSON.stringify(weather)};select.dispatchEvent(new Event('change'))})()`);
+  for (const page of pages) {
+    await wait(page, `__FORZERO__.onlineRoom.state.phase==='lobby' && __FORZERO__.onlineRoom.state.weather===${JSON.stringify(weather)}`, 'BO1 rematch lobby');
+    await wait(page, '!__FORZERO__.ui.onlineReady.disabled', 'rematch ready button');
+    await page.evalPage('__FORZERO__.ui.onlineReady.click()');
+    await wait(page, '__FORZERO__.onlineRoom.state.players.find(p=>p.id===__FORZERO__.onlineRoom.id)?.ready', 'rematch ready update');
+  }
+  await wait(pages[0], '!__FORZERO__.ui.onlineStart.disabled', 'rematch start button');
+  await pages[0].evalPage('__FORZERO__.ui.onlineStart.click()');
+  for (const page of pages) {
+    await wait(page, "__FORZERO__.onlineRoom.state.phase==='race' && __FORZERO__.race.phase==='race' && __FORZERO__.onlineRoom.startedRound===__FORZERO__.onlineRoom.state.round.id && [...__FORZERO__.onlineRoom.peers.values()].every(p=>p.samples.at(-1)?.round===__FORZERO__.onlineRoom.startedRound)", 'same-course BO1 rematch');
+    const rematch = await page.evalPage('(()=>{const s=__FORZERO__.onlineRoom.state;return {route:s.route.code,matchId:s.matchId,round:s.round}})()');
+    assert.equal(rematch.route,original.route);
+    assert.equal(rematch.round.number,1);
+    assert.notEqual(rematch.matchId,original.matchId);
+    assert.notEqual(rematch.round.id,original.roundId);
+    assert.notEqual(rematch.round.poseNumber,original.poseNumber);
+  }
+  const staleFinish = await pages[0].evalPage(`(async()=>{const s=__FORZERO__.onlineRoom;const r=await fetch(s.url+'/command?id='+s.id,{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+s.token},body:JSON.stringify({action:'finish',round:1,roundId:${JSON.stringify(original.roundId)},ms:35000})});return r.ok})()`);
+  assert.equal(staleFinish,false,'A delayed finish for round 1 must not settle the next match');
+  console.log('PASS: same-course BO1 rematch restarted every browser and rejected a previous finish');
 } finally {
   if (browser) await browser.close();
   server.closeAllConnections?.();

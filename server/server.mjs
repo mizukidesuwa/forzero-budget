@@ -1,7 +1,8 @@
 import { createServer } from 'node:http';
-import { createHmac, randomBytes } from 'node:crypto';
-import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { createHash, createHmac, randomBytes } from 'node:crypto';
+import { mkdir, readdir, readFile, realpath, rename, writeFile } from 'node:fs/promises';
 import { networkInterfaces } from 'node:os';
+import { basename, dirname, join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { gzipSync } from 'node:zlib';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -388,7 +389,7 @@ function addPlayer(room,name,profile={}) {
   const nickname = Array.from(name.normalize('NFC').replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/gu,'').trim())
     .slice(0,12).join('') || 'player';
   const clean = sanitizeProfile(profile,room.vehicleRule);
-  const player = {id:identifier(),name:nickname,token:randomBytes(24).toString('base64url'),ready:false,
+  const player = {id:identifier(),name:nickname,token:randomBytes(24).toString('base64url'),ready:false,roundIdentity:profile.roundIdentity===true,
     paint:clean.paint,skinId:clean.skinId,skinVersion:clean.skinVersion,skinSpec:clean.skinSpec,skinSpecHash:clean.skinSpecHash,vehicle:clean.vehicle,look:clean.look,bike:clean.bike,tunings:clean.tunings,
     stream:null,expires:Date.now()+RECONNECT,signals:[],signalWindow:0,signalCount:0};
   room.players.set(player.id,player);
@@ -404,7 +405,7 @@ function event(player,type,value) {
 }
 
 function roomState(room) {
-  return {protocol:tuning190.protocol,code:room.code,host:room.host,route:room.route,format:room.format,
+  return {protocol:tuning190.protocol,code:room.code,matchId:room.matchId,host:room.host,route:room.route,format:room.format,
     vehicleRule:room.vehicleRule,weather:room.weather,phase:room.phase,
     windSpeed:room.windSpeed??0,windDir:room.windDir??0,windMode:room.windMode,windSeed:room.windSeed,
     budget:room.budget,blind:room.blind,budgetProblems:roomBudgetProblems(room),
@@ -436,6 +437,11 @@ function removePlayer(room,player) {
     room.winners = tally(room);
   }
   publish(room);
+}
+
+function isCurrentRound(room,player,body) {
+  return room.phase==='race' && body.round===room.round?.number &&
+    (body.roundId===room.round.id || (body.roundId===undefined && !player.roundIdentity));
 }
 
 function applyCommand(room,player,body) {
@@ -497,6 +503,7 @@ function applyCommand(room,player,body) {
     if (body.traffic!==undefined) room.traffic = normalizeTraffic(body.traffic);
       if (room.phase==='done') {
         room.phase = 'lobby';
+        room.matchId = identifier();
         room.round = null;
         room.tuning = null;
         room.history = [];
@@ -536,7 +543,7 @@ function applyCommand(room,player,body) {
     }
     case 'finish':
       if (room.format==='chase') throw new RoomError('捉人模式无需冲线。',409);
-      if (room.phase!=='race' || body.round!==room.round.number || !room.roster.some(item=>item.id===player.id)) throw new RoomError('这一轮已结算。');
+      if (!isCurrentRound(room,player,body) || !room.roster.some(item=>item.id===player.id)) throw new RoomError('这一轮已结算。');
       if (!Number.isInteger(body.ms)||body.ms<1||body.ms>MATCH_LIMIT+120_000||Date.now()<room.round.goAt) {
         throw new RoomError('完赛时间与本轮时间不符。');
       }
@@ -544,7 +551,7 @@ function applyCommand(room,player,body) {
       settle(room);
       break;
     case 'tag': {
-      if (room.phase!=='race' || room.format!=='chase' || body.round!==room.round?.number || !room.round?.chase) {
+      if (room.format!=='chase' || !isCurrentRound(room,player,body) || !room.round?.chase) {
         throw new RoomError('这一轮已结算。');
       }
       const chase = room.round.chase;
@@ -556,7 +563,7 @@ function applyCommand(room,player,body) {
       break;
     }
     case 'retire':
-      if (body.round===room.round?.number) retire(room,player.id);
+      if (isCurrentRound(room,player,body)) retire(room,player.id);
       break;
     case 'leave':
       removePlayer(room,player);
@@ -686,7 +693,7 @@ export function createRideServer({page,assets,soundDir,iceServers=[{urls:'stun:s
           if (!WEATHERS.has(weather)) throw new RoomError('天气无效。',400);
           let code;
           do { code = Array.from(randomBytes(8),byte=>alphabet[byte%alphabet.length]).join(''); } while (rooms.has(code));
-          room = {code,players:new Map(),format:body.format,route:assertRoute(body.route),
+          room = {code,matchId:identifier(),roundSerial:0,players:new Map(),format:body.format,route:assertRoute(body.route),
             budget:tuning190.normalizeBudget(body.budget),blind:body.blind===true,
             windMode:normalizeWindMode(body.windMode),windSeed:randomBytes(4).readUInt32LE(),
             vehicleRule,weather,windSpeed,windDir,tuningSeconds,collision,traffic,tuning:null,phase:'lobby',round:null,history:[],standing:[],winners:[]};
@@ -770,7 +777,32 @@ async function listenWithFallback(server,host,requestedPort,allowFallback) {
 
 const gameVersion = (page,assets) => /(?:FORZERO:\s*BUDGET[^<]*?|荔园环骑)\s+([0-9.]+)<\/title>/.exec(String(assets?.['/index.html']?.body??page))?.[1]??null;
 
-export function createAppShell({page,assets,soundDir,saveDir,previousSaveFile,iceServers,turn,roomPort=8787,roomHost='0.0.0.0',allowPortFallback=true,idleMs=8000,bootTimeoutMs=60_000,onShutdown}={}) {
+const desktopSaveVersions = ['2.5.4','2.5.3','2.5.2','2.5.1.1','2.5.1','2.5.0','2.4.0','2.3.4','2.3.3.1','2.3.3','2.3.2','2.3.1',
+  '2.1.0','2.0.0','1.9.1.1','1.9.1','1.9.0','1.8.8','1.8.7','1.8.6','1.8.5','1.8.1'];
+const legacySaveVersions = ['1.8.0','1.7.0','1.6.6','1.6.5','1.6.4','1.6.3','1.6.2','1.6.1','1.6.0','1.5.0'];
+
+export function previousDesktopSaveFiles(entryUrl, version) {
+  const portable = /^forzero-budget-windows-x64-/i.test(basename(dirname(fileURLToPath(entryUrl))));
+  const prefixes = portable ? ['forzero-budget-windows-x64-','forzero-budget-'] : ['forzero-budget-','forzero-budget-windows-x64-'];
+  const previous = desktopSaveVersions.slice(desktopSaveVersions.indexOf(version)+1);
+  const directories = [...previous.flatMap(value=>prefixes.map(prefix=>prefix+value)),
+    ...legacySaveVersions.map(value=>'szu-litchi-loop-'+value)];
+  return directories.map(directory=>new URL('../'+directory+'/save/player-data.json',entryUrl));
+}
+
+async function appInstanceId(saveDir, htmlFile) {
+  const location = resolve(saveDir ?? htmlFile);
+  let canonical;
+  try { canonical = await realpath(location); }
+  catch (error) {
+    if (error.code!=='ENOENT') throw error;
+    canonical = join(await realpath(dirname(location)),basename(location));
+  }
+  if (process.platform==='win32') canonical=canonical.toLowerCase();
+  return createHash('sha256').update(canonical).digest('hex');
+}
+
+export function createAppShell({page,assets,soundDir,saveDir,instanceId=null,previousSaveFile,iceServers,turn,roomPort=8787,roomHost='0.0.0.0',allowPortFallback=true,idleMs=8000,bootTimeoutMs=60_000,onShutdown}={}) {
   const staticFiles = buildStaticFiles({page,assets});
   const version = gameVersion(page,assets);
   const clients = new Set();
@@ -834,7 +866,7 @@ export function createAppShell({page,assets,soundDir,saveDir,previousSaveFile,ic
     res.end(JSON.stringify(data));
   };
   const hostInfo = ()=>({
-    app:'szu-litchi-loop',version,
+    app:'szu-litchi-loop',version,instanceId,
     hosting:Boolean(hostServer),
     port:hostPort,
     localOrigin:hostPort?`http://127.0.0.1:${hostPort}`:null,
@@ -934,13 +966,17 @@ export function createAppShell({page,assets,soundDir,saveDir,previousSaveFile,ic
       }
       if (req.method==='POST' && pathname==='/app/save') {
         if (!sameLocalOrigin(req)) throw new RoomError('仅允许本机游戏页面操作。',403);
+        if (Number(req.headers['content-length'])>sharedRules.MAX_SAVE_BYTES) {
+          req.resume();
+          throw new RoomError('存档过大。',413);
+        }
         const chunks = [];
         let bytes = 0;
         for await (const chunk of req) {
           bytes += chunk.length;
-          if (bytes>10_000_000) throw new RoomError('存档过大。',413);
-          chunks.push(chunk);
+          if (bytes<=sharedRules.MAX_SAVE_BYTES) chunks.push(chunk);
         }
+        if (bytes>sharedRules.MAX_SAVE_BYTES) throw new RoomError('存档过大。',413);
         let body;
         try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
         catch { throw new RoomError('存档格式错误。',400); }
@@ -959,13 +995,13 @@ export function createAppShell({page,assets,soundDir,saveDir,previousSaveFile,ic
   return {server,startHost,stopHost,shutdown,hostInfo};
 }
 
-async function findRunningApp(startPort,version) {
+async function findRunningApp(startPort,instanceId) {
   for (let port=startPort; port<=startPort+12; port++) {
     try {
       const response = await fetch(`http://127.0.0.1:${port}/app/status`,{signal:AbortSignal.timeout(400)});
       if (response.ok) {
         const data = await response.json().catch(()=>null);
-        if (data?.app==='szu-litchi-loop' && (data.version??null)===version) return `http://127.0.0.1:${port}/`;
+        if (data?.app==='szu-litchi-loop' && data.instanceId===instanceId) return `http://127.0.0.1:${port}/`;
       }
     } catch {}
   }
@@ -984,30 +1020,7 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href===import.meta.url) {
     if (assets) {
       soundDir = fileURLToPath(new URL('./sound',import.meta.url));
       saveDir = fileURLToPath(new URL('./save',import.meta.url));
-      previousSaveFile = [
-        new URL('../forzero-budget-2.5.2/save/player-data.json',import.meta.url),
-        new URL('../forzero-budget-2.5.1.1/save/player-data.json',import.meta.url),
-        new URL('../forzero-budget-2.5.1/save/player-data.json',import.meta.url),
-        new URL('../forzero-budget-2.5.0/save/player-data.json',import.meta.url),
-        new URL('../forzero-budget-2.4.0/save/player-data.json',import.meta.url),
-        new URL('../forzero-budget-2.3.4/save/player-data.json',import.meta.url),
-        new URL('../forzero-budget-2.3.3.1/save/player-data.json',import.meta.url),
-        new URL('../forzero-budget-2.3.3/save/player-data.json',import.meta.url),
-        new URL('../forzero-budget-2.3.2/save/player-data.json',import.meta.url),
-        new URL('../forzero-budget-2.3.1/save/player-data.json',import.meta.url),
-        new URL('../forzero-budget-2.1.0/save/player-data.json',import.meta.url),
-        new URL('../forzero-budget-2.0.0/save/player-data.json',import.meta.url),
-        new URL('../forzero-budget-1.9.1.1/save/player-data.json',import.meta.url),
-        new URL('../forzero-budget-1.9.1/save/player-data.json',import.meta.url),
-        new URL('../forzero-budget-1.9.0/save/player-data.json',import.meta.url),
-        new URL('../forzero-budget-1.8.8/save/player-data.json',import.meta.url),
-        new URL('../forzero-budget-1.8.7/save/player-data.json',import.meta.url),
-        new URL('../forzero-budget-1.8.6/save/player-data.json',import.meta.url),
-        new URL('../forzero-budget-1.8.5/save/player-data.json',import.meta.url),
-        new URL('../forzero-budget-1.8.1/save/player-data.json',import.meta.url),
-        ...['1.8.0','1.7.0','1.6.6','1.6.5','1.6.4','1.6.3','1.6.2','1.6.1','1.6.0','1.5.0'].map(version=>
-          new URL('../szu-litchi-loop-'+version+'/save/player-data.json',import.meta.url))
-      ];
+      previousSaveFile = previousDesktopSaveFiles(import.meta.url,gameVersion(page,assets));
     } else {
       assets = await loadStaticAssets(new URL('../dist-v2/desktop/',import.meta.url)).catch(error=>{
         if (error.code==='ENOENT') {
@@ -1028,14 +1041,15 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href===import.meta.url) {
 
   if (process.argv.includes('--app')) {
     const appStartPort = Number(process.env.APP_PORT ?? 18787);
-    const existing = await findRunningApp(appStartPort,version);
+    const instanceId = await appInstanceId(saveDir,process.env.RIDE_HTML);
+    const existing = await findRunningApp(appStartPort,instanceId);
     if (existing) {
       if (process.argv.includes('--open') || process.env.RIDE_OPEN==='1') openBrowser(existing);
       process.exit(0);
     }
     const idleMs = Number(process.env.RIDE_IDLE_MS ?? 8000);
     const shell = createAppShell({
-      page,assets,soundDir,saveDir,previousSaveFile,iceServers,turn,roomPort:requestedPort,roomHost:host,allowPortFallback:!process.env.PORT,
+      page,assets,soundDir,saveDir,instanceId,previousSaveFile,iceServers,turn,roomPort:requestedPort,roomHost:host,allowPortFallback:!process.env.PORT,
       idleMs,onShutdown:()=>process.exit(0),
     });
     const appPort = await listenWithFallback(shell.server,'127.0.0.1',appStartPort,!process.env.APP_PORT);

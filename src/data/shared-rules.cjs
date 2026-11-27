@@ -111,6 +111,7 @@ const SKIN_CONSTANTS = Object.freeze({
 });
 
 module.exports = {
+  MAX_SAVE_BYTES: 10_000_000,
   ONLINE_CHASE_RULES,
   ROUTE_RULES,
   CAMPUS_NETWORKS,

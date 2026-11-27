@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { checkBuildFile, readBuildManifest } from './build-manifest.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const argv = process.argv.slice(2);
@@ -19,9 +20,10 @@ const defaultOut = githubMode ? `github-upload-${version}` : path.join('dist-v2'
 const outDir = path.resolve(ROOT, outIndex >= 0 ? argv[outIndex + 1] : defaultOut);
 const manifestPath = 'release-assets/MANIFEST.json';
 const githubOut = githubMode ? checkedGitHubOutput(outDir) : null;
+const buildDir = path.join(ROOT,'dist-v2');
 
 if (!skipBuild) {
-  const buildResult = spawnSync(process.execPath, ['scripts/build.mjs', '--release'], {
+  const buildResult = spawnSync(process.execPath, ['scripts/build.mjs', '--release', ...argv.filter(arg=>arg==='--bundle-node')], {
     cwd: ROOT,
     stdio: 'inherit',
   });
@@ -42,35 +44,46 @@ const desktopRequired = [
   'LICENSE',
 ];
 for (const file of desktopRequired) {
-  const fullPath = path.join(ROOT, 'dist-v2', 'desktop', file);
+  const fullPath = path.join(buildDir, 'desktop', file);
   assert(fs.existsSync(fullPath) && fs.statSync(fullPath).size > 0, `Missing desktop build output: dist-v2/desktop/${file}`);
 }
 
-const releaseFiles = [
+const requiredReleaseFiles = [
   `forzero-budget-${version}.zip`,
   `forzero-budget-mobile-${version}.html`,
 ];
 const winZipFile = `forzero-budget-windows-x64-${version}.zip`;
-if (fs.existsSync(path.join(ROOT, 'dist-v2', winZipFile))) {
-  releaseFiles.unshift(winZipFile);
-}
-for (const file of releaseFiles) {
-  const fullPath = path.join(ROOT, 'dist-v2', file);
-  assert(fs.existsSync(fullPath) && fs.statSync(fullPath).size > 0, `Missing release archive: dist-v2/${file}`);
+const build = readBuildManifest(buildDir,version);
+assert.equal(build.kind,'release','Staging requires a completed release build.');
+const releaseFiles = build.artifacts.map(entry=>entry.file);
+const allowedReleaseFiles = releaseFiles.includes(winZipFile) ? [...requiredReleaseFiles,winZipFile] : requiredReleaseFiles;
+assert.deepEqual([...releaseFiles].sort(),[...allowedReleaseFiles].sort(),'Unexpected files in the release build manifest.');
+for (const entry of build.artifacts) checkBuildFile(buildDir,entry);
+
+function findPreviouslyStagedPortable(targetDir) {
+  const file = path.join(targetDir,winZipFile);
+  if (releaseFiles.includes(winZipFile) || !fs.existsSync(file)) return;
+  const prior = JSON.parse(fs.readFileSync(path.join(targetDir,'MANIFEST.json'),'utf8'));
+  const listed = prior.artifacts?.find(entry=>entry.file===winZipFile);
+  assert(prior.name===pkg.name && prior.version===version && listed && fs.lstatSync(file).isFile(),
+    `Unrecognized portable archive in the staging directory: ${file}`);
+  checkBuildFile(targetDir,listed);
+  return file;
 }
 
 function stageReleaseArtifacts(targetDir) {
   fs.mkdirSync(targetDir, { recursive: true });
   const artifacts = [];
   const checksumLines = [];
+  const obsoletePortable = findPreviouslyStagedPortable(targetDir);
 
-  for (const file of releaseFiles) {
-    const srcPath = path.join(ROOT, 'dist-v2', file);
+  for (const entry of build.artifacts) {
+    const { file } = entry;
+    const srcPath = path.join(buildDir, file);
     const dstPath = path.join(targetDir, file);
     fs.copyFileSync(srcPath, dstPath);
-    const bytes = fs.statSync(dstPath).size;
-    const sha256 = crypto.createHash('sha256').update(fs.readFileSync(dstPath)).digest('hex');
-    artifacts.push({ file, bytes, sha256 });
+    const { bytes, sha256 } = checkBuildFile(targetDir,entry);
+    artifacts.push({file,bytes,sha256});
     checksumLines.push(`${sha256} *${file}`);
   }
 
@@ -84,6 +97,7 @@ function stageReleaseArtifacts(targetDir) {
   };
   fs.writeFileSync(path.join(targetDir, 'MANIFEST.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   fs.writeFileSync(path.join(targetDir, 'RELEASE-NOTES.md'), buildReleaseNotes(checksumLines));
+  if (obsoletePortable) fs.unlinkSync(obsoletePortable);
   return { artifacts, checksumLines };
 }
 

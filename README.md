@@ -4,7 +4,7 @@
 
 玩家可在 **深圳大学 · 粤海校区（荔园环骑）**、**伦敦 Bloomsbury（UCL）** 与 **佛山顺德 · 顺峰山公园** 三张立体地图间自由骑行与站台旅行，挑战 20 条固定赛道、种子赛道 v2 与每周挑战。
 
-发车区可选单人计时、三车 AI 竞速、1v1、**影子追捕**与**夜骑盲区**。固定赛道可反向，闭环赛道可选 1–3 圈；全屏俯视地图接入 **「地图点选路线工坊」**（生成 `R1...` 路线代码直接开跑或建房）。AI 提供标准和强劲两档，完赛俯视地图支持双车回放。车库提供 ¥400、¥700 和不限预算三档，支持四载具通用自定义骑手皮肤（`SkinModelSpec`）。所有配件直接开放，违禁魔改成绩仅用于娱乐。联机请使用 2.5.3（协议 v3，支持 **联机捉人 · 1 追 N 三轮轮换**）。
+发车区可选单人计时、三车 AI 竞速、1v1、**影子追捕**与**夜骑盲区**。固定赛道可反向，闭环赛道可选 1–3 圈；全屏俯视地图接入 **「地图点选路线工坊」**（生成 `R1...` 路线代码直接开跑或建房）。AI 提供标准和强劲两档，完赛俯视地图支持双车回放。车库提供 ¥400、¥700 和不限预算三档，支持四载具通用自定义骑手皮肤（`SkinModelSpec`）。所有配件直接开放，违禁魔改成绩仅用于娱乐。联机请使用 2.5.4（协议 v3，支持 **联机捉人 · 1 追 N 三轮轮换**）。
 
 手机默认使用精简 HUD，可在「设置 → HUD 缩放」切换自动、65%、80%、100%、115% 或 130%。竖屏小地图和「下一站」位于右上角。触屏按键大小单独设置。
 
@@ -12,11 +12,11 @@
 
 ## 直接下载游玩（玩家入口）
 
-只想直接游玩无需下载整套源码，请前往 GitHub **[Releases（`v2.5.3`）](https://github.com/mizukidesuwa/forzero-budget/releases/tag/v2.5.3)** 下载对应版本：
+只想直接游玩无需下载整套源码，请前往 GitHub **[Releases（`v2.5.4`）](https://github.com/mizukidesuwa/forzero-budget/releases/tag/v2.5.4)** 下载对应版本：
 
-- **Windows 免安装完整版（强烈推荐，开箱即联机）**：下载 `forzero-budget-windows-x64-2.5.3.zip`（内置便携 `runtime\node.exe`），完整解压后双击 **`启动游戏.bat`** 即可直接本地自动存档与建房联机，**无需电脑提前安装 Node.js**。
-- **轻量跨平台版（需自备 Node.js 22+）**：下载 `forzero-budget-2.5.3.zip`（约 317 KiB），适合已安装 Node.js 22+ 或自行部署常驻服的用户。
-- **手机离线单文件版**：下载 `forzero-budget-mobile-2.5.3.html`，直接用手机浏览器打开即可离线游玩。
+- **Windows 免安装完整版（强烈推荐，开箱即联机）**：下载 `forzero-budget-windows-x64-2.5.4.zip`（内置便携 `runtime\node.exe`），完整解压后双击 **`启动游戏.bat`** 即可直接本地自动存档与建房联机，**无需电脑提前安装 Node.js**。
+- **轻量跨平台版（需自备 Node.js 22+）**：下载 `forzero-budget-2.5.4.zip`，适合已安装 Node.js 22+ 或自行部署常驻服的用户。
+- **手机离线单文件版**：下载 `forzero-budget-mobile-2.5.4.html`，直接用手机浏览器打开即可离线游玩。
 - **源码与自行构建**：本仓库主干仅保留工程源码与验证脚本，发行产物可通过 `npm run build:release` 在本地 `dist-v2/` 生成。
 
 ---
@@ -66,17 +66,17 @@
 ## 本地运行方式
 
 ### 1. 桌面完整版（推荐，支持本地自动存档与好友联机）
-- 从 GitHub Releases 下载并完整解压 **`forzero-budget-windows-x64-2.5.3.zip`**（免装 Node.js）或轻量版 `forzero-budget-2.5.3.zip`（或自行执行 `npm run build:release:win` / 打开 `dist-v2/desktop/`）：
+- 从 GitHub Releases 下载并完整解压 **`forzero-budget-windows-x64-2.5.4.zip`**（免装 Node.js）或轻量版 `forzero-budget-2.5.4.zip`（或自行执行 `npm run build:release:win` / 打开 `dist-v2/desktop/`）：
   - **Windows 一键启动**：双击 **`启动游戏.bat`**（优先调用包内 `runtime\node.exe`，自动启动本地应用壳并将存档同步至 `save/player-data.json`，关闭网页约 8 秒后后台自动退出；若轻量版未检测到 Node.js 会降级打开 `index.html`）。
   - **直接浏览器游玩**：直接用现代浏览器打开 `index.html`（支持 `file://` 离线单人游玩与导入/导出 JSON 备份）。
   - **常驻服务部署**（需要 Node.js 22+）：
     ```sh
-    cd forzero-budget-2.5.3
+    cd forzero-budget-2.5.4
     HOST=127.0.0.1 PORT=8787 node server.mjs
     ```
 
 ### 2. 手机单文件离线版
-- 从 GitHub Releases 下载 `forzero-budget-mobile-2.5.3.html`（或自行构建后取 `dist-v2/forzero-budget-mobile-2.5.3.html`）发送至手机，使用 Chrome / Edge / Safari 或系统浏览器打开即可离线游玩（支持竖屏与横屏触屏）。
+- 从 GitHub Releases 下载 `forzero-budget-mobile-2.5.4.html`（或自行构建后取 `dist-v2/forzero-budget-mobile-2.5.4.html`）发送至手机，使用 Chrome / Edge / Safari 或系统浏览器打开即可离线游玩（支持竖屏与横屏触屏）。
 
 ### 3. 本地构建与自动化测试
 
@@ -89,7 +89,7 @@ npm run verify:all
 npm run release:stage -- --skip-build
 ```
 
-首次用启动器打开 2.5.3 会自动发现同级 `2.5.2`、`2.5.1.1`、`2.5.1`、`2.5.0`、`2.4.0`、`2.3.4` 及更早版本的存档。也可以从设置中导入 JSON 备份。
+首次用启动器打开 2.5.4 会按版本查找同级轻量版和 Windows 免安装版的存档目录，优先读取 `2.5.3`、`2.5.2`、`2.5.1.1`、`2.5.1`、`2.5.0`、`2.4.0`、`2.3.4` 及更早版本的存档。也可以从设置中导入 JSON 备份。
 
 ---
 

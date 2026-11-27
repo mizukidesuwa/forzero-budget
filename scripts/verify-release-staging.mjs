@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { buildManifestName, describeBuildFile } from './build-manifest.mjs';
 
 const sandbox = mkdtempSync(join(tmpdir(), 'forzero-release-stage-'));
 const root = join(sandbox, 'project');
@@ -13,10 +14,16 @@ const hygieneScript = join(root, 'scripts', 'verify-hygiene.mjs');
 const manifest = join(output, 'release-assets', 'MANIFEST.json');
 const write = (path, text = 'fixture') => writeFileSync(join(root, path), text);
 const run = target => spawnSync(process.execPath, [stageScript, '--github', '--skip-build', '--out', target], { encoding: 'utf8' });
+const buildDir = join(root,'dist-v2');
+const desktopZip = `forzero-budget-${version}.zip`;
+const mobileHtml = `forzero-budget-mobile-${version}.html`;
+const windowsZip = `forzero-budget-windows-x64-${version}.zip`;
+const stage = (target, ...args) => spawnSync(process.execPath,[stageScript,'--out',target,...args],{encoding:'utf8'});
 
 try {
   for (const dir of ['scripts', 'src', 'dist-v2/desktop']) mkdirSync(join(root, dir), { recursive: true });
   copyFileSync(new URL('./stage-release.mjs', import.meta.url), stageScript);
+  copyFileSync(new URL('./build-manifest.mjs', import.meta.url), join(root,'scripts','build-manifest.mjs'));
   for (const file of ['.editorconfig', '.gitattributes', '.gitignore', 'AGENTS.md', 'CHANGELOG.md', 'CONTRIBUTING.md',
     'FORZERO-ROUTE-SKIN-DESIGN.md', 'FORZERO-WORK-GUIDE.md', 'HISTORY.md', 'LICENSE', 'README.md', 'SECURITY.md',
     'eslint.config.mjs', 'jsconfig.json', 'package-lock.json']) write(file);
@@ -25,8 +32,27 @@ try {
   write('scripts/verify-hygiene.mjs', '');
   for (const file of ['index.html', 'style.css', 'game.js', 'server.mjs', 'shared-rules.cjs', 'room-rules.cjs',
     'route-rules.cjs', 'tuning-190.cjs', 'README.md', '启动游戏.bat', 'LICENSE']) write(`dist-v2/desktop/${file}`);
-  write(`dist-v2/forzero-budget-${version}.zip`);
-  write(`dist-v2/forzero-budget-mobile-${version}.html`);
+  for (const file of [desktopZip,mobileHtml,windowsZip]) write(`dist-v2/${file}`);
+  const retainPortable = join(sandbox,'staged');
+  const buildManifest = portable => ({
+    version,kind:'release',mobile:describeBuildFile(buildDir,mobileHtml),
+    artifacts:(portable?[windowsZip,desktopZip,mobileHtml]:[desktopZip,mobileHtml]).map(file=>describeBuildFile(buildDir,file)),
+  });
+  write(`dist-v2/${buildManifestName}`,JSON.stringify(buildManifest(true)));
+  const portable = stage(retainPortable,'--skip-build');
+  assert.equal(portable.status,0,portable.stderr);
+  assert.ok(existsSync(join(retainPortable,windowsZip)));
+  write('scripts/build.mjs',`import { writeFileSync } from 'node:fs';\nwriteFileSync(new URL('../dist-v2/${buildManifestName}',import.meta.url),${JSON.stringify(JSON.stringify(buildManifest(false)))});\n`);
+  const light = stage(retainPortable);
+  assert.equal(light.status,0,light.stderr);
+  assert.ok(existsSync(join(buildDir,windowsZip)));
+  assert.equal(existsSync(join(retainPortable,windowsZip)),false);
+  assert.deepEqual(JSON.parse(readFileSync(join(retainPortable,'MANIFEST.json'),'utf8')).artifacts.map(entry=>entry.file),[desktopZip,mobileHtml]);
+  write(`dist-v2/${desktopZip}`,'mismatched file');
+  const mismatch = stage(join(sandbox,'mismatch'),'--skip-build');
+  assert.notEqual(mismatch.status,0);
+  assert.match(mismatch.stderr,/does not match its manifest/);
+  write(`dist-v2/${desktopZip}`);
 
   for (const target of [root, sandbox, join(root, 'src', 'new')]) {
     const result = run(target);

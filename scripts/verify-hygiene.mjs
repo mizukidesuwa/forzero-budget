@@ -114,15 +114,21 @@ for (const token of ['npm run verify:hygiene', 'npm run build', 'dist-v2/desktop
 const releaseWorkflowPath = path.join(ROOT, '.github', 'workflows', 'release.yml');
 assert(fs.existsSync(releaseWorkflowPath), 'Missing .github/workflows/release.yml');
 const releaseWorkflow = fs.readFileSync(releaseWorkflowPath, 'utf8');
-for (const token of ['npm run build:release', 'npm run verify:fast', 'npm run release:stage']) {
+for (const token of ['workflow_call:', 'npm run build:release', 'npm run verify:fast', 'npm run release:stage', 'verify-desktop-start.mjs --portable']) {
   assert(releaseWorkflow.includes(token), `.github/workflows/release.yml missing "${token}"`);
 }
 
 const ciWorkflowPath = path.join(ROOT, '.github', 'workflows', 'ci.yml');
 assert(fs.existsSync(ciWorkflowPath), 'Missing .github/workflows/ci.yml');
 const ciWorkflow = fs.readFileSync(ciWorkflowPath, 'utf8');
-for (const token of ['windows-latest', 'npm run lint', 'npm run typecheck', 'npm run build', 'npm test -- --skip-build', 'verify-drafting-ai.mjs', 'verify-deterministic-race.mjs', 'verify:map-assets-perf', 'verify-browser.mjs']) {
+for (const token of ['windows-latest', 'npm run lint', 'npm run typecheck', 'npm run build', 'npm test -- --skip-build', 'verify-drafting-ai.mjs', 'verify-deterministic-race.mjs', 'verify:map-assets-perf', 'verify-browser.mjs', 'verify-four-player.mjs']) {
   assert(ciWorkflow.includes(token), `.github/workflows/ci.yml missing "${token}"`);
+}
+for (const [job, workflow] of [['pages',pagesWorkflow],['release',releaseWorkflow]]) {
+  assert(workflow.includes('workflow_call:') && !/^  (?:push|workflow_dispatch):/m.test(workflow), `${job} must run through CI`);
+  const block = ciWorkflow.match(new RegExp(`^  ${job}:\\r?\\n((?:    [^\\r\\n]*\\r?\\n)+)`, 'm'))?.[1] ?? '';
+  assert(block.includes('needs: browser-e2e') && block.includes(`uses: ./.github/workflows/${job}.yml`),
+    `${job} must depend on the required browser checks from the same CI run`);
 }
 
 console.log(`verify-hygiene passed: v${version}, app.js ${appLineCount} lines, ${assetFiles.length} asset modules, ${runtimeFiles.length} runtime files, 0 untranslated UI labels.`);

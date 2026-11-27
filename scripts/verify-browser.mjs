@@ -1,15 +1,24 @@
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { openTestBrowser } from './browser-runner.mjs';
+import { checkBuildFile, readBuildManifest } from './build-manifest.mjs';
+import { defaultRiderSkin } from '../src/data/rider-skins.js';
+import saveRules from '../src/data/shared-rules.cjs';
+import { getCourseVariant } from '../src/race/course-variants.js';
 import { makeGhostFile } from '../src/replay/ghost.js';
-import { buildCustomNetworkRoute, buildRidingScene, makeNetworkCourse, networkForCampus, setActiveCampus } from '../src/test-exports.js';
+import { buildCustomNetworkRoute, buildRidingScene, coursesByCampus, makeNetworkCourse, networkForCampus, setActiveCampus } from '../src/test-exports.js';
 
-const desktop = resolve(process.env.FORZERO_RELEASE_DIR ??
-  (existsSync('dist-v2/desktop/index.html') ? 'dist-v2/desktop' : '.'));
+const buildDir = resolve(process.env.FORZERO_BUILD_DIR ?? 'dist-v2');
+const desktop = resolve(process.env.FORZERO_RELEASE_DIR ?? join(buildDir,'desktop'));
+const pkgVersion = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
+const mobileEntry = process.env.FORZERO_MOBILE_HTML ? null : readBuildManifest(buildDir,pkgVersion).mobile;
+const mobile = resolve(process.env.FORZERO_MOBILE_HTML || join(buildDir,mobileEntry.file));
+assert.ok(statSync(mobile,{throwIfNoEntry:false})?.isFile(), `Missing mobile build: ${mobile}`);
+if (mobileEntry) checkBuildFile(buildDir,mobileEntry);
 const fixtures = JSON.parse(await readFile(new URL('./fixtures/map-regression.json', import.meta.url), 'utf8'));
 const { rpc, close } = await openTestBrowser();
 try {
@@ -140,6 +149,32 @@ try {
   })()`);
   await wait("__FORZERO__.race.phase==='count' && __FORZERO__.race.rider.bike.tyres==='race'", 'Restored tyres did not apply on direct restart');
   await evaluate('__FORZERO__.ui.freeRide.click()');
+  const model = {
+    ...defaultRiderSkin, id:'qa_save_skin', label:'Save QA', class:'model',
+    headMode:'integrated', limbMode:'full', accessories:[],
+    bounds:{width:.90,height:1.60,depth:.80},triangleBudget:2400,
+    model:{version:1,parts:[
+      {id:'body',primitive:'ellipsoid',material:'bodyMain',center:[-.15,1.15,0],size:[.20,.28,.20]},
+      {id:'head',primitive:'ellipsoid',material:'bodyMain',center:[.05,1.55,0],size:[.15,.16,.15]},
+      {id:'foot_anchor',primitive:'box',material:'bodyMain',center:[-.20,.55,0],size:[.10,.06,.10]},
+    ]},
+    palette:{bodyMain:'#112233'},
+  };
+  assert.deepEqual(await evaluate(`(async()=>{
+    const f=__FORZERO__, model=${JSON.stringify(model)}, extra={...model,id:'qa_second_skin'};
+    const library='forzero-rider-skins-v1', driver='szu-litchi-driver-1';
+    const snapshot=storage=>({format:'litchi-save',version:1,storage});
+    const options=()=>Array.from(f.ui.riderSkin.options,option=>option.value);
+    localStorage.removeItem(library);
+    await f.applySaveSnapshot(snapshot({[driver]:JSON.stringify({skinId:model.id,skinSpec:model})}),{preferIncoming:true});
+    const embedded=[f.ui.riderSkin.value,options().includes(model.id)];
+    await f.applySaveSnapshot(snapshot({[library]:JSON.stringify([model,extra]),[driver]:JSON.stringify({skinId:extra.id})}),{preferIncoming:true});
+    const saved=await f.buildSaveSnapshot();
+    localStorage.removeItem(library);localStorage.removeItem(driver);
+    await f.applySaveSnapshot(saved,{preferIncoming:true});
+    const restored=[f.ui.riderSkin.value,JSON.parse(saved.storage[library]).length,options().includes(model.id)];
+    return [embedded,restored];
+  })()`), [['qa_save_skin',true],['qa_second_skin',2,true]]);
 
   const expand = await evaluate('(()=>{const r=__FORZERO__.ui.expand.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()');
   await rpc('Input.dispatchMouseEvent',{type:'mousePressed',...expand,button:'left',clickCount:1},sessionId);
@@ -196,6 +231,17 @@ try {
     await evaluate("__FORZERO__.ui.friendScores.querySelector('.friend-play').click()");
     await wait("__FORZERO__.race.opponent?.name==='Workshop QA' && !__FORZERO__.ui.friendDialog.open", `${campus} archive could not reload workshop ghost`);
   }
+  setActiveCampus('shunde');
+  buildRidingScene('shunde');
+  const lake = getCourseVariant(coursesByCampus.shunde.find(event=>event.id==='qingyun-lake'),{direction:'reverse',laps:3});
+  const variantGhost = makeGhostFile(lake,{...lake.benchmark,vehicle:'bike'},{name:'Reverse QA',paint:'classic'});
+  await uploadGhost(variantGhost);
+  await wait("__FORZERO__.race.opponent?.name==='Reverse QA' && !__FORZERO__.ui.friendDialog.open", 'Reverse three-lap ghost did not import');
+  await evaluate('__FORZERO__.ui.friendButton.click()');
+  await wait(`[...__FORZERO__.ui.friendScores.querySelectorAll('.friend-play:not(:disabled)')].some(button=>button.getAttribute('aria-label').includes('Reverse'))`, 'Archived reverse three-lap ghost was disabled');
+  await evaluate(`[...__FORZERO__.ui.friendScores.querySelectorAll('.friend-play:not(:disabled)')].find(button=>button.getAttribute('aria-label').includes('Reverse')).click()`);
+  await wait("!__FORZERO__.ui.friendDialog.open && __FORZERO__.race.opponent?.name?.startsWith('Reverse')", 'Archived reverse three-lap ghost did not launch');
+  assert.deepEqual(await evaluate('__FORZERO__.race.event.variant'),{direction:'reverse',laps:3});
   await evaluate(`(()=>{
     const u=__FORZERO__.ui;
     u.coursePicker.disabled = false;
@@ -227,10 +273,42 @@ try {
   assert.deepEqual(await evaluate('__FORZERO__.race.event.variant'), { direction: 'reverse', laps: 3 });
   assert.deepEqual(await evaluate('qaErrors'), [], 'desktop errors');
 
-  const pkgVersion = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
-  const mobile = resolve(process.env.FORZERO_MOBILE_HTML ??
-    (existsSync(`dist-v2/forzero-budget-mobile-${pkgVersion}.html`) ? `dist-v2/forzero-budget-mobile-${pkgVersion}.html` : 'dist-v2/forzero-budget-mobile.html'));
-  if (existsSync(mobile)) {
+  const {course:archiveCourse,rider:archiveRider,run:archiveRun} = fixtures.szu.ghost;
+  const exported = await evaluate(`(async()=>{
+    const f=__FORZERO__, course=${JSON.stringify(archiveCourse)}, rider=${JSON.stringify(archiveRider)};
+    const time=${archiveRun.time}, pose=${JSON.stringify(archiveRun.samples[0].slice(1))};
+    const splits=${JSON.stringify(archiveRun.splits)};
+    const samples=Array.from({length:8100},(_,i)=>[i===8099?time:i*time/8099,...pose]);
+    const friends=Array.from({length:40},(_,i)=>{
+      const name='Archive '+i;
+      return {score:{campus:course.campus,courseId:course.id,seed:course.seed,layout:course.layout,name,vehicle:rider.vehicle,time},
+        replay:JSON.stringify({format:'litchi-ghost',version:1,course,rider:{...rider,name},run:{time,splits,samples}})};
+    });
+    await f.applySaveSnapshot({format:'litchi-save',version:1,storage:{},friends});
+    f.openSettings();
+    const create=URL.createObjectURL, click=HTMLAnchorElement.prototype.click;
+    let blob;
+    URL.createObjectURL=value=>{blob=value;return create.call(URL,value)};
+    HTMLAnchorElement.prototype.click=()=>{};
+    try {
+      f.ui.saveExport.click();
+      const deadline=performance.now()+10000;
+      while(!blob && performance.now()<deadline) await new Promise(resolve=>setTimeout(resolve,25));
+      if(!blob) throw Error('Oversized archive export did not produce an importable personal save');
+      const data=JSON.parse(await blob.text());
+      await f.applySaveSnapshot(data,{preferIncoming:true});
+      return {size:blob.size,format:data.format,friends:data.friends,status:f.ui.saveStatus.textContent};
+    } finally {
+      URL.createObjectURL=create;HTMLAnchorElement.prototype.click=click;f.closeSettings();
+    }
+  })()`);
+  assert.ok(exported.size>0 && exported.size<=saveRules.MAX_SAVE_BYTES);
+  assert.equal(exported.format,'litchi-save');
+  assert.equal(exported.friends,null);
+  assert.equal(exported.status,'友人对战档案过大，已导出个人成绩、车库和皮肤库。');
+  assert.deepEqual(await evaluate('qaErrors'), [], 'desktop save export errors');
+
+  {
     await rpc('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true }, sessionId);
     await rpc('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 }, sessionId);
     const navMobile = await rpc('Page.navigate', { url: pathToFileURL(mobile).href }, sessionId);

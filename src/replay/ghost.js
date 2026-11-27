@@ -193,7 +193,8 @@ export function readGhostFile(text, coursesMap = worldState.coursesByCampus, cam
   return file;
 }
 
-export function loadFriendGhost({ course, rider, run }, activeCampus = getActiveCampus()) {
+export function resolveFriendGhostCourse(course, gateCount) {
+  if (!course || !Number.isInteger(gateCount)) return null;
   const { campus, id, seed, layout, routeCode } = course;
   let event;
   if (routeCode !== undefined) {
@@ -206,7 +207,12 @@ export function loadFriendGhost({ course, rider, run }, activeCampus = getActive
       current?.seed === seed ? current : worldState.hooks.makeSeedCourse?.(seed, campus);
     event = base && course.variant ? getCourseVariant(base, course.variant) : base;
   }
-  if (!event || event.id !== id || event.campus !== activeCampus || ghostCourseKey(event) !== layout || run.splits.length !== event.gates.length) {
+  return event && event.id === id && event.campus === campus && ghostCourseKey(event) === layout && event.gates.length === gateCount ? event : null;
+}
+
+export function loadFriendGhost({ course, rider, run }, activeCampus = getActiveCampus()) {
+  const event = course.campus === activeCampus ? resolveFriendGhostCourse(course, run.splits.length) : null;
+  if (!event) {
     throw new GhostFileError('这个影子使用的赛道布局与当前游戏版本不同。');
   }
   const name = riderName(rider.name), vehicle = rider.vehicle;

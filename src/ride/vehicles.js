@@ -5,7 +5,7 @@ import { surfacePhysics } from '../data/surfaces.js';
 
 import { brakeChoices, frameChoices, gearChoices, sprintChoices, tyreChoices, vehicleTuningChoices } from '../data/parts.js';
 import { bicycleBase, poweredDefaults, poweredGravel, vehicleChoices } from '../data/vehicles.js';
-import { knownSkinId, skinForProfile, skinSpecHash, normalizeSkinSpec } from './rider-skin.js';
+import { skinForProfile, skinSpecHash, normalizeSkinSpec } from './rider-skin.js';
 
 export {
   brakeChoices, extraPoweredParts, frameChoices, gearChoices, sprintChoices, tyreChoices, vehicleTuningChoices,
@@ -51,13 +51,12 @@ export function bicycleStyle(look) {
 export function readDriverProfile() {
   let saved;
   try { saved = JSON.parse(getStorage()?.getItem(DRIVER_KEY)); } catch {}
-  const skinId = knownSkinId(saved?.skinId);
-  const savedSkin = normalizeSkinSpec(saved?.skinSpec);
-  const resolvedSkin = skinForProfile({ skinId, skinSpec: savedSkin });
-  const skinSpec = savedSkin?.id === skinId ? savedSkin : resolvedSkin?.id === skinId && resolvedSkin.class === 'model' ? resolvedSkin : null;
+  const resolvedSkin = skinForProfile(saved);
+  const skinId = resolvedSkin.id;
+  const skinSpec = resolvedSkin.class === 'model' ? resolvedSkin : null;
   return {
     name: riderName(saved?.name), vehicle: knownVehicle(saved?.vehicle), paint: knownPaint(saved?.paint),
-    look: bicycleStyle(saved?.look), skinId, skinVersion: skinForProfile({ skinId, skinSpec }).schemaVersion,
+    look: bicycleStyle(saved?.look), skinId, skinVersion: resolvedSkin.schemaVersion,
     ...(skinSpec ? { skinSpec, skinSpecHash: skinSpecHash(skinSpec) } : {}),
   };
 }

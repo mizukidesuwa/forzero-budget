@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import esbuild from 'esbuild';
+import { buildManifestName, describeBuildFile } from './build-manifest.mjs';
 import { writeDeterministicZip } from './deterministic-zip.mjs';
 
-export const VERSION = '2.5.3';
+export const VERSION = '2.5.4';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
@@ -23,6 +24,9 @@ const soundDir = join(desktopDir, 'sound');
 const mobileFile = join(outBase, release ? `forzero-budget-mobile-${VERSION}.html` : 'forzero-budget-mobile.html');
 
 const entryJs = join(srcDir, 'entry.js');
+const manifestFile = join(outBase, buildManifestName);
+mkdirSync(outBase, { recursive:true });
+writeFileSync(manifestFile, JSON.stringify({ version:VERSION, kind:'incomplete' }));
 
 function portableNodeInputs() {
   const nodeExe = process.env.FORZERO_NODE_EXE || (process.platform === 'win32' && process.arch === 'x64' ? process.execPath : '');
@@ -107,13 +111,17 @@ writeFileSync(join(soundDir, 'README.txt'), soundReadme, 'utf8');
 
 writeFileSync(mobileFile, mobileHtml, 'utf8');
 
+const mobile = describeBuildFile(outBase,basename(mobileFile));
+const artifacts = [];
 if (release) {
   writeFileSync(join(desktopDir, 'LICENSE'), readFileSync(join(root, 'LICENSE'), 'utf8').replace(/\r\n/g, '\n'));
   const zipFile = join(outBase, `forzero-budget-${VERSION}.zip`);
   const entries = ['index.html', 'style.css', 'game.js', 'tuning-190.cjs', 'shared-rules.cjs', 'LICENSE',
     'sound/README.txt', ...serverCopies.map(([, dstName]) => dstName)];
   writeDeterministicZip(zipFile, desktopDir, entries);
-  console.log(`  desktop ZIP:        ${readFileSync(zipFile).length} bytes`);
+  const desktop = describeBuildFile(outBase,basename(zipFile));
+  artifacts.push(desktop,mobile);
+  console.log(`  desktop ZIP:        ${desktop.bytes} bytes`);
   if (portableNode) {
     const winZipFile = join(outBase, `forzero-budget-windows-x64-${VERSION}.zip`);
     writeDeterministicZip(winZipFile, desktopDir, [
@@ -121,9 +129,12 @@ if (release) {
       { name: 'runtime/node.exe', source: portableNode.nodeExe },
       { name: 'runtime/NODE-LICENSE.txt', data: portableNode.license },
     ]);
-    console.log(`  windows portable:   ${readFileSync(winZipFile).length} bytes`);
+    const windows = describeBuildFile(outBase,basename(winZipFile));
+    artifacts.unshift(windows);
+    console.log(`  windows portable:   ${windows.bytes} bytes`);
   }
 }
+writeFileSync(manifestFile, `${JSON.stringify({version:VERSION,kind:release?'release':'development',mobile,artifacts},null,2)}\n`);
 
 const elapsedMs = Math.round(performance.now() - t0);
 const sha = (s) => createHash('sha256').update(s, 'utf8').digest('hex').slice(0, 12);

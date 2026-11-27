@@ -178,6 +178,8 @@ function handleOnlineSignal(session,{from,data}) {
   });
 }
 
+const roundIdentity = round => round?.id ?? (round ? `${round.number}:${round.goAt}` : null);
+
 function sendOnlinePose(session,now) {
   if (session.nextPose>now) return;
   session.nextPose = now+ONLINE_POSE_INTERVAL;
@@ -188,7 +190,8 @@ function sendOnlinePose(session,now) {
   }
   const packet = new ArrayBuffer(ONLINE_POSE_BYTES);
   const view = new DataView(packet);
-  view.setUint16(0,session.startedRound);
+  const { round } = session.state;
+  view.setUint16(0, round.poseNumber ?? round.number);
   view.setUint16(2,++session.sequence);
   view.setUint16(4,session.epoch);
   view.setInt16(6,Math.round(clamp(rider.steering,-1,1)*32767));
@@ -203,8 +206,10 @@ function sendOnlinePose(session,now) {
 function receiveOnlinePose(session,peer,packet) {
   if (onlineRoom!==session || session.state.phase!=='race' || !(packet instanceof ArrayBuffer) || packet.byteLength!==ONLINE_POSE_BYTES) return;
   const view = new DataView(packet);
-  const round = view.getUint16(0), sequence = view.getUint16(2), epoch = view.getUint16(4);
-  if (round!==session.state.round.number) return;
+  const poseNumber = view.getUint16(0), sequence = view.getUint16(2), epoch = view.getUint16(4);
+  const active = session.state.round;
+  const round = roundIdentity(active);
+  if (poseNumber!==(active.poseNumber ?? active.number)) return;
   const last = peer.samples.at(-1);
   if (last?.round===round && sequence<=last.sequence) return;
   const pose = Array.from({length:6},(_,index)=>view.getFloat32(8+index*4));
@@ -219,7 +224,7 @@ function receiveOnlinePose(session,peer,packet) {
 
 function onlineRiderPoses(now) {
   const session = onlineRoom;
-  if (!session?.startedRound || session.state.phase!=='race') return [];
+  if (!session?.startedRound || session.state.phase!=='race' || session.startedRound!==roundIdentity(session.state.round)) return [];
   const target = now-ONLINE_INTERPOLATION;
   const riders = [];
   for (const [id,peer] of session.peers) {
@@ -849,7 +854,7 @@ function receiveOnlineRoom(session,state) {
   const nextRouteKey = onlineRouteKey(state.route);
   if (session.course && nextRouteKey && nextRouteKey !== session.routeKey) {
     session.course = null;
-    session.startedRound = 0;
+    session.startedRound = null;
     void setOnlineCourse(session).catch(error=>showOnlineMessage(error.message));
   }
   if (state.phase==='tuning' && previous.phase!=='tuning') {
@@ -859,7 +864,7 @@ function receiveOnlineRoom(session,state) {
       app.openSettings('bike');
     }
   }
-  if (state.phase==='race' && (previous.phase!=='race'||previous.round?.number!==state.round.number)) {
+  if (state.phase==='race' && (previous.phase!=='race'||roundIdentity(previous.round)!==roundIdentity(state.round))) {
     showOnlineMessage('');
     if (app.isSettingsOpen()) app.closeSettings();
     worldState.ui.onlineDialog.close();
@@ -931,7 +936,7 @@ async function joinOnline(code) {
       initialAddresses = Array.isArray(started.addresses) ? started.addresses : [];
     }
     const event = worldState.race.event;
-    const entry = {...onlineProfilePayload(),protocol:tuning190.protocol};
+    const entry = {...onlineProfilePayload(),protocol:tuning190.protocol,roundIdentity:true};
     let routeEvent = event;
     if (!code && worldState.ui.onlineFormat.value==='random') {
       if (event.campus==='shunde') {
@@ -1059,12 +1064,14 @@ function tickOnline(now) {
   if (session?.state.phase==='tuning') updateOnlineTuningBanner(session,now);
   if (!session?.course||!session.clockReady||session.state.phase!=='race') return;
   const {round} = session.state;
+  const identity = roundIdentity(round);
+  const roundCommand = { round:round.number, roundId:round.id };
   const countdownAt = round.goAt-session.serverOffset-COUNTDOWN_TICKS*STEP_MS;
   if (now<countdownAt) return;
-  if (session.startedRound!==round.number) {
+  if (session.startedRound!==identity) {
     if (app.isSettingsOpen()) app.closeSettings();
     worldState.ui.onlineDialog.close();
-    session.startedRound = round.number;
+    session.startedRound = identity;
     session.sequence = session.epoch = 0;
     session.lastRejoin = -Infinity;
     session.nextPose = 0;
@@ -1080,7 +1087,7 @@ function tickOnline(now) {
   if (now-(app.getPriorTimestamp()??now)>3500 && (worldState.race.phase==='count'||worldState.race.phase==='race'||isOnlineChaseRoom(session))) {
     session.retired = true;
     worldState.race.abandon();
-    void onlineCommand(session,{action:'retire',round:round.number}).catch(error=>showOnlineMessage(error.message));
+    void onlineCommand(session,{action:'retire',...roundCommand}).catch(error=>showOnlineMessage(error.message));
     showOnlineDialog();
     showOnlineMessage('页面暂停太久，本轮计为未完赛。');
     return;
@@ -1096,8 +1103,8 @@ function tickOnline(now) {
         session.tagSent.add(cand.id);
         worldState.hooks.playSound?.('finish');
         void onlineCommand(session,{
-          action:'tag', round:round.number, targetId:cand.id, ms:Math.max(1,Math.round(snap.elapsedMs)),
-        }).catch(() => { session.tagSent?.delete(cand.id); });
+          action:'tag', ...roundCommand, targetId:cand.id, ms:Math.max(1,Math.round(snap.elapsedMs)),
+        }).catch(() => { if (roundIdentity(session.state.round)===identity) session.tagSent?.delete(cand.id); });
       }
     }
     return;
@@ -1105,10 +1112,10 @@ function tickOnline(now) {
   if (worldState.race.phase==='done'&&!session.reported) {
     session.reported = true;
     const ms = Math.round(worldState.race.elapsed);
-    void onlineCommand(session,{action:'finish',round:round.number,ms}).catch(error=>{
-      if (onlineRoom!==session || session.state.phase!=='race'||session.state.round.number!==round.number) return;
+    void onlineCommand(session,{action:'finish',...roundCommand,ms}).catch(error=>{
+      if (onlineRoom!==session || session.state.phase!=='race'||roundIdentity(session.state.round)!==identity) return;
       showOnlineMessage(error.message);
-      setTimeout(()=>{if(session.state.round.number===round.number) session.reported=false;},2500);
+      setTimeout(()=>{if(roundIdentity(session.state.round)===identity) session.reported=false;},2500);
     });
   }
 }

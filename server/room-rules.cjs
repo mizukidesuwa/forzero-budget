@@ -207,7 +207,10 @@ function beginRoomRound(room,now) {
   const goAt = now+5000;
   const isChase = room.format === 'chase';
   const hunterId = nextChaseHunterId(room);
-  room.round = {number:room.history.length+1,goAt,deadline:goAt+(isChase?ONLINE_CHASE_RULES.durationMs:20*60_000),
+  const number = room.history.length+1;
+  room.roundSerial = (room.roundSerial ?? 0) + 1;
+  const poseNumber = [...room.players.values()].every(player=>player.roundIdentity) ? room.roundSerial & 0xffff : number;
+  room.round = {number,id:`${room.matchId}:${number}`,poseNumber,goAt,deadline:goAt+(isChase?ONLINE_CHASE_RULES.durationMs:20*60_000),
     trafficSeed:randomBytes(4).readUInt32LE(),
     windSeed:randomBytes(4).readUInt32LE(),windMode:room.windMode,budget,blindSeed,
     ...(isChase ? {

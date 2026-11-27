@@ -1,9 +1,7 @@
 name: Build & Publish Release
 
 on:
-  push:
-    tags: ['v*']
-  workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: write
@@ -48,6 +46,15 @@ jobs:
       - run: npm run build:release -- --bundle-node
       - run: npm run verify:fast -- --skip-build
       - run: npm run release:stage -- --skip-build
+      - name: Smoke-test the staged Windows portable ZIP
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          $archive = "dist-v2/release/v$env:VERSION/forzero-budget-windows-x64-$env:VERSION.zip"
+          $installation = Join-Path $env:RUNNER_TEMP "forzero-budget-windows-x64-$env:VERSION"
+          Expand-Archive -LiteralPath $archive -DestinationPath $installation
+          node scripts/verify-desktop-start.mjs --portable $installation
       - name: Create or update GitHub Release
         if: github.ref_type == 'tag'
         env:

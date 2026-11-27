@@ -1,7 +1,12 @@
 # 更新日志（CHANGELOG）
 
-## Unreleased
+## 2.5.4 — 联机复赛、存档兼容与发布验收
 
+- 联机比赛和轮次分别使用服务端身份。BO1 结算后，同一房间可以连续开跑同一赛道，旧轮次的完赛请求会被拒绝。浏览器联机验收覆盖只改天气的复赛。关联 `server/room-rules.cjs`、`server/server.mjs`、`src/online/client.js` 和 `scripts/verify-four-player.mjs`。
+- 桌面端按版本查找轻量版和 Windows 便携版的解压目录，同版本优先匹配当前包型。实例按规范化后的存档位置识别。关联 `server/server.mjs`、`scripts/verify-save.mjs` 和 `scripts/verify-desktop-start.mjs`。
+- 备份包含自定义骑手皮肤库，并兼容从旧备份的驾驶员记录恢复内嵌模型。友人影子档案超限时，导出和自动存档回退到可导入的个人存档并提示，桌面端保留已保存的友人档案。友人对战列表复用导入时的路线布局校验，支持重玩青云湖等固定赛道变体。关联 `src/ui/save-sync.js`、`src/ride/rider-skin.js`、`src/ride/vehicles.js`、`src/replay/ghost.js` 和 `src/ui/friend-duel.js`。
+- 手机验收和发行暂存按本次构建清单取文件，校验文件内容，手机文件缺失直接失败。Pages 和 Release 等同一提交的 CI 通过后运行，Release 从暂存的 Windows ZIP 解压，使用包内 Node.js 验收启动和建房。关联 `scripts/build.mjs`、`scripts/build-manifest.mjs`、`scripts/stage-release.mjs`、`scripts/verify-browser.mjs` 和 `.github/workflows/`。
+- 通过 `npm run lint`、`npm run typecheck`、`npm run build`、`npm run build:release:win`、`npm run release:stage -- --skip-build`、`npm run verify:all -- --skip-build` 的 17 项检查和 `actionlint`。从暂存 ZIP 解压后以空 `PATH` 运行 `node scripts/verify-desktop-start.mjs --portable`，验证存档迁移、双安装隔离与建房。地图、资产、物理及性能沿用现有基线。
 - 手机 HUD 布局验收通过游戏的固定物理步进完成发车倒计时，覆盖原有的引导、触控和相机布局断言。通过 `node scripts/verify-browser.mjs`、`npm run lint` 和 `npm run typecheck`。地图、资产和物理基线沿用原有数据。
 - `scripts/verify-hygiene.mjs` 报告 `src/ui/app.js` 行数，超过 1700 行时给出职责边界审阅提示并继续执行校验。同步开发指导、工作指南、贡献说明和 PR 模板。通过 `npm run lint`、`npm run typecheck` 和 `npm test`，并验证 1700 行、1701 行及提示后触发其他校验错误的行为。沿用现有基线。
 

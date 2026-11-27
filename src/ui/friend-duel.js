@@ -1,9 +1,9 @@
 import { getActiveCampus, worldState } from '../core/state.js';
-import { readSeedCode, weeklySeed } from '../race/seed-code.js';
+import { weeklySeed } from '../race/seed-code.js';
 import {
   GhostFileError, MAX_GHOST_BYTES, ghostCourseKey, loadFriendGhost, makeGhostFile,
   readFriendScores, readGhostFile, readSavedFriendGhost, removeSavedFriendGhost,
-  saveFriendGhost,
+  resolveFriendGhostCourse, saveFriendGhost,
 } from '../replay/ghost.js';
 import { vehicleChoices } from '../ride/vehicles.js';
 import { campuses, coursesByCampus } from '../world/scene-builder.js';
@@ -29,6 +29,7 @@ export function createFriendDuelController({
   let friendScores = [];
   let friendBoardMessage = '正在读取友人对战…';
   let friendBoardRead = 0;
+  let friendBoardRender = 0;
   let selectedFriendIds = [];
   let friendImporting = false;
 
@@ -72,7 +73,7 @@ export function createFriendDuelController({
     const courseScores = campusScores.filter(score => score.courseId === ui.friendCourse.value);
     const vehicles = new Map(Object.entries(vehicleChoices).filter(([, data]) => data.race).map(([key, data]) => [key, data.name]));
     setFriendOptions(ui.friendVehicle, vehicles, courseScores, 'vehicle', vehicle ?? ui.friendVehicle.value);
-    renderFriendScores(courseScores);
+    void renderFriendScores(courseScores);
   }
 
   function friendScoreRow(score, compatible) {
@@ -93,6 +94,11 @@ export function createFriendDuelController({
             setText(ui.friendStatus, '同场群跑最多同时选择 3 条影子。');
             return;
           }
+          if (friendScores.some(item => selectedFriendIds.includes(item.id) && item.layout !== score.layout)) {
+            pick.checked = false;
+            setText(ui.friendStatus, '同场群跑需要相同的赛道布局。');
+            return;
+          }
           if (!selectedFriendIds.includes(score.id)) selectedFriendIds.push(score.id);
         } else {
           selectedFriendIds = selectedFriendIds.filter(id => id !== score.id);
@@ -108,7 +114,20 @@ export function createFriendDuelController({
     return row;
   }
 
-  function renderFriendScores(courseScores) {
+  async function layoutCanReplay(scores) {
+    for (const score of scores) {
+      try {
+        const replay = JSON.parse(await readSavedFriendGhost(score.id));
+        const course = replay?.course;
+        if (course?.campus === score.campus && course.id === score.courseId && course.layout === score.layout &&
+            resolveFriendGhostCourse(course, replay.run?.splits?.length)) return true;
+      } catch {}
+    }
+    return false;
+  }
+
+  async function renderFriendScores(courseScores) {
+    const render = ++friendBoardRender;
     const { value: campus } = ui.friendCampus, { value: course } = ui.friendCourse;
     const scores = courseScores.filter(score => score.vehicle === ui.friendVehicle.value)
       .sort((a, b) => a.time - b.time || a.id - b.id);
@@ -124,15 +143,16 @@ export function createFriendDuelController({
     const event = coursesByCampus[campus].find(item => item.id === course) ??
       (worldState.seedCourses[campus]?.id === course ? worldState.seedCourses[campus] : null);
     const currentLayout = event ? ghostCourseKey(event) : null;
-    const validSeed = !course.startsWith('seed-') || readSeedCode(course.slice(5), campus) === course.slice(5);
     const groups = new Map();
     for (const score of scores) {
       if (!groups.has(score.layout)) groups.set(score.layout, []);
       groups.get(score.layout).push(score);
     }
     const layouts = [...groups.keys()].sort((a, b) => Number(b === currentLayout) - Number(a === currentLayout));
-    for (const layout of layouts) {
-      const compatible = validSeed && (!currentLayout || layout === currentLayout);
+    const compatibleLayouts = await Promise.all(layouts.map(layout => layoutCanReplay(groups.get(layout))));
+    if (render !== friendBoardRender) return;
+    for (const [index, layout] of layouts.entries()) {
+      const compatible = compatibleLayouts[index];
       if (layouts.length > 1 || !compatible) {
         const title = document.createElement('h3');
         title.textContent = compatible ? message`布局 ${layout}` : message`旧版布局 ${layout}`;
@@ -303,6 +323,9 @@ export function createFriendDuelController({
           throw new GhostFileError('部分已选影子已被移除，请重新选择。');
         }
         ghosts.push(readGhostFile(replay));
+      }
+      if (ghosts.some(({course}) => course.layout !== ghosts[0].course.layout)) {
+        throw new GhostFileError('同场群跑需要相同的赛道布局。');
       }
       ghosts.sort((a, b) => a.run.time - b.run.time);
       prepareFriendChallenge(ghosts[0], false, ghosts.slice(1));
