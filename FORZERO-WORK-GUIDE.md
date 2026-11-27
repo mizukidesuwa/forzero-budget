@@ -33,7 +33,7 @@
 
 - `npm run build:release` 生成 `dist-v2/desktop/`、`dist-v2/forzero-budget-2.5.1.zip` 和 `dist-v2/forzero-budget-mobile-2.5.1.html`。
 - `npm run release:stage` 将可分发归档、校验清单（`SHA256SUMS.txt`、`MANIFEST.json`、`RELEASE-NOTES.md`）暂存到 `dist-v2/release/v2.5.1/`；`npm run release:github` 按 `AGENTS.md` 规范生成拆分式 GitHub 上传目录 `github-upload-2.5.1/repo/`（纯净源码树，含 `src/`、`server/`、`scripts/`、`.github/` 且不含 `szu-litchi-dev/`）与 `github-upload-2.5.1/release-assets/`（Releases 附件与 `RELEASE-NOTES.md`）。
-- `.github/workflows/ci.yml`（推送/PR 到 `main` 时自动运行 `verify` 节点检查与 `browser-e2e` 无头 Chrome 桌面/手机 E2E 验收；`scripts/browser-runner.mjs` 支持 Windows/Linux/macOS）、`.github/workflows/pages.yml`（校验并发布静态网页到 GitHub Pages）与 `.github/workflows/release.yml`（推送 `v*` tag 后自动执行 `build:release`、`verify:fast`、`release:stage` 并发布 GitHub Release 附件）。
+- `.github/workflows/ci.yml`（推送/PR 到 `main` 时自动在 Ubuntu 与 Windows 双平台运行 `verify` 节点检查，并在 `ubuntu-latest` 运行 `browser-e2e` 无头 Chrome 桌面/手机 E2E 验收；`scripts/browser-runner.mjs` 支持 Windows/Linux/macOS）、`.github/workflows/pages.yml`（校验并发布静态网页到 GitHub Pages）与 `.github/workflows/release.yml`（推送 `v*` tag 后自动执行 `build:release`、`verify:fast`、`release:stage` 并发布 GitHub Release 附件）。
 - 本地 `szu-litchi-dev/` 全量历史包仅保留在本地硬盘作离线 `1.9.1.1` 对拍，不再放入公开 GitHub 仓库。
 - 2.5.1 桌面版优先读取同级 `forzero-budget-2.5.0/save/player-data.json`，并向下兼容 `2.4.0`、`2.3.4` 及前序存档。手机单文件可通过游戏设置导出和导入备份。
 

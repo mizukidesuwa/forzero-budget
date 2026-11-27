@@ -1,5 +1,4 @@
 import { clamp } from '../core/math.js';
-import { setActiveCampus } from '../core/state.js';
 import { cameraViews } from '../data/interface.js';
 import { riderSkinPromptEn, riderSkinPromptZh } from '../data/rider-skin-prompt.js';
 import { getOnlineRoom, showOnlineDialog, syncOnlineProfile } from '../online/client.js';

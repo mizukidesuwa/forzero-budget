@@ -9,7 +9,7 @@ import {
   along, courseFrame, joinTrack, makeCourse, offsetVertex, pointDistance, section, street, travelTable,
 } from './geometry.js';
 import {
-  betweenLakes, campusGates, canghaiStreets, cityLinks, eastTeachingCrossing, hillGrade,
+  betweenLakes, campusGates, cityLinks, eastTeachingCrossing, hillGrade,
   hillReturn, hospitalCrossing, inCampus, lakeRim, learningLink, lectureCross,
   libraryEastConnector, librarySouth, northSpine, northToSouth, openStreets, parkWalks,
   researchConnector, roads, southConnector, southToLake, sportsConnector, teachingConnector,

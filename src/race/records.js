@@ -9,7 +9,7 @@ import {
   MAX_ROAD_SPEED, bicycleGravelSpeed, bicyclePaints, stockBike, vehicleChoices,
 } from '../ride/vehicles.js';
 import {
-  along, courseFrame, coursePlan, indexStreets, plannedSpeed, ribbon, streetCell, timingSpan, travelTable,
+  along, courseFrame, indexStreets, plannedSpeed, ribbon, streetCell, timingSpan, travelTable,
 } from '../world/geometry.js';
 import { courseGround, createWorldQuery, rideElevation, safeToRide, surfaceAt } from '../world/query.js';
 

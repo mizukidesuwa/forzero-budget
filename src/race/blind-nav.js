@@ -1,6 +1,6 @@
 import { getActiveCampus, getStorage, worldState } from '../core/state.js';
 import { blindNavRules } from '../data/modes.js';
-import { cliffHazardAt, safeToRide, surfaceAt, waterHazardAt } from '../world/query.js';
+import { cliffHazardAt, safeToRide, waterHazardAt } from '../world/query.js';
 
 const ARROWS = ['↑', '↗', '→', '↘', '↓', '↙', '←', '↖'];
 const DIRECTIONS = ['正前', '右前', '右侧', '右后', '正后', '左后', '左侧', '左前'];

@@ -1,6 +1,6 @@
 import { signCanvas } from '../../core/canvas.js';
 import {
-  ROAD_Y, TAU, UP, add, clamp, cross, lerpPoint, mix, normalize, rgb, scale, subtract, tint,
+  ROAD_Y, TAU, UP, add, clamp, mix, normalize, rgb, scale,
 } from '../../core/math.js';
 import { Shape } from '../../core/shape.js';
 import { worldState } from '../../core/state.js';
@@ -1712,7 +1712,6 @@ function lasdunBlock(lot,{floors,stories,base=0,bays=2.75}) {
   lotBox(lot,0,height/2,0,w,height,depth,concrete);
   for(let side=0;side<4;side++) {
     const face=facadeOf(lot,side), count=Math.max(1,Math.floor(face.width/bays));
-    const gap=face.width/count;
     for(let floor=0;floor<floors;floor++) {
       const y=base+(floor+.53)*pitch;
       face.panel(0,y,face.width-.28,pitch*.66,window);

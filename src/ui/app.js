@@ -1,5 +1,5 @@
 import { neutralDrive } from '../core/clock.js';
-import { add, clamp, length, multiply, normalize, placement, random, scale, subtract, transform } from '../core/math.js';
+import { add, clamp, length, multiply, normalize, placement, scale, subtract, transform } from '../core/math.js';
 import { Shape } from '../core/shape.js';
 import { getActiveCampus, setActiveCampus, setPreferences, worldState } from '../core/state.js';
 import { CampusCourier, makeCourierBeaconShape, nearestCourierLandmark } from '../race/courier.js';
@@ -27,7 +27,7 @@ import {
   readDriverProfile, savedBike, savedVehicleTunings, stockBike, vehicleChoices,
 } from '../ride/vehicles.js';
 import { knownWindMode, rainPuddleShape, windEffectLabel } from '../world/environment.js';
-import { along, clearWorldShapes, plannedSpeed, sceneLists } from '../world/geometry.js';
+import { clearWorldShapes, plannedSpeed, sceneLists } from '../world/geometry.js';
 import {
   bridgeAxis, mountainRoadAt, mountainUp, parkBridgeSide, parkPaved, parkPavilionDeck,
   shundeShortcutAt,
@@ -35,13 +35,13 @@ import {
 import { activeStage, cityStreetAt, inCampus } from '../world/maps/szu.js';
 import { uclStreetAt, uclWayByPath } from '../world/maps/ucl.js';
 import { courseGround, rideElevation, riderGrade } from '../world/query.js';
-import { buildRidingScene, campuses, courseByCampus, courses, coursesByCampus } from '../world/scene-builder.js';
+import { buildRidingScene, courseByCampus, courses, coursesByCampus } from '../world/scene-builder.js';
 import { availableCourses } from '../world/seed-courses.js';
 import { knownTraffic, raceTrafficTime, trialTraffic } from '../world/traffic.js';
 import { prepareTraffic } from '../render/traffic.js';
 import {
   bindOnlineApp, findOnlineCourse, getOnlineAppMode, getOnlineChaseSnapshot, getOnlineChaseView, getOnlineRoom, initOnline,
-  onlineRaceRank, onlineRiderPoses, renderOnline, showOnlineDialog, tickOnline,
+  onlineRaceRank, onlineRiderPoses, renderOnline, tickOnline,
 } from '../online/client.js';
 import { draftRenderSpan } from '../ride/drafting.js';
 import { interfaceScale, knownCameraView, knownHudScale, knownTouchSize } from '../data/interface.js';
@@ -515,8 +515,6 @@ export function updateHud() {
     ui.sprintFill.style.transform='scaleX('+energy/100+')';
     ui.sprintMeter.setAttribute('aria-valuenow',String(energy));
   }
-  const vehicleLabel=actor==='ebike'?'新国标 · 48 km/h':
-    actor==='chair'?'电动轮椅 · 36 km/h':'越野小摩托 · 63 km/h';
   ui.sprintMeter.parentElement.toggleAttribute('data-skill-active',Boolean(race.rider.sprinting||race.rider.skill));
   setText(ui.sprintHint,bicycle?(race.rider.sprinting?'冲刺中':'冲刺耐力'):(race.rider.skill||vehicleSkills[actor].meter));
   const clock = timeLabel(race.elapsed);
@@ -797,7 +795,7 @@ function recoverTrial() {
 }
 
 const seedAvailable=()=>ready&&!getOnlineRoom()&&!pendingCampus&&!settingsOpen&&!['race','count'].includes(race.phase);
-const { openSeedDialog, chooseSeedCourse, initSeedDialog } = createSeedDialogController({
+const { initSeedDialog } = createSeedDialogController({
   ui,
   race,
   clearInput,

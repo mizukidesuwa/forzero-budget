@@ -36,7 +36,7 @@ export default [
       'no-debugger': 'error',
       'use-isnan': 'error',
       'valid-typeof': 'error',
-      'no-unused-vars': ['warn', { args: 'none', caughtErrors: 'none' }],
+      'no-unused-vars': ['error', { args: 'none', caughtErrors: 'none' }],
     },
   },
   {
@@ -60,7 +60,7 @@ export default [
       'no-unreachable': 'error',
       'use-isnan': 'error',
       'valid-typeof': 'error',
-      'no-unused-vars': ['warn', { args: 'none', caughtErrors: 'none' }],
+      'no-unused-vars': ['error', { args: 'none', caughtErrors: 'none' }],
     },
   },
   {
@@ -85,7 +85,7 @@ export default [
       'no-unreachable': 'error',
       'use-isnan': 'error',
       'valid-typeof': 'error',
-      'no-unused-vars': ['warn', { args: 'none', caughtErrors: 'none' }],
+      'no-unused-vars': ['error', { args: 'none', caughtErrors: 'none' }],
     },
   },
   {

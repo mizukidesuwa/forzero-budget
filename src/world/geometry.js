@@ -1,6 +1,6 @@
 import { signCanvas } from '../core/canvas.js';
 import {
-  ORIGIN, ROAD_Y, UP, add, choose, clamp, dot, length, lerpPoint, mix,
+  ROAD_Y, add, clamp, dot, length, lerpPoint, mix,
   normalize, placement, random, range, scale, subtract, tint, transform, unitRight,
 } from '../core/math.js';
 import { Shape } from '../core/shape.js';

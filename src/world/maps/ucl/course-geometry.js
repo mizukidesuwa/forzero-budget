@@ -1,5 +1,5 @@
 import { joinTrack, makeCourse, section } from '../../geometry.js';
-import { junction, londonRoads } from './layout.js';
+import { londonRoads } from './layout.js';
 
 function londonSection(road,from,to,checkpoint=null) {
   return {...section(londonRoads.get(road),from,to),checkpoint};

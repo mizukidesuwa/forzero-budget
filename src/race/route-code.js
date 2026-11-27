@@ -1,14 +1,12 @@
 import { readSeedCode } from './seed-code.js';
 import {
-  routeCampus, routeCampuses, routeDirections, routeRules, routeSources,
+  routeCampus, routeCampuses, routeRules, routeSources,
 } from '../data/routes.js';
 
 const SOURCE_CODE = Object.freeze({ fixed: 'f', seed: 's', network: 'n' });
 const SOURCE_BY_CODE = Object.freeze({ f: 'fixed', s: 'seed', n: 'network' });
 const TOKEN_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const NETWORK_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
-
-const cloneEdges = edges => edges.map(edge => ({ id: edge.id, direction: edge.direction }));
 
 function decodeToken(value, maxLength) {
   if (typeof value !== 'string') return null;

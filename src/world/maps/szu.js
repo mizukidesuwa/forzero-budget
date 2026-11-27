@@ -9,7 +9,7 @@ import { OBSTACLE_MARGIN, nearestStreet, treeBlocks } from '../collision-index.j
 import {
   academicBlock, along, bench, buildingNameplate, campusFixtures, campusFootprint,
   cityJunctions, citySolid, cityVehicles, closeToBlock, courseFrame, deciduous,
-  facadeName, facadeOf, fitsBetweenBuildings, foliage, footprintCorners, glazing,
+  facadeName, facadeOf, fitsBetweenBuildings, foliage, glazing,
   inOutline, indexStreets, lamppost, landmark, londonPaving, lotBox, lotPart, lotPoint,
   masonry, namedSign, nearestPathSpot, offsetVertex, palm, pavement,
   placeTravelSign, plate, pointDistance, ribbon, road, scenery, signs,
@@ -1777,7 +1777,6 @@ function renderCampusBlock(block) {
     return;
   }
   academicBlock(block);
-  const z=block.z+block.depth/2;
   if(block.kind==='hall') {
     const top=3.18+1.93*block.floors;
     masonry.box([block.x,top+.18,block.z],[block.w+1.45,.24,block.depth+.70],'#98aba1');

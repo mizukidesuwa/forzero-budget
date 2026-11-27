@@ -3,14 +3,14 @@ import { getOnlineRoom, syncOnlineProfile } from '../online/client.js';
 import { courseMedalSummary, isPaintUnlocked } from '../race/records.js';
 import { workshopBudget } from '../ride/budget.js';
 import {
-  extractSkinJsonText, knownSkinId, registerSkinSpec, riderSkinChoices, skinForProfile,
+  extractSkinJsonText, knownSkinId, registerSkinSpec, riderSkinChoices,
   skinSpecHash, validateSkinProposal, validateSkinSpec,
 } from '../ride/rider-skin.js';
 import { tuning190 } from '../ride/tuning-rules.js';
 import {
   bicycleAbility, bicycleGravelSpeed, bicyclePaints, bicyclePartKeys, bicyclePresets,
   bicycleStyle, bicycleStyles, bikeKey, bikePartOptions, brakeChoices, buildBike,
-  buildVehicleTuning, frameChoices, gearChoices, knownPaint, normalizeVehicleParts,
+  buildVehicleTuning, frameChoices, gearChoices, normalizeVehicleParts,
   sprintChoices, stockBike, storeDriverProfile, storeVehicleTunings, tyreChoices,
   vehicleTuningChoices, workshopPartTitle, workshopSpeed,
 } from '../ride/vehicles.js';

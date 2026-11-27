@@ -2,6 +2,7 @@
 
 ## 2.5.1 — AST 静态检查、`server/` 目录迁移与工程治理
 
+- **双平台 CI 与零警告门禁**：[.github/workflows/ci.yml](.github/workflows/ci.yml) 新增 `ubuntu-latest` + `windows-latest` 双系统矩阵覆盖 Windows 桌面启动器与路径兼容；清理全仓 34 处无用导入/变量并将 `no-unused-vars` 升级为 `error`，`npm run lint` 达到 0 errors、0 warnings。
 - **CI 补齐无头浏览器 E2E**：[scripts/browser-runner.mjs](scripts/browser-runner.mjs) 补充 Linux/macOS Chrome/Chromium 路径探测与 `--disable-dev-shm-usage`；[.github/workflows/ci.yml](.github/workflows/ci.yml) 新增 `browser-e2e` 任务在 `ubuntu-latest` 上自动执行 `node scripts/verify-browser.mjs`（覆盖桌面/手机双语、全屏视角、Ghost 导入、每周种子赛、3 圈 AI 与触屏自适应）。
 - **AST 级静态分析与依赖修复**：新增 `eslint.config.mjs`（开发期 `devDependencies` 引入 `eslint` + `globals`，浏览器与联机服务端继续保持零第三方运行时依赖），`npm run lint` 在仓库卫生检查前强制运行 `no-undef`、`no-unreachable` 等语法级检查；收口 `src/debug-bridge.js` 为单一 `globalThis.__FORZERO__` 命名空间并显式补齐 `src/online/client.js` 中 `buildBike` 导入。
 - **彻底剥离公开仓库遗留目录**：将活跃的联机服务端与规则模板从 `szu-litchi-dev/online/` 迁移至顶层 `server/`，将 `szu-litchi-dev/rounds/drive-path.js` 迁至 `scripts/lib/drive-path.js`；公开仓库彻底移除 `szu-litchi-dev/`（本地 `szu-litchi-dev/` 保留作离线 `1.9.1.1` 对拍）。

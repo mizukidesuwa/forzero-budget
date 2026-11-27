@@ -127,7 +127,6 @@ export function createMapControls({
   }
 
   function openMap(show) {
-    const chaseOverlay = !getOnlineRoom() ? ShadowChase.mapOverlay() : null;
     if (show && !getOnlineRoom() && worldState.hooks.isBlindHideBigMap?.() &&
         (race.phase === 'race' || race.phase === 'count' || ShadowChase.isRunning())) return;
     if (!show && builder.active) resetBuilder(false);

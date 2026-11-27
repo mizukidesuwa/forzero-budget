@@ -1,4 +1,4 @@
-import { clamp, mix } from '../core/math.js';
+import { mix } from '../core/math.js';
 import { getStorage, worldState } from '../core/state.js';
 import tuning190 from './tuning-rules.js';
 import { surfacePhysics } from '../data/surfaces.js';

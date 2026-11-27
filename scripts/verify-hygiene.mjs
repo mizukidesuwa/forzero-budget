@@ -111,7 +111,7 @@ for (const token of ['npm run build:release', 'npm run verify:fast', 'npm run re
 const ciWorkflowPath = path.join(ROOT, '.github', 'workflows', 'ci.yml');
 assert(fs.existsSync(ciWorkflowPath), 'Missing .github/workflows/ci.yml');
 const ciWorkflow = fs.readFileSync(ciWorkflowPath, 'utf8');
-for (const token of ['npm run lint', 'npm run build', 'npm test -- --skip-build', 'verify-drafting-ai.mjs', 'verify-deterministic-race.mjs', 'verify:map-assets-perf', 'verify-browser.mjs']) {
+for (const token of ['windows-latest', 'npm run lint', 'npm run build', 'npm test -- --skip-build', 'verify-drafting-ai.mjs', 'verify-deterministic-race.mjs', 'verify:map-assets-perf', 'verify-browser.mjs']) {
   assert(ciWorkflow.includes(token), `.github/workflows/ci.yml missing "${token}"`);
 }
 

@@ -4,7 +4,7 @@ import { getActiveCampus, getPreferences, worldState } from '../core/state.js';
 import { CampusCourier } from '../race/courier.js';
 import { replayAt } from '../replay/ghost.js';
 import { mapReplay } from '../replay/map-replay.js';
-import { along, citySolid, courseFrame, footprintCorners, lotPart, offsetVertex, street, treeSites } from '../world/geometry.js';
+import { along, citySolid, courseFrame, footprintCorners, lotPart, offsetVertex, treeSites } from '../world/geometry.js';
 import {
   mountainRoads, parkBounds, parkEdgesList, parkFrames, parkPavilion, parkTower,
   pavilionWalk, shundeHighRiskShortcuts,
@@ -16,7 +16,7 @@ import {
   perimeterLots, roads, yuehaiSportsPlaza,
 } from '../world/maps/szu.js';
 import {
-  cruciform, hospital, ioe, londonGardens, londonNorth, londonPaths, londonPlaces,
+  ioe, londonGardens, londonNorth, londonPaths, londonPlaces,
   senateHouse, tubeStops, uclBounds, uclBuildings, uclHospitalRoute, uclLandmarks,
   uclQuad, uclWays,
 } from '../world/maps/ucl.js';

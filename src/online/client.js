@@ -1,5 +1,5 @@
 import { COUNTDOWN_TICKS, STEP_MS } from '../core/clock.js';
-import { add, clamp, length, mix, random } from '../core/math.js';
+import { add, clamp, mix } from '../core/math.js';
 import { getActiveCampus, getPreferences, worldState } from '../core/state.js';
 import { seedVersion } from '../race/seed-code.js';
 import { knownWeather, setActiveWeather, weatherChoices } from '../render/atmosphere.js';
