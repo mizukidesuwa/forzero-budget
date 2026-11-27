@@ -10,7 +10,7 @@ async function openBrowserTcp(path) {
   const profile = mkdtempSync(join(tmpdir(), 'forzero-cdp-'));
   const child = spawn(path, [
     '--headless=new', '--remote-debugging-address=127.0.0.1', '--remote-debugging-port=0',
-    '--no-sandbox', '--disable-extensions', '--no-first-run', '--use-gl=angle', '--use-angle=swiftshader',
+    '--no-sandbox', '--disable-dev-shm-usage', '--disable-extensions', '--no-first-run', '--use-gl=angle', '--use-angle=swiftshader',
     '--enable-unsafe-swiftshader', '--disable-background-timer-throttling', '--disable-renderer-backgrounding',
     '--disable-backgrounding-occluded-windows', '--user-data-dir=' + profile,
   ], { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
@@ -79,6 +79,11 @@ export async function openTestBrowser() {
     'C:/Program Files/Google/Chrome/Application/chrome.exe',
     'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
     'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   ];
   const failures = [];
   for (const path of (process.env.FORZERO_BROWSER_TRANSPORT === 'tcp' ? [] : candidates.filter(existsSync))) {
@@ -86,7 +91,7 @@ export async function openTestBrowser() {
     let stderr = '', serial = 0, buffer = '', failure = null;
     const pending = new Map();
     const child = spawn(path, [
-      '--headless=new', '--remote-debugging-pipe', '--no-sandbox', '--disable-extensions', '--no-first-run',
+      '--headless=new', '--remote-debugging-pipe', '--no-sandbox', '--disable-dev-shm-usage', '--disable-extensions', '--no-first-run',
       '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--window-size=987,600',
       '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows',
       '--user-data-dir=' + profile,

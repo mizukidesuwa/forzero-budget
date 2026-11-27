@@ -25,3 +25,26 @@ jobs:
       - run: node scripts/verify-drafting-ai.mjs
       - run: node scripts/verify-deterministic-race.mjs
       - run: npm run verify:map-assets-perf
+
+  browser-e2e:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Locate Chrome or Chromium binary
+        run: |
+          CHROME=$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)
+          if [ -z "$CHROME" ]; then
+            echo "Chrome/Chromium binary not found on runner" >&2
+            exit 1
+          fi
+          echo "Using browser: $CHROME"
+          echo "CHROME_PATH=$CHROME" >> "$GITHUB_ENV"
+      - run: node scripts/verify-browser.mjs
