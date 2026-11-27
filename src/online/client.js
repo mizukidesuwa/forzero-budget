@@ -448,13 +448,34 @@ function showOnlineMessage(message) {
 }
 
 function onlineRequest(url,body,token,keepalive=false) {
+  let resolved;
+  try { resolved = new URL(url, location.href); }
+  catch { return Promise.reject(new Error('无法连接联机服务。')); }
+  if (location.protocol==='https:' && resolved.protocol==='http:') {
+    return Promise.reject(new Error('当前为 HTTPS 网页，浏览器会拦截明文 HTTP 房主地址。请改用桌面版「启动游戏.bat」或由房主提供 HTTPS 联机地址。'));
+  }
   const options = {cache:'no-store',signal:AbortSignal.timeout(8000)};
   if (body) Object.assign(options,{method:'POST',keepalive,body:JSON.stringify(body),headers:{
     'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})
   }});
-  return fetch(url,options).then(async response=>{
+  return fetch(resolved.href,options).catch(error=>{
+    if (error?.name==='TimeoutError'||error?.name==='AbortError') {
+      throw new Error('连接联机服务超时，请检查房主是否在线、防火墙放行或代理设置。');
+    }
+    const isLocal = ['127.0.0.1','localhost','[::1]'].includes(resolved.hostname);
+    throw new Error(isLocal
+      ? '无法连接本机联机服务。请通过「启动游戏.bat」重启游戏，并检查代理是否绕过 127.0.0.1 或防火墙是否放行。'
+      : '无法连接房主地址，请确认房主已开房、IP/端口正确，且未被防火墙或代理拦截。');
+  }).then(async response=>{
     const result = await response.json().catch(()=>null);
-    if (!response.ok || !result) throw new Error(result?.error??'无法连接联机服务。');
+    if (!response.ok || !result) {
+      if (result?.error) throw new Error(result.error);
+      if (resolved.origin===location.origin && !onlineAppMode && onlineSite() &&
+          (response.status===404||response.status===405||!result)) {
+        throw new Error('当前在线网页为静态站点，无法直接开房。请下载桌面版并通过「启动游戏.bat」建房，或填入 HTTPS 房主地址加入。');
+      }
+      throw new Error('无法连接联机服务。');
+    }
     return result;
   });
 }
@@ -741,6 +762,8 @@ function showOnlineDialog() {
   if (!window.RTCPeerConnection) showOnlineMessage('这个浏览器无法建立 WebRTC 连接。');
   else if (!onlineRoom&&!onlineAppMode&&!onlineSite()&&!worldState.ui.onlineHostInput.value.trim()) {
     showOnlineMessage('输入房主 IP 加入房间；如需自己建房，请通过「启动游戏.bat」打开。');
+  } else if (!onlineRoom&&!onlineAppMode&&location.hostname.endsWith('.github.io')&&!worldState.ui.onlineHostInput.value.trim()) {
+    showOnlineMessage('当前在线网页为静态站点，无法直接开房。请下载桌面版并通过「启动游戏.bat」建房，或填入 HTTPS 房主地址加入。');
   }
   renderOnline();
   worldState.ui.onlineDialog.showModal();

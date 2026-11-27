@@ -1,5 +1,11 @@
 # 更新日志（CHANGELOG）
 
+## 2.5.1.1 — 联机错误双语诊断与源码直启路径修复
+
+- **修复源码目录直接启动 `server/server.mjs` 的遗留路径报错**：[server/server.mjs](server/server.mjs) 找不到同级 `index.html` 时的回退构建路径由已移除的 `../ride-update/release/` 修正为 `../dist-v2/desktop/`，并在缺失构建产物时给出明确的中英文 `npm run build` 提示；`previousSaveFile` 新增同级 `forzero-budget-2.5.1/save/player-data.json` 优先迁移并向后兼容 `2.5.0` 及前序版本。
+- **细化 `Failed to fetch` 双语联机错误提示**：[src/online/client.js](src/online/client.js) 为 `onlineRequest` 补充 HTTPS/HTTP 混合内容拦截提示、请求超时提示、本机应用壳连接失败提示（提示通过 `启动游戏.bat` 重启并放行 `127.0.0.1` 代理/防火墙）、远端房主不可达提示及 GitHub Pages / 静态站点无法直接开房的引导文案；同步在 [src/data/english-text.js](src/data/english-text.js) 补全全部 5 条新增提示的完整英文翻译，并在 [scripts/verify-data.mjs](scripts/verify-data.mjs) 增加双语断言覆盖。
+- **版本升级至 `2.5.1.1`**：同步更新 `package.json`、`package-lock.json`、`scripts/build.mjs`、`src/index.html`、`server/README.md`、`README.md`、`FORZERO-WORK-GUIDE.md` 与 `scripts/verify-save.mjs`；通过 `npm run typecheck`、`npm run lint`、`npm run build:release`、`npm run verify:fast -- --skip-build`、`node scripts/verify-browser.mjs`、`node scripts/verify-four-player.mjs` 与导出仓库独立校验。
+
 ## 2.5.1 — AST 静态检查、`server/` 目录迁移与工程治理
 
 - **双平台 CI 与零警告门禁**：[.github/workflows/ci.yml](.github/workflows/ci.yml) 新增 `ubuntu-latest` + `windows-latest` 双系统矩阵覆盖 Windows 桌面启动器与路径兼容；清理全仓 34 处无用导入/变量并将 `no-unused-vars` 升级为 `error`，`npm run lint` 达到 0 errors、0 warnings。

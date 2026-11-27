@@ -984,6 +984,7 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href===import.meta.url) {
       soundDir = fileURLToPath(new URL('./sound',import.meta.url));
       saveDir = fileURLToPath(new URL('./save',import.meta.url));
       previousSaveFile = [
+        new URL('../forzero-budget-2.5.1/save/player-data.json',import.meta.url),
         new URL('../forzero-budget-2.5.0/save/player-data.json',import.meta.url),
         new URL('../forzero-budget-2.4.0/save/player-data.json',import.meta.url),
         new URL('../forzero-budget-2.3.4/save/player-data.json',import.meta.url),
@@ -1005,9 +1006,14 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href===import.meta.url) {
           new URL('../szu-litchi-loop-'+version+'/save/player-data.json',import.meta.url))
       ];
     } else {
-      assets = await loadStaticAssets(new URL('../ride-update/release/',import.meta.url));
-      soundDir = fileURLToPath(new URL('../ride-update/release/sound',import.meta.url));
-      saveDir = fileURLToPath(new URL('../ride-update/release/save',import.meta.url));
+      assets = await loadStaticAssets(new URL('../dist-v2/desktop/',import.meta.url)).catch(error=>{
+        if (error.code==='ENOENT') {
+          throw new Error('未找到构建产物 dist-v2/desktop/index.html，请先运行 npm run build。 / Build output dist-v2/desktop/index.html not found; run "npm run build" first.');
+        }
+        throw error;
+      });
+      soundDir = fileURLToPath(new URL('../dist-v2/desktop/sound',import.meta.url));
+      saveDir = fileURLToPath(new URL('../save',import.meta.url));
     }
   }
   const iceServers = process.env.RIDE_ICE_SERVERS ? JSON.parse(process.env.RIDE_ICE_SERVERS) : undefined;

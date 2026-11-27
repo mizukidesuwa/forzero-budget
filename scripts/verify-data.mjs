@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { englishText } from '../src/data/english-text.js';
 import * as game from '../src/test-exports.js';
 
 const require = createRequire(import.meta.url);
@@ -163,6 +164,17 @@ for (const kind of ['ebike', 'chair', 'trail']) {
   }, { name: 'SkinQA', paint: 'classic', skinId: camelResult.spec.id, skinSpec: camelResult.spec });
   assert.equal(ghost.rider.skinId, camelResult.spec.id);
   assert.equal(ghost.rider.skinSpec.id, camelResult.spec.id);
+}
+
+for (const key of [
+  '当前为 HTTPS 网页，浏览器会拦截明文 HTTP 房主地址。请改用桌面版「启动游戏.bat」或由房主提供 HTTPS 联机地址。',
+  '连接联机服务超时，请检查房主是否在线、防火墙放行或代理设置。',
+  '无法连接本机联机服务。请通过「启动游戏.bat」重启游戏，并检查代理是否绕过 127.0.0.1 或防火墙是否放行。',
+  '无法连接房主地址，请确认房主已开房、IP/端口正确，且未被防火墙或代理拦截。',
+  '当前在线网页为静态站点，无法直接开房。请下载桌面版并通过「启动游戏.bat」建房，或填入 HTTPS 房主地址加入。',
+]) {
+  assert.equal(typeof englishText[key], 'string', `Missing English translation: ${key}`);
+  assert.ok(englishText[key].trim().length > 0, `Empty English translation: ${key}`);
 }
 
 console.log('Shared four-vehicle part catalogs, price through solo/room gates, wet/puddle grip, unranked isolation and SkinSpec checks passed.');
