@@ -1,10 +1,64 @@
+// @ts-check
 import { clamp } from '../core/math.js';
 import { onlineChaseRules } from '../data/modes.js';
 
+/**
+ * @typedef {'hunter' | 'runner'} OnlineChaseRole
+ * @typedef {'far' | 'near' | 'locked'} OnlineChaseProximity
+ * @typedef {{ id: string, name: string, position: number[], heading: number, speed?: number }} OnlineChaseRemoteRider
+ * @typedef {{ id: string, name: string, position: number[], heading: number, speed: number, atMs: number, landmark: string | null }} OnlineChaseCachedPing
+ * @typedef {OnlineChaseCachedPing & { ageMs: number, fadeMs: number, role: OnlineChaseRole }} OnlineChaseRadarPing
+ * @typedef {{ lastAt?: number, byId?: Map<string, OnlineChaseCachedPing> }} OnlineChasePingCache
+ * @typedef {{ landmarkAt?: ((campus: string, x: number, z: number) => string | null) | null, pingCache?: OnlineChasePingCache | null }} OnlineChaseEvalOptions
+ * @typedef {{
+ *   active: false,
+ *   phase: string,
+ *   hunterId: string | null,
+ *   role: OnlineChaseRole,
+ * }} OnlineChaseInactiveSnapshot
+ * @typedef {{
+ *   active: true,
+ *   phase: 'count' | 'race',
+ *   role: OnlineChaseRole,
+ *   hunterId: string,
+ *   caughtMap: Record<string, number>,
+ *   isCaught: boolean,
+ *   selfCaughtAt: number | null,
+ *   totalRunners: number,
+ *   caughtCount: number,
+ *   countdownMs: number,
+ *   elapsedMs: number,
+ *   remainingMs: number,
+ *   headStartRemainingMs: number,
+ *   hunterLocked: boolean,
+ *   settledReason: string | null,
+ * }} OnlineChaseActiveSnapshot
+ * @typedef {OnlineChaseInactiveSnapshot | OnlineChaseActiveSnapshot} OnlineChaseSnapshot
+ * @typedef {OnlineChaseRemoteRider & { chaseRole?: OnlineChaseRole, chaseDistance?: number, tagLabel?: string }} OnlineChaseVisibleRider
+ * @typedef {{
+ *   snap: OnlineChaseSnapshot | null,
+ *   visibleRiders: OnlineChaseVisibleRider[],
+ *   radarPings: OnlineChaseRadarPing[],
+ *   proximity: OnlineChaseProximity,
+ *   nearestDistance: number,
+ *   catchCandidate: { id: string, name: string, distance: number } | null,
+ * }} OnlineChasePeerEvaluation
+ */
+
+/**
+ * Return true when the active online session is configured for 1vN Chase format.
+ * @param {any} session
+ * @returns {boolean}
+ */
 export function isOnlineChaseRoom(session) {
   return Boolean(session?.state?.format === 'chase');
 }
 
+/**
+ * Determine the current or upcoming hunter player id from room rotation state.
+ * @param {any} state
+ * @returns {string | null}
+ */
 export function onlineChaseNextHunterId(state) {
   if (!state || state.format !== 'chase') return null;
   if (state.phase === 'race' && state.round?.chase?.hunterId) return state.round.chase.hunterId;
@@ -14,6 +68,12 @@ export function onlineChaseNextHunterId(state) {
   return list[idx].id;
 }
 
+/**
+ * Build a read-only Online Chase round snapshot at the given monotonic timestamp.
+ * @param {any} session
+ * @param {number} [now]
+ * @returns {OnlineChaseSnapshot | null}
+ */
 export function onlineChaseSnapshot(session, now = performance.now()) {
   if (!isOnlineChaseRoom(session)) return null;
   const state = session.state;
@@ -34,10 +94,13 @@ export function onlineChaseSnapshot(session, now = performance.now()) {
   const durationMs = chase.durationMs ?? onlineChaseRules.durationMs;
   const headStartRemainingMs = Math.max(0, headStartMs - elapsedMs);
   const remainingMs = Math.max(0, durationMs - elapsedMs);
+  /** @type {OnlineChaseRole} */
   const role = chase.hunterId === session.id ? 'hunter' : 'runner';
+  /** @type {Record<string, number>} */
   const caughtMap = chase.caught ?? {};
   const isCaught = role === 'runner' && caughtMap[session.id] !== undefined;
-  const rosterIds = state.roster?.length ? state.roster.map(p => p.id) : state.players.map(p => p.id);
+  /** @type {string[]} */
+  const rosterIds = state.roster?.length ? state.roster.map((/** @type {any} */ p) => p.id) : state.players.map((/** @type {any} */ p) => p.id);
   const totalRunners = Math.max(1, rosterIds.filter(id => id !== chase.hunterId).length);
   const caughtCount = Object.keys(caughtMap).length;
   return {
@@ -62,6 +125,12 @@ export function onlineChaseSnapshot(session, now = performance.now()) {
 /**
  * Compute asymmetric 3D visibility, proximity radar rings, and tag detection
  * for Online Chase without mutating game physics or DOM.
+ * @param {any} session
+ * @param {readonly number[] | null | undefined} selfPos
+ * @param {readonly OnlineChaseRemoteRider[] | null | undefined} remoteRiders
+ * @param {number} now
+ * @param {OnlineChaseEvalOptions} [options]
+ * @returns {OnlineChasePeerEvaluation}
  */
 export function evaluateOnlineChasePeers(session, selfPos, remoteRiders, now, {
   landmarkAt = null,
@@ -71,7 +140,7 @@ export function evaluateOnlineChasePeers(session, selfPos, remoteRiders, now, {
   if (!snap?.active || !selfPos) {
     return {
       snap,
-      visibleRiders: remoteRiders ?? [],
+      visibleRiders: remoteRiders ? [...remoteRiders] : [],
       radarPings: [],
       proximity: 'far',
       nearestDistance: Infinity,
@@ -81,12 +150,15 @@ export function evaluateOnlineChasePeers(session, selfPos, remoteRiders, now, {
 
   const campus = session.course?.campus ?? session.state.route?.campus ?? 'szu';
   const caughtMap = snap.caughtMap;
+  /** @type {OnlineChaseVisibleRider[]} */
   const visibleRiders = [];
+  /** @type {OnlineChaseRadarPing[]} */
   const radarPings = [];
   let nearestDistance = Infinity;
+  /** @type {{ id: string, name: string, distance: number } | null} */
   let catchCandidate = null;
-  const pingDue = pingCache && (now - (pingCache.lastAt ?? -Infinity) >= onlineChaseRules.pingIntervalMs);
-  if (pingDue) {
+  const pingDue = Boolean(pingCache && (now - (pingCache.lastAt ?? -Infinity) >= onlineChaseRules.pingIntervalMs));
+  if (pingDue && pingCache) {
     pingCache.lastAt = now;
     pingCache.byId = new Map();
   }
@@ -115,7 +187,7 @@ export function evaluateOnlineChasePeers(session, selfPos, remoteRiders, now, {
         }
       }
       let ping = pingCache?.byId?.get(remote.id);
-      if (!ping && pingDue) {
+      if (!ping && pingDue && pingCache?.byId) {
         ping = {
           id: remote.id,
           name: remote.name,
@@ -136,7 +208,7 @@ export function evaluateOnlineChasePeers(session, selfPos, remoteRiders, now, {
           speed: remote.speed ?? 0,
           atMs: now,
           landmark: ping?.landmark ?? null,
-        } : ping;
+        } : /** @type {OnlineChaseCachedPing} */ (ping);
         radarPings.push({
           ...src,
           ageMs: inReveal ? 0 : Math.max(0, now - src.atMs),
@@ -156,7 +228,7 @@ export function evaluateOnlineChasePeers(session, selfPos, remoteRiders, now, {
           });
         }
         let ping = pingCache?.byId?.get(remote.id);
-        if (!ping && pingDue) {
+        if (!ping && pingDue && pingCache?.byId) {
           ping = {
             id: remote.id,
             name: remote.name,
@@ -193,6 +265,7 @@ export function evaluateOnlineChasePeers(session, selfPos, remoteRiders, now, {
 
   const revealCutoff = snap.role === 'hunter' ? onlineChaseRules.revealDistance : 28;
   const terrorCutoff = onlineChaseRules.terrorDistance;
+  /** @type {OnlineChaseProximity} */
   const proximity = nearestDistance <= revealCutoff ? 'locked' : nearestDistance <= terrorCutoff ? 'near' : 'far';
 
   return {

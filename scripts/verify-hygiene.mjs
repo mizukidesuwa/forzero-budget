@@ -50,6 +50,13 @@ assert(fs.existsSync(eslintConfigPath), 'Missing eslint.config.mjs');
 const eslintConfig = fs.readFileSync(eslintConfigPath, 'utf8');
 assert(eslintConfig.includes("'no-undef'"), 'eslint.config.mjs must enforce no-undef');
 
+const jsconfigPath = path.join(ROOT, 'jsconfig.json');
+assert(fs.existsSync(jsconfigPath), 'Missing jsconfig.json');
+const jsconfig = JSON.parse(fs.readFileSync(jsconfigPath, 'utf8'));
+assert.equal(jsconfig.compilerOptions?.checkJs, false, 'jsconfig.json must keep compilerOptions.checkJs === false for progressive @ts-check');
+assert(typeof pkg.scripts?.typecheck === 'string' && pkg.scripts.typecheck.includes('tsc -p jsconfig.json --noEmit'),
+  'package.json must define scripts.typecheck using tsc -p jsconfig.json --noEmit');
+
 const appSource = fs.readFileSync(path.join(ROOT, 'src', 'ui', 'app.js'), 'utf8');
 const appLineCount = appSource.split(/\r?\n/).length;
 assert(appLineCount <= 1700, `src/ui/app.js exceeded 1700 lines (${appLineCount})`);
@@ -111,7 +118,7 @@ for (const token of ['npm run build:release', 'npm run verify:fast', 'npm run re
 const ciWorkflowPath = path.join(ROOT, '.github', 'workflows', 'ci.yml');
 assert(fs.existsSync(ciWorkflowPath), 'Missing .github/workflows/ci.yml');
 const ciWorkflow = fs.readFileSync(ciWorkflowPath, 'utf8');
-for (const token of ['windows-latest', 'npm run lint', 'npm run build', 'npm test -- --skip-build', 'verify-drafting-ai.mjs', 'verify-deterministic-race.mjs', 'verify:map-assets-perf', 'verify-browser.mjs']) {
+for (const token of ['windows-latest', 'npm run lint', 'npm run typecheck', 'npm run build', 'npm test -- --skip-build', 'verify-drafting-ai.mjs', 'verify-deterministic-race.mjs', 'verify:map-assets-perf', 'verify-browser.mjs']) {
   assert(ciWorkflow.includes(token), `.github/workflows/ci.yml missing "${token}"`);
 }
 

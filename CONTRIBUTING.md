@@ -4,7 +4,8 @@
 
 ## 核心原则
 
-- **零第三方运行时依赖**：浏览器端 `src/` 与本地联机端 `server/` 不得引入外部 npm 运行时包（开发构建与静态检查仅使用 `esbuild` 与 `eslint`）。
+- **零第三方运行时依赖**：浏览器端 `src/` 与本地联机端 `server/` 不得引入外部 npm 运行时包（开发构建与静态检查仅使用 `esbuild`、`eslint` 与 `typescript` 的 `tsc --noEmit`）。
+- **渐进式 JSDoc 类型契约**：`jsconfig.json` 默认保持 `"checkJs": false`；新增或大幅改动纯逻辑/契约模块（如 `src/data/`、`src/race/`、`src/ride/` 纯规则、路线与皮肤校验、状态机）时，请在首行添加 `// @ts-check` 并补充 JSDoc `@typedef` / `@param` / `@returns`，提交前通过 `npm run typecheck`。不要通过删除 `// @ts-check` 或添加 `@ts-ignore` 绕过报错。
 - **纯程序化资产**：3D 场景与模型均由代码在运行时生成，请在 `src/world/assets/` 中编写纯函数，避免读取全局状态或污染随机流。
 - **单源共享规则**：客户端与服务端共用的配件、预算、路网与联机规则统一维护在 `src/data/tuning-190.cjs` 与 `src/data/shared-rules.cjs`。
 
@@ -13,6 +14,7 @@
 ```powershell
 npm ci
 npm run lint
+npm run typecheck
 npm run build
 npm test -- --skip-build
 ```

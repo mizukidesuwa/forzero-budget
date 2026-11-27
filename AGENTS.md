@@ -40,17 +40,20 @@
 - 已稳定的地图主文件和 src/online/client.js 不做没有收益的强行拆分。
 - 客户端与服务端共用的配件、价格、预算和协议规则必须同时检查两侧。违禁配件成绩不得进入正式存档、勋章或官方影子。
 - 浏览器端和联机服务端保持零第三方运行时依赖。非用户明确要求，不在一级菜单或顶栏新增按钮，新开关放在发车区或二级设置。
+- **渐进式 JSDoc 类型检查（`// @ts-check`）**：保持 `jsconfig.json` 中 `"checkJs": false`，不将 `.js` 源码迁移为 `.ts`，也不对旧 WebGL 渲染器、地图主文件或 `src/ui/app.js` 强行开启全局 `checkJs`。
+- 新增或大幅修改纯逻辑与契约模块（如 `src/data/`、`src/race/`、`src/ride/` 纯规则、路线/皮肤校验、状态机或协议桥接）时，在文件首行添加 `// @ts-check` 并用 JSDoc（`@typedef` / `@param` / `@returns`）声明公开数据结构与函数签名；修改已开启 `// @ts-check` 的文件时，禁止通过移除 `// @ts-check` 或添加 `@ts-ignore` 绕过类型错误。
 - 2.2.0 地图资产优先使用 src/world/assets/campus-v220.js 和 src/data/map-assets.js。旧资产保留为 legacy，纯视觉细节不新增碰撞体。
 - 不得通过删除、注释或弱化断言来绕过验证。合法的地图、资产或版本变化要同步检查对应基线，并在更新日志说明原因。
 
 ## 构建和验证
 
 - 修改 2.x 源码后运行 npm run build，再按改动面选择定向验证。
+- 静态检查与类型门禁运行 `npm run lint` 与 `npm run typecheck`（`tsc -p jsconfig.json --noEmit`）。
 - 数据、资产和地图改动优先运行 node scripts/verify-data.mjs、node scripts/verify-assets.mjs 和 node scripts/verify-maps.mjs [szu|ucl|shunde]。
 - 物理、竞速、确定性和对拍改动按需运行 node scripts/verify-drafting-ai.mjs、node scripts/verify-deterministic-race.mjs、node scripts/verify-esm-parity.mjs 和 node scripts/verify-runtime-parity.mjs。
 - 浏览器、存档、联机和性能改动按需运行 node scripts/verify-browser.mjs、node scripts/verify-save.mjs、node server/verify.mjs、node scripts/verify-four-player.mjs 和 node scripts/verify-performance.mjs。
 - 地图资产改动还要运行 npm run verify:map-assets-perf，并检查 scripts/fixtures/map-assets-2.1.2.json、scripts/fixtures/map-regression.json 与硬件性能基线。
-- 发行前运行 npm run lint 与 npm run build:release。版本以 package.json、scripts/build.mjs 和 src/index.html 的一致状态为准。
+- 发行前运行 `npm run lint`、`npm run typecheck` 与 `npm run build:release`。版本以 package.json、scripts/build.mjs 和 src/index.html 的一致状态为准。
 
 ## 发行和存档
 

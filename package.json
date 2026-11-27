@@ -7,6 +7,7 @@
     "test": "node scripts/verify-all.mjs --fast",
     "lint": "eslint src server scripts && node scripts/verify-hygiene.mjs",
     "lint:ast": "eslint src server scripts",
+    "typecheck": "tsc -p jsconfig.json --noEmit",
     "build": "node scripts/build.mjs",
     "build:release": "node scripts/build.mjs --release",
     "verify:hygiene": "node scripts/verify-hygiene.mjs",
@@ -20,6 +21,7 @@
   "devDependencies": {
     "esbuild": "0.28.2",
     "eslint": "^10.15.0",
-    "globals": "^17.14.0"
+    "globals": "^17.14.0",
+    "typescript": "^7.0.2"
   }
 }
