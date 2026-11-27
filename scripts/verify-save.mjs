@@ -9,6 +9,7 @@ import vm from 'node:vm';
 
 const desktop = resolve(process.env.FORZERO_RELEASE_DIR ??
   (existsSync('dist-v2/desktop/index.html') ? 'dist-v2/desktop' : '.'));
+const { version } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
 const fixture = (name, updatedAt) => ({
   format: 'litchi-save', version: 1, updatedAt,
   storage: { 'szu-litchi-driver': JSON.stringify({ name }) }, friends: [],
@@ -46,7 +47,8 @@ try {
   const v250Dir = join(temp, 'forzero-budget-2.5.0', 'save');
   const v251Dir = join(temp, 'forzero-budget-2.5.1', 'save');
   const v2511Dir = join(temp, 'forzero-budget-2.5.1.1', 'save');
-  const newDir = join(temp, 'forzero-budget-2.5.2');
+  const v252Dir = join(temp, 'forzero-budget-2.5.2', 'save');
+  const newDir = join(temp, `forzero-budget-${version}`);
   await mkdir(previousDir, { recursive: true });
   await mkdir(v232Dir, { recursive: true });
   await mkdir(v233Dir, { recursive: true });
@@ -56,6 +58,7 @@ try {
   await mkdir(v250Dir, { recursive: true });
   await mkdir(v251Dir, { recursive: true });
   await mkdir(v2511Dir, { recursive: true });
+  await mkdir(v252Dir, { recursive: true });
   await mkdir(oldDir, { recursive: true });
   await mkdir(v200Dir, { recursive: true });
   await mkdir(legacyDir, { recursive: true });
@@ -122,10 +125,15 @@ try {
   const v2511File = join(v2511Dir, 'player-data.json');
   await writeFile(v2511File, JSON.stringify(v2511));
   assert.deepEqual((await requestSave(createAppShell, saveDir, previous)).data, v2511);
-  assert.equal((await requestSave(createAppShell, saveDir, previous, 'POST', v2511)).status, 200);
+  const v252 = fixture('2.5.2 QA', '2026-11-27T16:00:00.000Z');
+  const v252File = join(v252Dir, 'player-data.json');
+  await writeFile(v252File, JSON.stringify(v252));
+  assert.deepEqual((await requestSave(createAppShell, saveDir, previous)).data, v252);
+  assert.equal((await requestSave(createAppShell, saveDir, previous, 'POST', v252)).status, 200);
   const migrated = (await requestSave(createAppShell, saveDir, [])).data;
-  assert.deepEqual(migrated.storage, v2511.storage);
-  assert.deepEqual(migrated.friends, v2511.friends ?? []);
+  assert.deepEqual(migrated.storage, v252.storage);
+  assert.deepEqual(migrated.friends, v252.friends ?? []);
+  assert.deepEqual(JSON.parse(await readFile(v252File, 'utf8')), v252);
   assert.deepEqual(JSON.parse(await readFile(v2511File, 'utf8')), v2511);
   assert.deepEqual(JSON.parse(await readFile(v251File, 'utf8')), v251);
   assert.deepEqual(JSON.parse(await readFile(v250File, 'utf8')), v250);
@@ -135,6 +143,7 @@ try {
   assert.deepEqual(JSON.parse(await readFile(v233File, 'utf8')), v233);
   assert.deepEqual(JSON.parse(await readFile(v232File, 'utf8')), v232);
   assert.deepEqual(JSON.parse(await readFile(priorFile, 'utf8')), prior);
+  await rm(v252File);
   await rm(v2511File);
   await rm(v251File);
   await rm(v250File);

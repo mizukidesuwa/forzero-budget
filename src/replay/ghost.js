@@ -3,6 +3,7 @@ import { clamp, dot, lerpPoint, mix, subtract } from '../core/math.js';
 import { getActiveCampus, worldState } from '../core/state.js';
 import { recordRules } from '../data/race.js';
 import { getCourseVariant } from '../race/course-variants.js';
+import { parseRouteCode } from '../race/route-code.js';
 import { courseVariantRules } from '../data/race.js';
 import { readSeedCode } from '../race/seed-code.js';
 import { raceEnvironmentKey } from '../race/environment-key.js';
@@ -12,6 +13,8 @@ import {
 } from '../ride/vehicles.js';
 import { normalizeSkinSpec, skinForProfile, skinSpecHash } from '../ride/rider-skin.js';
 import { onCampusGround, rideElevation } from '../world/query.js';
+import { resolveRouteRef, routeRefForCourse } from '../world/route-resolver.js';
+import { makeNetworkCourse, networkForCampus } from '../world/seed-courses.js';
 
 export const GHOST_FORMAT = 'litchi-ghost';
 export const GHOST_VERSION = 1;
@@ -120,11 +123,14 @@ export function makeGhostFile(event, run, profile) {
   const appearance = run.appearance ?? (run.vehicle === 'bike' && profile.look ? bicycleAppearance(profile, run.bike) : null);
   const skin = appearance?.skin ?? (profile?.skinId || profile?.skinSpec ? skinForProfile(profile) : null);
   const environment = run.environment ?? raceEnvironmentKey(event, { trafficSeed: run.trafficSeed });
+  const routeCode = event.networkEdges?.length && routeRefForCourse(event, event.variant)?.code;
+  if (event.networkEdges?.length && !routeCode) throw new GhostFileError('找不到影子文件指定的赛道或种子。');
   return {
     format: GHOST_FORMAT, version: GHOST_VERSION,
     course: {
       campus: event.campus, id: event.id, seed: event.seed ?? null, layout: ghostCourseKey(event), environment,
       ...(event.variant && { variant: event.variant }),
+      ...(routeCode && { routeCode }),
     },
     rider: {
       name: riderName(profile.name), vehicle: run.vehicle, paint: knownPaint(appearance?.paint ?? profile.paint),
@@ -154,12 +160,16 @@ export function readGhostFile(text, coursesMap = worldState.coursesByCampus, cam
       typeof course.id !== 'string' || typeof course.layout !== 'string' || !/^[0-9a-f]{8}$/.test(course.layout)) {
     throw new GhostFileError('影子文件里的地图信息不完整。');
   }
-  const { campus, id, seed, variant } = course;
+  const { campus, id, seed, variant, routeCode } = course;
   if (variant !== undefined && (seed !== null || !variant ||
       !['forward', 'reverse'].includes(variant.direction) || !courseVariantRules.laps.includes(variant.laps))) {
     throw new GhostFileError('影子文件的方向或圈数无效。');
   }
-  const knownCourse = seed === null
+  const network = routeCode === undefined ? null : parseRouteCode(routeCode);
+  const knownCourse = routeCode !== undefined
+    ? network?.source === 'network' && network.campus === campus && seed === null &&
+      network.variant.direction === (variant?.direction ?? 'forward') && network.variant.laps === (variant?.laps ?? 1)
+    : seed === null
     ? (coursesMap?.[campus] ?? []).some(event => event.id === id)
     : campus !== 'shunde' && typeof seed === 'string' && seed.length <= 15 && readSeedCode(seed, campus) === seed && id === 'seed-' + seed;
   if (!knownCourse) throw new GhostFileError('找不到影子文件指定的赛道或种子。');
@@ -184,12 +194,19 @@ export function readGhostFile(text, coursesMap = worldState.coursesByCampus, cam
 }
 
 export function loadFriendGhost({ course, rider, run }, activeCampus = getActiveCampus()) {
-  const { campus, id, seed, layout } = course;
-  const current = worldState.seedCourses?.[campus];
-  const base = seed === null ? worldState.coursesByCampus?.[campus]?.find(item => item.id === id) :
-    current?.seed === seed ? current : worldState.hooks.makeSeedCourse?.(seed, campus);
-  const event = base && course.variant ? getCourseVariant(base, course.variant) : base;
-  if (!event || event.campus !== activeCampus || ghostCourseKey(event) !== layout || run.splits.length !== event.gates.length) {
+  const { campus, id, seed, layout, routeCode } = course;
+  let event;
+  if (routeCode !== undefined) {
+    const route = parseRouteCode(routeCode);
+    event = route?.source === 'network' && route.campus === campus &&
+      resolveRouteRef(route, { networkFor: networkForCampus, makeNetworkCourse })?.event;
+  } else {
+    const current = worldState.seedCourses?.[campus];
+    const base = seed === null ? worldState.coursesByCampus?.[campus]?.find(item => item.id === id) :
+      current?.seed === seed ? current : worldState.hooks.makeSeedCourse?.(seed, campus);
+    event = base && course.variant ? getCourseVariant(base, course.variant) : base;
+  }
+  if (!event || event.id !== id || event.campus !== activeCampus || ghostCourseKey(event) !== layout || run.splits.length !== event.gates.length) {
     throw new GhostFileError('这个影子使用的赛道布局与当前游戏版本不同。');
   }
   const name = riderName(rider.name), vehicle = rider.vehicle;

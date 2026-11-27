@@ -62,6 +62,7 @@ export function isOnlineChaseRoom(session) {
 export function onlineChaseNextHunterId(state) {
   if (!state || state.format !== 'chase') return null;
   if (state.phase === 'race' && state.round?.chase?.hunterId) return state.round.chase.hunterId;
+  if (Object.hasOwn(state, 'nextHunterId')) return state.nextHunterId;
   const list = state.roster?.length ? state.roster : state.players;
   if (!list?.length) return null;
   const idx = (state.history?.length ?? 0) % list.length;

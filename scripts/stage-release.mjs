@@ -9,11 +9,16 @@ const argv = process.argv.slice(2);
 const skipBuild = argv.includes('--skip-build');
 const githubMode = argv.includes('--github');
 const outIndex = argv.indexOf('--out');
+if (outIndex >= 0 && (!argv[outIndex + 1] || argv[outIndex + 1].startsWith('--'))) {
+  throw new Error('--out requires a directory path');
+}
 
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 const version = pkg.version;
 const defaultOut = githubMode ? `github-upload-${version}` : path.join('dist-v2', 'release', `v${version}`);
-const outDir = path.resolve(ROOT, outIndex >= 0 && argv[outIndex + 1] ? argv[outIndex + 1] : defaultOut);
+const outDir = path.resolve(ROOT, outIndex >= 0 ? argv[outIndex + 1] : defaultOut);
+const manifestPath = 'release-assets/MANIFEST.json';
+const githubOut = githubMode ? checkedGitHubOutput(outDir) : null;
 
 if (!skipBuild) {
   const buildResult = spawnSync(process.execPath, ['scripts/build.mjs', '--release'], {
@@ -94,6 +99,7 @@ function copyFilteredTree(srcDir, dstDir, stats = { files: 0, bytes: 0 }) {
       continue;
     }
     if (name === 'player-data.json' || /\.(tmp|log|pyc)$/i.test(name)) continue;
+    assert(entry.isFile(), `Cannot export a non-regular source file: ${path.join(srcDir, name)}`);
     const srcPath = path.join(srcDir, name);
     const dstPath = path.join(dstDir, name);
     fs.mkdirSync(path.dirname(dstPath), { recursive: true });
@@ -151,6 +157,55 @@ function stripLocalOnlySections(text) {
   return `${text.replace(/\r?\n?<!-- LOCAL-ONLY-START -->[\s\S]*?<!-- LOCAL-ONLY-END -->\r?\n?/g, '\n').replace(/\n{3,}/g, '\n\n').trimEnd()}\n`;
 }
 
+function lstatIfPresent(file) {
+  return fs.lstatSync(file, { throwIfNoEntry: false });
+}
+
+function resolveExistingAncestors(directory) {
+  if (lstatIfPresent(directory)) return fs.realpathSync(directory);
+  return path.join(resolveExistingAncestors(path.dirname(directory)), path.basename(directory));
+}
+
+function exportContents(dir) {
+  const contents = [];
+  walkCheck(dir, (entry, full) => {
+    const rel = path.relative(dir, full).split(path.sep).join('/');
+    assert(entry.isDirectory() || entry.isFile(), `Non-regular GitHub export entry: ${rel}`);
+    if (rel === manifestPath) return;
+    const digest = entry.isDirectory() ? null : crypto.createHash('sha256').update(fs.readFileSync(full)).digest('hex');
+    contents.push([rel, digest]);
+  });
+  return contents.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+}
+
+function checkExistingExport(directory) {
+  const stat = lstatIfPresent(directory);
+  if (!stat) return false;
+  const error = `Refusing to replace an unrecognized or modified GitHub export: ${directory}`;
+  assert(stat.isDirectory() && !stat.isSymbolicLink(), error);
+  assert.deepEqual(fs.readdirSync(directory).sort(), ['release-assets', 'repo'], error);
+  const assets = lstatIfPresent(path.join(directory, 'release-assets'));
+  assert(assets?.isDirectory() && lstatIfPresent(path.join(directory, manifestPath))?.isFile(), error);
+  const manifest = JSON.parse(fs.readFileSync(path.join(directory, manifestPath), 'utf8'));
+  assert(manifest.name === pkg.name && manifest.githubExport?.version === 1 &&
+    JSON.stringify(manifest.githubExport.contents) === JSON.stringify(exportContents(directory)), error);
+  return true;
+}
+
+function checkedGitHubOutput(directory) {
+  const parent = resolveExistingAncestors(path.dirname(directory));
+  const target = path.join(parent, path.basename(directory));
+  const source = fs.realpathSync(ROOT);
+  const toSource = path.relative(target, source);
+  const fromSource = path.relative(source, target);
+  const first = fromSource.split(path.sep)[0].toLowerCase();
+  assert(toSource && (path.isAbsolute(toSource) || toSource.split(path.sep)[0] === '..') &&
+    !['src', 'scripts', 'server', '.github', '.git', 'save', 'node_modules', 'legacy'].includes(first),
+    `Unsafe GitHub export directory: ${directory}`);
+  checkExistingExport(target);
+  return target;
+}
+
 if (!githubMode) {
   const { artifacts } = stageReleaseArtifacts(outDir);
   console.log(`Staged v${version} release artifacts to ${path.relative(ROOT, outDir)}:`);
@@ -160,71 +215,112 @@ if (!githubMode) {
   process.exit(0);
 }
 
-const repoDir = path.join(outDir, 'repo');
-const releaseAssetsDir = path.join(outDir, 'release-assets');
-fs.rmSync(outDir, { recursive: true, force: true });
-fs.mkdirSync(repoDir, { recursive: true });
+function buildGitHubExport(candidate) {
+  const repoDir = path.join(candidate, 'repo');
+  const releaseAssetsDir = path.join(candidate, 'release-assets');
+  fs.mkdirSync(repoDir, { recursive: true });
 
-const rootFiles = [
-  '.editorconfig',
-  '.gitattributes',
-  '.gitignore',
-  'AGENTS.md',
-  'CHANGELOG.md',
-  'CONTRIBUTING.md',
-  'FORZERO-ROUTE-SKIN-DESIGN.md',
-  'FORZERO-WORK-GUIDE.md',
-  'HISTORY.md',
-  'LICENSE',
-  'README.md',
-  'SECURITY.md',
-  'eslint.config.mjs',
-  'jsconfig.json',
-  'package.json',
-  'package-lock.json',
-];
-const repoStats = { files: 0, bytes: 0 };
-for (const file of rootFiles) {
-  const srcPath = path.join(ROOT, file);
-  const dstPath = path.join(repoDir, file);
-  assert(fs.existsSync(srcPath), `Missing repository root file: ${file}`);
-  if (file === 'AGENTS.md') {
-    const sanitized = stripLocalOnlySections(fs.readFileSync(srcPath, 'utf8'));
-    assert(!sanitized.includes('LOCAL-ONLY-START') && !sanitized.includes('LOCAL-ONLY-END'), 'Exported AGENTS.md leaked LOCAL-ONLY block');
-    fs.writeFileSync(dstPath, sanitized, 'utf8');
-  } else {
-    fs.copyFileSync(srcPath, dstPath);
+  const rootFiles = [
+    '.editorconfig',
+    '.gitattributes',
+    '.gitignore',
+    'AGENTS.md',
+    'CHANGELOG.md',
+    'CONTRIBUTING.md',
+    'FORZERO-ROUTE-SKIN-DESIGN.md',
+    'FORZERO-WORK-GUIDE.md',
+    'HISTORY.md',
+    'LICENSE',
+    'README.md',
+    'SECURITY.md',
+    'eslint.config.mjs',
+    'jsconfig.json',
+    'package.json',
+    'package-lock.json',
+  ];
+  const repoStats = { files: 0, bytes: 0 };
+  for (const file of rootFiles) {
+    const srcPath = path.join(ROOT, file);
+    const dstPath = path.join(repoDir, file);
+    assert(fs.existsSync(srcPath), `Missing repository root file: ${file}`);
+    if (file === 'AGENTS.md') {
+      const sanitized = stripLocalOnlySections(fs.readFileSync(srcPath, 'utf8'));
+      assert(!sanitized.includes('LOCAL-ONLY-START') && !sanitized.includes('LOCAL-ONLY-END'), 'Exported AGENTS.md leaked LOCAL-ONLY block');
+      fs.writeFileSync(dstPath, sanitized, 'utf8');
+    } else {
+      fs.copyFileSync(srcPath, dstPath);
+    }
+    repoStats.files += 1;
+    repoStats.bytes += fs.statSync(dstPath).size;
   }
-  repoStats.files += 1;
-  repoStats.bytes += fs.statSync(dstPath).size;
-}
-for (const dir of ['src', 'server', 'scripts', '.github']) {
-  const dirPath = path.join(ROOT, dir);
-  if (fs.existsSync(dirPath)) copyFilteredTree(dirPath, path.join(repoDir, dir), repoStats);
-}
-
-walkCheck(repoDir, (entry, full) => {
-  const rel = path.relative(repoDir, full);
-  assert(!/^(?:save|node_modules|dist-v2|legacy|szu-litchi-dev|szu-litchi-loop|runtime|\.openai)(?:[\\/]|$)/.test(rel), `Forbidden entry in repo/: ${rel}`);
-  if (!entry.isDirectory()) {
-    assert(!/\.(?:zip|exe)$/i.test(entry.name) && !/^forzero-budget-mobile-.*\.html$/.test(entry.name), `Built archive or binary unexpectedly inside repo/: ${rel}`);
-    assert(entry.name !== 'player-data.json' && entry.name !== 'forzero-shunde2-fork.zip', `Excluded file in repo/: ${rel}`);
+  for (const dir of ['src', 'server', 'scripts', '.github']) {
+    const dirPath = path.join(ROOT, dir);
+    if (fs.existsSync(dirPath)) copyFilteredTree(dirPath, path.join(repoDir, dir), repoStats);
   }
-});
 
-const hygiene = spawnSync(process.execPath, ['scripts/verify-hygiene.mjs'], {
-  cwd: repoDir,
-  stdio: 'inherit',
-});
-if (hygiene.status !== 0) process.exit(hygiene.status ?? 1);
+  walkCheck(repoDir, (entry, full) => {
+    const rel = path.relative(repoDir, full);
+    assert(!/^(?:save|node_modules|dist-v2|legacy|szu-litchi-dev|szu-litchi-loop|runtime|\.openai)(?:[\\/]|$)/.test(rel), `Forbidden entry in repo/: ${rel}`);
+    if (!entry.isDirectory()) {
+      assert(!/\.(?:zip|exe)$/i.test(entry.name) && !/^forzero-budget-mobile-.*\.html$/.test(entry.name), `Built archive or binary unexpectedly inside repo/: ${rel}`);
+      assert(entry.name !== 'player-data.json' && entry.name !== 'forzero-shunde2-fork.zip', `Excluded file in repo/: ${rel}`);
+    }
+  });
 
-const { artifacts } = stageReleaseArtifacts(releaseAssetsDir);
-const assetStats = artifacts.reduce((acc, item) => ({ files: acc.files + 1, bytes: acc.bytes + item.bytes }), { files: 3, bytes: 0 });
-for (const meta of ['SHA256SUMS.txt', 'MANIFEST.json', 'RELEASE-NOTES.md']) {
-  assetStats.bytes += fs.statSync(path.join(releaseAssetsDir, meta)).size;
+  const hygiene = spawnSync(process.execPath, ['scripts/verify-hygiene.mjs'], {
+    cwd: repoDir,
+    stdio: 'inherit',
+  });
+  assert(hygiene.status === 0, 'Exported repository failed the hygiene check');
+
+  const { artifacts } = stageReleaseArtifacts(releaseAssetsDir);
+  const file = path.join(candidate, manifestPath);
+  const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+  manifest.githubExport = { version: 1, contents: exportContents(candidate) };
+  fs.writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`);
+  const assetStats = artifacts.reduce((acc, item) => ({ files: acc.files + 1, bytes: acc.bytes + item.bytes }), { files: 3, bytes: 0 });
+  for (const meta of ['SHA256SUMS.txt', 'MANIFEST.json', 'RELEASE-NOTES.md']) {
+    assetStats.bytes += fs.statSync(path.join(releaseAssetsDir, meta)).size;
+  }
+  return { artifacts, repoStats, assetStats };
 }
 
-console.log(`Staged v${version} split GitHub upload package to ${path.relative(ROOT, outDir)}:`);
+function publishGitHubExport(target) {
+  const parent = path.dirname(target);
+  fs.mkdirSync(parent, { recursive: true });
+  const lock = path.join(parent, `.${path.basename(target)}.forzero-export-lock`);
+  fs.mkdirSync(lock);
+  let temp, retainPrevious = false;
+  try {
+    temp = fs.mkdtempSync(path.join(parent, '.forzero-github-'));
+    const candidate = path.join(temp, 'candidate');
+    const previous = path.join(temp, 'previous');
+    const stats = buildGitHubExport(candidate);
+    const replacing = checkExistingExport(target);
+    if (replacing) fs.renameSync(target, previous);
+    try {
+      fs.renameSync(candidate, target);
+    } catch (error) {
+      if (replacing) {
+        retainPrevious = true;
+        fs.renameSync(previous, target);
+        retainPrevious = false;
+      }
+      throw error;
+    }
+    return stats;
+  } finally {
+    try {
+      if (temp && !retainPrevious) fs.rmSync(temp, { recursive: true, force: true });
+      if (retainPrevious) console.error(`Previous GitHub export retained in ${path.join(temp, 'previous')}`);
+    } finally {
+      fs.rmdirSync(lock);
+    }
+  }
+}
+
+const { artifacts, repoStats, assetStats } = publishGitHubExport(githubOut);
+console.log(`Staged v${version} split GitHub upload package to ${path.relative(ROOT, githubOut)}:`);
 console.log(`  - repo/: ${repoStats.files} files (${(repoStats.bytes / 1048576).toFixed(2)} MB)`);
 console.log(`  - release-assets/: ${assetStats.files} files (${(assetStats.bytes / 1048576).toFixed(2)} MB)`);
 for (const item of artifacts) {

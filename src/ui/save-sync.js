@@ -9,10 +9,12 @@ export const SAVE_VERSION = 1;
 let saveSyncTimer = null;
 let saveSyncBusy = false;
 let saveHydrated = false;
+let restoreVehiclePending = false;
 
 let saveCallbacks = {
   getOnlineRoom: () => worldState.onlineRoom,
   isOnlineAppMode: () => false,
+  isVehicleRestoreLocked: () => false,
   readPreferences: () => getPreferences(),
   fillPreferences: () => {},
   applyTouchSize: () => {},
@@ -24,6 +26,24 @@ let saveCallbacks = {
 
 export function bindSaveUi(callbacks) {
   saveCallbacks = { ...saveCallbacks, ...callbacks };
+}
+
+export function applyPendingSaveVehicle({ restarting = false } = {}) {
+  if (!restoreVehiclePending) return;
+  const { race, driverProfile, vehicleTunings, ui } = worldState;
+  const room = saveCallbacks.getOnlineRoom();
+  if ((!restarting && race && race.phase !== 'free') || room?.state?.phase === 'race' || saveCallbacks.isVehicleRestoreLocked()) return;
+  restoreVehiclePending = false;
+  if (driverProfile) Object.assign(driverProfile, readDriverProfile());
+  if (vehicleTunings) Object.assign(vehicleTunings, savedVehicleTunings());
+  if (race) {
+    if (race.phase !== 'free') race.freeRide();
+    race.setBike(savedBike());
+    if (!room && driverProfile) race.setVehicle(driverProfile.vehicle);
+    worldState.hooks.refreshBicycleModels?.();
+  }
+  if (ui?.driverName && driverProfile) ui.driverName.value = driverProfile.name;
+  saveCallbacks.showBikeSetup();
 }
 
 export function collectLocalStorageSave() {
@@ -67,6 +87,7 @@ export async function applySaveSnapshot(snapshot, { preferIncoming = false } = {
       !snapshot.storage || typeof snapshot.storage !== 'object' || Array.isArray(snapshot.storage)) {
     throw new Error('请选择有效的 FORZERO: BUDGET（或荔园环骑）存档文件。');
   }
+  const updatedRecords = new Set();
   try {
     for (const [key, value] of Object.entries(snapshot.storage)) {
       if (typeof value !== 'string') continue;
@@ -80,9 +101,11 @@ export async function applySaveSnapshot(snapshot, { preferIncoming = false } = {
       }
       if (existing === null || preferIncoming || key.startsWith('checkpoints:')) {
         localStorage.setItem(key, value);
+        if (key.startsWith('checkpoints:') && value !== existing) updatedRecords.add(key);
       }
     }
   } catch { throw new Error('无法写入浏览器存档。'); }
+  finally { worldState.race?.refreshRestoredRecords(updatedRecords); }
 
   if (Array.isArray(snapshot.friends) && snapshot.friends.length) {
     try {
@@ -109,31 +132,16 @@ export async function applySaveSnapshot(snapshot, { preferIncoming = false } = {
     } catch { throw new Error('无法写入友人对战记录。'); }
   }
 
-  // Reload in-memory profile, tunings, display preferences and HUD cleanly (preserving shared object references)
-  const driverProfile = worldState.driverProfile;
-  const vehicleTunings = worldState.vehicleTunings;
   const preferences = getPreferences();
   const race = worldState.race;
   const onlineRoom = saveCallbacks.getOnlineRoom?.() ?? worldState.onlineRoom;
-  const ui = worldState.ui;
-
-  if (driverProfile) Object.assign(driverProfile, readDriverProfile());
-  if (vehicleTunings) Object.assign(vehicleTunings, savedVehicleTunings());
   if (preferences) Object.assign(preferences, saveCallbacks.readPreferences());
   saveCallbacks.fillPreferences();
   saveCallbacks.applyTouchSize?.();
   if (!onlineRoom) setActiveWeather(race?.event?.environment?.weather ?? preferences.weather);
   CampusCourier.progress = readExplorerProgress();
-  if (race) {
-    race.bike = savedBike();
-    race.rider.bike = race.bike;
-    if (!onlineRoom && race.phase === 'free') {
-      if (driverProfile) race.setVehicle(driverProfile.vehicle);
-      race.freeRide();
-    }
-  }
-  if (ui?.driverName && driverProfile) ui.driverName.value = driverProfile.name;
-  saveCallbacks.showBikeSetup();
+  restoreVehiclePending = true;
+  applyPendingSaveVehicle();
   saveCallbacks.rebuildCourseHud();
   saveCallbacks.updateHud();
 }
@@ -221,7 +229,9 @@ export async function importSaveFile(file) {
     const parsed = JSON.parse(await file.text());
     await applySaveSnapshot(parsed, { preferIncoming: true });
     scheduleLocalSave();
-    if (ui?.saveStatus) saveCallbacks.setText(ui.saveStatus, '存档已导入并生效。');
+    if (ui?.saveStatus) saveCallbacks.setText(ui.saveStatus, restoreVehiclePending
+      ? '存档已导入。车辆配置将在返回自由骑行或重新发车时生效。'
+      : '存档已导入并生效。');
   } catch (error) {
     if (ui?.saveStatus) saveCallbacks.setText(ui.saveStatus, error?.message ?? '存档导入失败。');
   }

@@ -10,7 +10,7 @@ import tuning190 from './tuning-190.cjs';
 import routeRules from './route-rules.cjs';
 import sharedRules from './shared-rules.cjs';
 
-const {ROOM_ROUNDS,ALL_ROUND_VEHICLES,lockRoomVehicle,tally,settle,settleChaseRound,tagChaseRunner,retire,beginTuning,beginRoomRound,
+const {ROOM_ROUNDS,ALL_ROUND_VEHICLES,lockRoomVehicle,tally,settle,settleChaseRound,tagChaseRunner,retire,beginTuning,beginRoomRound,nextChaseHunterId,
   roomVehicle,roomParts,roomBuildProblem,roomBudgetProblems,blindBudget} = rules;
 
 const LIMIT = 4;
@@ -416,6 +416,7 @@ function roomState(room) {
     }),
     roundsTotal:ROOM_ROUNDS[room.format],
     ...(room.format === 'triathlon' && { vehicleRotation: ALL_ROUND_VEHICLES }),
+    ...(room.format === 'chase' && { nextHunterId: nextChaseHunterId(room) }),
     round:room.round,history:room.history,standing:room.standing,winners:room.winners};
 }
 
@@ -984,6 +985,7 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href===import.meta.url) {
       soundDir = fileURLToPath(new URL('./sound',import.meta.url));
       saveDir = fileURLToPath(new URL('./save',import.meta.url));
       previousSaveFile = [
+        new URL('../forzero-budget-2.5.2/save/player-data.json',import.meta.url),
         new URL('../forzero-budget-2.5.1.1/save/player-data.json',import.meta.url),
         new URL('../forzero-budget-2.5.1/save/player-data.json',import.meta.url),
         new URL('../forzero-budget-2.5.0/save/player-data.json',import.meta.url),

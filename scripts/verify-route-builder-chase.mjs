@@ -20,6 +20,8 @@ import {
   makeSeedCourse,
 } from '../src/test-exports.js';
 import { createRideServer } from '../server/server.mjs';
+import { getCourseVariant } from '../src/race/course-variants.js';
+import { ghostCourseKey, loadFriendGhost, makeGhostFile, readGhostFile } from '../src/replay/ghost.js';
 
 const backing = new Map();
 setStorage({
@@ -109,6 +111,19 @@ setStorage({
     assert.ok(resolved?.event, `resolveRouteRef must build runnable course on ${campus}`);
     assert.ok(resolved.event.benchmark?.samples?.length > 10);
     assert.equal(resolved.event.networkEdges.length, draft.edges.length);
+
+    for (const event of [resolved.event, getCourseVariant(resolved.event, { direction: 'reverse' })]) {
+      const run = { ...event.benchmark, vehicle: 'bike' };
+      const file = makeGhostFile(event, run, { name: 'Route workshop QA', paint: 'classic' });
+      assert.match(file.course.routeCode, new RegExp(`^R1\\.${campus}\\.n\\.`));
+      const read = readGhostFile(JSON.stringify(file));
+      const challenge = loadFriendGhost(read, campus);
+      assert.equal(challenge.event.id, event.id);
+      assert.equal(ghostCourseKey(challenge.event), ghostCourseKey(event));
+      assert.deepEqual(challenge.event.variant, event.variant);
+      assert.equal(challenge.opponent.time, run.time);
+      assert.throws(() => loadFriendGhost({ ...read, course: { ...read.course, layout: '00000000' } }, campus), /布局/);
+    }
   }
 }
 
@@ -211,6 +226,22 @@ setStorage({
     await cmd(players[0], 'start');
     state = players[0].stream.state();
     assert.equal(state.round.chase.hunterId, p2.id);
+
+    // The next runner in the rotation leaves between rounds.
+    fakeNow = state.round.goAt + onlineChaseRules.headStartMs + 2000;
+    await cmd(players[1], 'tag', { round: 2, targetId: p1.id, ms: 15_000 });
+    await cmd(players[1], 'tag', { round: 2, targetId: p3.id, ms: 20_000 });
+    assert.equal(onlineChaseNextHunterId(players[0].stream.state()), p3.id);
+    await cmd(players[2], 'leave');
+    state = players[0].stream.state();
+    assert.equal(state.phase, 'between');
+    assert.equal(state.nextHunterId, p1.id);
+    assert.equal(onlineChaseNextHunterId(state), p1.id);
+    await Promise.all(players.slice(0, 2).map(pl => cmd(pl, 'ready', { ready: true })));
+    await cmd(players[0], 'start');
+    state = players[0].stream.state();
+    assert.equal(state.round.chase.hunterId, p1.id);
+    assert.equal(state.round.results.find(result => result.id === p3.id)?.retired, true);
   } finally {
     Date.now = realNow;
     server.close();

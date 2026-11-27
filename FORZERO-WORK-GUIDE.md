@@ -26,16 +26,22 @@
 | `src/data/modes.js`、`src/race/chase.js`、`src/race/online-chase.js`、`src/race/blind-nav.js`、`src/ui/mode-hud.js` | 单人影子追捕、联机捉人与夜骑盲区规则常量、纯状态机与 HUD 渲染（`online-chase.js` 已启用 `// @ts-check` + JSDoc 契约） | `npm run typecheck`、`node scripts/verify-route-builder-chase.mjs`、`node scripts/verify-chase-blind.mjs`、`node scripts/verify-esm-parity.mjs`、`node scripts/verify-browser.mjs` |
 | `jsconfig.json`、`eslint.config.mjs`、`scripts/build.mjs`、`scripts/verify-hygiene.mjs`、`scripts/verify-all.mjs`、`scripts/stage-release.mjs` | 渐进式 JSDoc `@ts-check` 类型门禁、ESLint AST 检查（`no-undef` 等）、esbuild 0.28.2、`metafile` 体积汇报、静态门禁、分层验收编排、校验暂存与 GitHub 分包上传（`--github`） | `npm run lint`、`npm run typecheck`、`npm test`、`npm run verify:e2e`、`npm run verify:all`、`npm run build:release`、`npm run release:stage`、`npm run release:github` |
 | `server/server.mjs`、`server/room-rules.cjs`、`server/route-rules.cjs` | 桌面本地服务、房规与 canonical 路线 profile、跨版本存档迁移 | `node scripts/verify-save.mjs`、`node server/verify.mjs` |
+| `src/ui/save-sync.js`、`src/race/time-trial.js`、`src/replay/ghost.js` | 存档恢复、个人最佳缓存、路线工坊影子与布局校验 | `node scripts/verify-browser.mjs`、`node scripts/verify-route-builder-chase.mjs` |
+| `scripts/stage-release.mjs`、`scripts/verify-release-staging.mjs` | GitHub 导出目录保护、暂存与替换回归 | `npm test`、`node scripts/verify-release-staging.mjs` |
+
+`npm run verify:hygiene` 的摘要包含 `src/ui/app.js` 行数。超过 1700 行时会提示审阅职责边界，随后继续校验。
 
 > 历史交付与早期架构见 [HISTORY.md](HISTORY.md)；版本流水见 [CHANGELOG.md](CHANGELOG.md)；1.8.6 车流见本地归档 `szu-litchi-dev/ride-update/1.8.6-traffic.md`。巨型 `perf-*.json`、截图与旧包已归档至 `D:\szubikeGPT-archive\`。
 
-## 1. 2.5.2 构建产物与本地版
+## 1. 2.5.3 构建产物与本地版
 
-- `npm run build:release` 生成轻量 `dist-v2/desktop/`、`dist-v2/forzero-budget-2.5.2.zip` 和 `dist-v2/forzero-budget-mobile-2.5.2.html`；执行 `npm run build:release:win`（或 `-- --bundle-node`）额外生成内置便携 `runtime/node.exe` 的 Windows 免安装版 **`dist-v2/forzero-budget-windows-x64-2.5.2.zip`**。
-- `npm run release:stage` 将可分发归档、校验清单（`SHA256SUMS.txt`、`MANIFEST.json`、`RELEASE-NOTES.md`）暂存到 `dist-v2/release/v2.5.2/`；`npm run release:github` 按 `AGENTS.md` 规范生成拆分式 GitHub 上传目录 `github-upload-2.5.2/repo/`（纯净源码树，含 `src/`、`server/`、`scripts/`、`.github/` 且不含 `szu-litchi-dev/` 或任何 `.exe`/`.zip` 二进制）与 `github-upload-2.5.2/release-assets/`（Releases 附件与 `RELEASE-NOTES.md`）。
+- Windows 便携版构建需要同一个官方 Node.js 22 Windows x64 归档内的 `node.exe` 和完整的 `LICENSE`。将 `FORZERO_NODE_EXE` 指向解压后的二进制，再执行 `npm run build:release:win`。构建器默认从二进制同目录读取 `LICENSE`，也可通过 `FORZERO_NODE_LICENSE` 指定该归档里的许可文件。
+- `npm run verify:all` 默认只测当前构建，性能报告写入 `dist-v2/hardware-perf.verify.json`。当前预算为硬件渲染 p95 120 ms、软件渲染 p95 250 ms、JS 堆峰值 640 MiB 和浏览器进程内存峰值 3 GiB。需要历史硬件对比时，再给 `scripts/verify-performance.mjs` 传入 `--baseline=<目录>`。目录内需有历史桌面版的 `index.html`。
+- `npm run build:release` 生成轻量 `dist-v2/desktop/`、`dist-v2/forzero-budget-2.5.3.zip` 和 `dist-v2/forzero-budget-mobile-2.5.3.html`；执行 `npm run build:release:win`（或 `-- --bundle-node`）额外生成内置便携 `runtime/node.exe` 的 Windows 免安装版 **`dist-v2/forzero-budget-windows-x64-2.5.3.zip`**。
+- `npm run release:stage` 将可分发归档、校验清单（`SHA256SUMS.txt`、`MANIFEST.json`、`RELEASE-NOTES.md`）暂存到 `dist-v2/release/v2.5.3/`；`npm run release:github` 按 `AGENTS.md` 规范生成拆分式 GitHub 上传目录 `github-upload-2.5.3/repo/`（纯净源码树，含 `src/`、`server/`、`scripts/`、`.github/` 且不含 `szu-litchi-dev/` 或任何 `.exe`/`.zip` 二进制）与 `github-upload-2.5.3/release-assets/`（Releases 附件与 `RELEASE-NOTES.md`）。
 - `.github/workflows/ci.yml`（推送/PR 到 `main` 时自动在 Ubuntu 与 Windows 双平台运行 `verify` 节点检查，并在 `ubuntu-latest` 运行 `browser-e2e` 无头 Chrome 桌面/手机 E2E 验收；`scripts/browser-runner.mjs` 支持 Windows/Linux/macOS）、`.github/workflows/pages.yml`（校验并发布静态网页到 GitHub Pages）与 `.github/workflows/release.yml`（在 `windows-latest` 上执行 `npm run build:release -- --bundle-node`、`npm run verify:fast -- --skip-build`、`npm run release:stage` 并同时发布含内置 Node.js 的 Windows 便携 ZIP 与轻量 ZIP / 手机单文件到 GitHub Release）。
 - 本地 `szu-litchi-dev/` 已移除；公开 GitHub 仓库与发行产物不再携带历史 1.x 构建链。
-- 2.5.2 桌面版优先读取同级 `forzero-budget-2.5.1.1/save/player-data.json` 与 `2.5.1`、`2.5.0`，并向下兼容 `2.4.0`、`2.3.4` 及前序存档。手机单文件可通过游戏设置导出和导入备份。
+- 2.5.3 桌面版优先读取同级 `forzero-budget-2.5.2/save/player-data.json`、`2.5.1.1` 与 `2.5.1`、`2.5.0`，并向下兼容 `2.4.0`、`2.3.4` 及前序存档。手机单文件可通过游戏设置导出和导入备份。
 
 ### 2.3.1 本地路径
 

@@ -6,11 +6,11 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 
-async function openBrowserTcp(path) {
+async function openBrowserTcp(path, launchArgs, timeoutMs) {
   const profile = mkdtempSync(join(tmpdir(), 'forzero-cdp-'));
   const child = spawn(path, [
     '--headless=new', '--remote-debugging-address=127.0.0.1', '--remote-debugging-port=0',
-    '--no-sandbox', '--disable-dev-shm-usage', '--disable-extensions', '--no-first-run', '--use-gl=angle', '--use-angle=swiftshader',
+    '--no-sandbox', '--disable-dev-shm-usage', '--disable-extensions', '--no-first-run', ...launchArgs,
     '--enable-unsafe-swiftshader', '--disable-background-timer-throttling', '--disable-renderer-backgrounding',
     '--disable-backgrounding-occluded-windows', '--user-data-dir=' + profile,
   ], { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
@@ -55,7 +55,7 @@ async function openBrowserTcp(path) {
     });
     rpc = (method, params = {}, sessionId) => new Promise((resolve, reject) => {
       const id = ++serial;
-      const timer = setTimeout(() => { pending.delete(id); reject(Error(`${method} timed out`)); }, 20_000);
+      const timer = setTimeout(() => { pending.delete(id); reject(Error(`${method} timed out`)); }, timeoutMs);
       pending.set(id, result => { clearTimeout(timer); result.error ? reject(Error(result.error.message)) : resolve(result.result); });
       try { socket.send(JSON.stringify({ id, method, params, sessionId })); }
       catch (error) { pending.delete(id); clearTimeout(timer); reject(error); }
@@ -74,7 +74,8 @@ function assertPort(port, endpoint) {
   }
 }
 
-export async function openTestBrowser() {
+export async function openTestBrowser({ hardwarePreferred = false, launchArgs = [], timeoutMs = 20_000 } = {}) {
+  const graphicsArgs = hardwarePreferred ? [] : ['--use-gl=angle', '--use-angle=swiftshader'];
   const candidates = process.env.CHROME_PATH ? [process.env.CHROME_PATH] : [
     'C:/Program Files/Google/Chrome/Application/chrome.exe',
     'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
@@ -92,7 +93,7 @@ export async function openTestBrowser() {
     const pending = new Map();
     const child = spawn(path, [
       '--headless=new', '--remote-debugging-pipe', '--no-sandbox', '--disable-dev-shm-usage', '--disable-extensions', '--no-first-run',
-      '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--window-size=987,600',
+      ...graphicsArgs, '--enable-unsafe-swiftshader', '--window-size=987,600', ...launchArgs,
       '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows',
       '--user-data-dir=' + profile,
     ], { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'] });
@@ -115,7 +116,7 @@ export async function openTestBrowser() {
     const rpc = (method, params = {}, sessionId) => new Promise((ok, fail) => {
       if (failure) return fail(Error(failure));
       const id = ++serial;
-      const timer = setTimeout(() => { pending.delete(id); fail(Error(`${method} timed out after 20 seconds`)); }, 20_000);
+      const timer = setTimeout(() => { pending.delete(id); fail(Error(`${method} timed out after ${timeoutMs}ms`)); }, timeoutMs);
       pending.set(id, message => { clearTimeout(timer); message.error ? fail(Error(message.error.message)) : ok(message.result); });
       child.stdio[3].write(JSON.stringify({ id, method, params, sessionId }) + '\0', error => {
         if (error && pending.has(id)) { pending.delete(id); clearTimeout(timer); fail(error); }
@@ -145,7 +146,7 @@ export async function openTestBrowser() {
   for (const path of candidates.filter(existsSync)) {
     try {
       console.log('Trying local DevTools:', path);
-      return await openBrowserTcp(path);
+      return await openBrowserTcp(path, [...graphicsArgs, ...launchArgs], timeoutMs);
     }
     catch (error) {
       failures.push(`${path} (local DevTools): ${error.message}`);

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import esbuild from 'esbuild';
 import { writeDeterministicZip } from './deterministic-zip.mjs';
 
-export const VERSION = '2.5.2';
+export const VERSION = '2.5.3';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
@@ -14,6 +14,7 @@ const onlineDir = join(root, 'server');
 
 const args = new Set(process.argv.slice(2));
 const release = args.has('--release');
+const bundleNode = args.has('--bundle-node');
 const minify = release || args.has('--minify');
 const outArg = process.argv.find((a) => a.startsWith('--out='));
 const outBase = resolve(root, outArg ? outArg.slice('--out='.length) : 'dist-v2');
@@ -23,6 +24,25 @@ const mobileFile = join(outBase, release ? `forzero-budget-mobile-${VERSION}.htm
 
 const entryJs = join(srcDir, 'entry.js');
 
+function portableNodeInputs() {
+  const nodeExe = process.env.FORZERO_NODE_EXE || (process.platform === 'win32' && process.arch === 'x64' ? process.execPath : '');
+  if (!nodeExe || !existsSync(nodeExe)) {
+    throw new Error('Cannot bundle Windows x64 Node.js runtime: run on win32 x64 or set FORZERO_NODE_EXE');
+  }
+  const licensePath = process.env.FORZERO_NODE_LICENSE || join(dirname(nodeExe), 'LICENSE');
+  if (!existsSync(licensePath)) {
+    throw new Error(`Missing Node.js LICENSE: ${licensePath}. Use the LICENSE from the same official Windows x64 archive as node.exe.`);
+  }
+  const license = readFileSync(licensePath);
+  const text = license.toString('utf8');
+  if (text.length < 100_000 || !text.startsWith('Node.js is licensed for use as follows:') ||
+      !text.includes('The externally maintained libraries used by Node.js are:')) {
+    throw new Error(`Expected the complete Node.js LICENSE, including third-party notices: ${licensePath}`);
+  }
+  return { nodeExe, license };
+}
+
+const portableNode = release && bundleNode ? portableNodeInputs() : null;
 const t0 = performance.now();
 const packageVersion = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
 if (packageVersion !== VERSION) throw new Error('package.json and build version differ');
@@ -94,22 +114,14 @@ if (release) {
     'sound/README.txt', ...serverCopies.map(([, dstName]) => dstName)];
   writeDeterministicZip(zipFile, desktopDir, entries);
   console.log(`  desktop ZIP:        ${readFileSync(zipFile).length} bytes`);
-  if (args.has('--bundle-node')) {
-    const nodeExe = process.env.FORZERO_NODE_EXE || (process.platform === 'win32' && process.arch === 'x64' ? process.execPath : '');
-    if (!nodeExe || !existsSync(nodeExe)) {
-      throw new Error('Cannot bundle Windows x64 Node.js runtime: run on win32 x64 or set FORZERO_NODE_EXE');
-    }
-    const licenseCandidate = join(dirname(nodeExe), 'LICENSE');
-    const nodeLicense = existsSync(licenseCandidate)
-      ? readFileSync(licenseCandidate)
-      : Buffer.from(`Node.js runtime (${process.version}, win32-x64) bundled under the MIT License.\nFull license text: https://github.com/nodejs/node/blob/main/LICENSE\n`, 'utf8');
+  if (portableNode) {
     const winZipFile = join(outBase, `forzero-budget-windows-x64-${VERSION}.zip`);
     writeDeterministicZip(winZipFile, desktopDir, [
       ...entries,
-      { name: 'runtime/node.exe', source: nodeExe },
-      { name: 'runtime/NODE-LICENSE.txt', data: nodeLicense },
+      { name: 'runtime/node.exe', source: portableNode.nodeExe },
+      { name: 'runtime/NODE-LICENSE.txt', data: portableNode.license },
     ]);
-    console.log(`  windows portable:   ${readFileSync(winZipFile).length} bytes (Node ${process.version})`);
+    console.log(`  windows portable:   ${readFileSync(winZipFile).length} bytes`);
   }
 }
 

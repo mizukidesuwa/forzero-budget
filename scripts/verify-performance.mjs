@@ -1,49 +1,54 @@
 import assert from 'node:assert/strict';
-import { execFile, spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { execFile } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { promisify } from 'node:util';
+import { openTestBrowser } from './browser-runner.mjs';
 
-const chrome = process.env.CHROME_PATH ?? 'C:/Program Files/Google/Chrome/Application/chrome.exe';
-const legacyDir = 'forzero-budget-1.9.1.1';
-const baselineDir = process.env.FORZERO_BASELINE_DIR ?? (existsSync(legacyDir) ? legacyDir : `D:/szubikeGPT-archive/${legacyDir}`);
+const args = process.argv.slice(2);
+const baselineArg = args.find(arg => arg.startsWith('--baseline='));
+const baselineDir = baselineArg?.slice('--baseline='.length) ?? (args.includes('--baseline') ? process.env.FORZERO_BASELINE_DIR : null);
+if ((baselineArg || args.includes('--baseline')) && !baselineDir) throw Error('Provide a directory with --baseline=<directory> or FORZERO_BASELINE_DIR');
+const { version: currentVersion } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const editions = [
-  ['1.9.1.1', join(baselineDir, 'index.html')],
-  ...(existsSync('forzero-budget-2.0.0/index.html') ? [['2.0.0', 'forzero-budget-2.0.0/index.html']] : []),
-  ...(existsSync('forzero-budget-2.1.2/index.html') ? [['2.1.2', 'forzero-budget-2.1.2/index.html']] : []),
-  ['2.3.1', join(process.env.FORZERO_RELEASE_DIR ?? 'dist-v2/desktop', 'index.html')],
+  ...(baselineDir ? [['historical baseline', join(baselineDir, 'index.html')]] : []),
+  [currentVersion, join(process.env.FORZERO_RELEASE_DIR ?? 'dist-v2/desktop', 'index.html')],
 ];
+for (const [version, file] of editions) assert.ok(existsSync(file), `${version}: missing browser build at ${resolve(file)}`);
 if (process.env.FORZERO_PERF_ORDER === 'reverse') editions.reverse();
 const output = [];
 const execFileAsync = promisify(execFile);
-const measureMemory = process.argv.includes('--memory');
-const followRoute = process.argv.includes('--route');
-const cycles = process.argv.includes('--repeat-maps') ? 4 : 1;
+const measureMemory = args.includes('--memory');
+const followRoute = args.includes('--route');
+const cycles = args.includes('--repeat-maps') ? 4 : 1;
+const mib = 1024 ** 2;
+const currentBudget = { hardwareP95Ms: 120, softwareP95Ms: 250, jsHeapBytes: 640 * mib, processBytes: 3072 * mib };
+const usesSoftware = renderer => /swiftshader|software|llvmpipe/i.test(renderer);
+
+async function sampleProcessMemory(ids) {
+  if (process.platform !== 'win32') {
+    const { stdout } = await execFileAsync('ps', ['-o', 'rss=', '-p', ids.join(',')], { timeout: 5000 });
+    return stdout.trim().split(/\s+/).reduce((total, rss) => total + Number(rss) * 1024, 0);
+  }
+  const command = `Get-Process | Where-Object { $_.Id -in @(${ids.join(',')}) } | Measure-Object -Property WorkingSet64 -Sum | Select-Object -ExpandProperty Sum`;
+  const options = ['-NoProfile', '-NonInteractive', '-Command', command];
+  let result;
+  try {
+    result = await execFileAsync('pwsh', options, { timeout: 5000 });
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    result = await execFileAsync('powershell', options, { timeout: 5000 });
+  }
+  return Number(result.stdout.trim());
+}
+
 for (const [version, file] of editions) {
-  const profile = mkdtempSync(join(tmpdir(), 'forzero-gpu-profile-'));
-  const browser = spawn(chrome, [
-    '--headless=new', '--remote-debugging-pipe', '--no-sandbox', '--disable-extensions', '--no-first-run',
-    '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows',
-    '--window-size=1280,720', '--user-data-dir=' + profile,
-  ], { windowsHide: true, stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
-  const pending = new Map();
-  let serial = 0, buffered = '';
-  browser.stdio[4].on('data', chunk => {
-    buffered += chunk;
-    let at;
-    while ((at = buffered.indexOf('\0')) >= 0) {
-      const message = JSON.parse(buffered.slice(0, at));
-      buffered = buffered.slice(at + 1);
-      if (pending.has(message.id)) { pending.get(message.id)(message); pending.delete(message.id); }
-    }
-  });
-  const rpc = (method, params = {}, sessionId) => new Promise((ok, fail) => {
-    const id = ++serial;
-    pending.set(id, message => message.error ? fail(Error(message.error.message)) : ok(message.result));
-    browser.stdio[3].write(JSON.stringify({ id, method, params, sessionId }) + '\0');
+  const { rpc, close } = await openTestBrowser({
+    hardwarePreferred: !args.includes('--software'),
+    launchArgs: ['--window-size=1280,720', '--enable-precise-memory-info'],
+    timeoutMs: 120_000,
   });
   let stopMemory = false;
   const memorySamples = [];
@@ -53,16 +58,7 @@ for (const [version, file] of editions) {
         const { processInfo } = await rpc('SystemInfo.getProcessInfo');
         const ids = processInfo.map(info => info.id).filter(Number.isSafeInteger);
         if (ids.length) {
-          const command = `Get-Process | Where-Object { $_.Id -in @(${ids.join(',')}) } | Measure-Object -Property WorkingSet64 -Sum | Select-Object -ExpandProperty Sum`;
-          const args = ['-NoProfile', '-NonInteractive', '-Command', command];
-          let stdout;
-          try {
-            ({ stdout } = await execFileAsync('pwsh', args, { timeout: 5000 }));
-          } catch (pwshError) {
-            if (pwshError.code !== 'ENOENT') throw pwshError;
-            ({ stdout } = await execFileAsync('powershell', args, { timeout: 5000 }));
-          }
-          const bytes = Number(stdout.trim());
+          const bytes = await sampleProcessMemory(ids);
           if (Number.isFinite(bytes) && bytes > 0) memorySamples.push({ at: performance.now(), bytes, processes: ids.length });
         }
       } catch (error) {
@@ -105,7 +101,7 @@ for (const [version, file] of editions) {
     const coldMs = performance.now() - started;
     const renderer = await evalPage(`(()=>{const c=globalThis.__FORZERO__?globalThis.__FORZERO__.canvas:canvas;const g=c.getContext('webgl2'), e=g.getExtension('WEBGL_debug_renderer_info');return e?g.getParameter(e.UNMASKED_RENDERER_WEBGL):g.getParameter(g.RENDERER)})()`);
     console.log(version, 'renderer:', renderer);
-    if (/swiftshader|software|llvmpipe/i.test(renderer)) throw Error('Browser selected software rendering; hardware GPU comparison cannot be claimed');
+    if (baselineDir && usesSoftware(renderer)) throw Error('Browser selected software rendering; historical hardware GPU comparison requires a hardware renderer');
     await evalPage("(()=>{const f=globalThis.__FORZERO__;if(f){f.preferences.aa='fxaa';f.preferences.resolution='fast';f.setActiveWeather('day');f.race.freeRide()}else{preferences.aa='fxaa';preferences.resolution='fast';setActiveWeather('day');race.freeRide()}})()");
     const scenes = [];
     const campusSequence = Array.from({ length: cycles }, () => ['szu', 'ucl', 'shunde']).flat();
@@ -160,15 +156,24 @@ for (const [version, file] of editions) {
   } finally {
     stopMemory = true;
     await memoryMonitor;
-    browser.kill();
-    await new Promise(resolve => browser.once('exit', resolve));
-    rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    await close();
   }
 }
 for (const result of output) {
   assert.equal(result.renderer, output[0].renderer, 'Versions must run on the same GPU renderer');
   assert.ok(result.scenes.every(scene => scene.glError === 0), result.version + ' WebGL errors');
+  if (result.version !== currentVersion) continue;
+  const p95Limit = usesSoftware(result.renderer) ? currentBudget.softwareP95Ms : currentBudget.hardwareP95Ms;
+  for (const scene of result.scenes) {
+    const label = `${scene.campus} map cycle ${scene.cycle}`;
+    assert.ok(Number.isFinite(scene.p95) && scene.p95 <= p95Limit, `${label}: p95 ${scene.p95}ms exceeds ${p95Limit}ms`);
+    assert.ok(Number.isFinite(scene.sampledJsHeapPeak) && scene.sampledJsHeapPeak <= currentBudget.jsHeapBytes,
+      `${label}: JS heap peak ${scene.sampledJsHeapPeak} bytes exceeds ${currentBudget.jsHeapBytes}`);
+  }
+  if (measureMemory) assert.ok(result.sampledProcessPeak <= currentBudget.processBytes,
+    `Browser memory peak ${result.sampledProcessPeak} bytes exceeds ${currentBudget.processBytes}`);
 }
-const outFile = resolve(process.env.FORZERO_PERF_OUTPUT ?? 'scripts/fixtures/hardware-perf.json');
+const outFile = resolve(process.env.FORZERO_PERF_OUTPUT ?? 'dist-v2/hardware-perf.verify.json');
+mkdirSync(dirname(outFile), { recursive: true });
 writeFileSync(outFile, JSON.stringify(output, null, 2) + '\n');
 console.log('Saved', outFile);

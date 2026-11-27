@@ -57,7 +57,7 @@ import { createSettingsController } from './settings-dialog.js';
 import { updateDraftHud } from './draft-hud.js';
 import { initCustomSounds, playCustomSound, updateRideAudio } from './audio.js';
 import { getShowMapComparison, renderCampusMap, setShowMapComparison } from './minimap.js';
-import { bindSaveUi } from './save-sync.js';
+import { applyPendingSaveVehicle, bindSaveUi } from './save-sync.js';
 import { observeStageControls, showCameraMode } from './hud-controls.js';
 import {
   checkpointLabel, courseDescription, courseTitle, getLanguage, initLanguage, message,
@@ -357,6 +357,7 @@ function populateRaceReview() {
 }
 
 export function updateHud() {
+  applyPendingSaveVehicle();
   updateTravelButton();
   const online = Boolean(getOnlineRoom());
   if (online && (ShadowChase.active || BlindNav.active)) {
@@ -714,6 +715,7 @@ export function beginTrial() {
   ShadowChase.stop();
   BlindNav.leave(setActiveWeather);
   BlindNav.setEnabled(false);
+  applyPendingSaveVehicle({ restarting: true });
   clearInput();
   const launchMode = knownLaunchMode(ui.raceMode?.value);
   applyRaceOptions(ui, race);
@@ -1542,6 +1544,7 @@ function startSectorPractice(fromGate, toGate) {
   if (!ready || getOnlineRoom() || pendingCampus || race.event.campus !== getActiveCampus()) return;
   const gates = race.event.gates;
   if (fromGate < 0 || toGate <= fromGate || toGate >= gates.length) return;
+  applyPendingSaveVehicle({ restarting: true });
   clearInput();
   if(race.startPractice(fromGate,toGate)===false) {
     openSettings('bike');
@@ -1600,6 +1603,7 @@ function exitSectorPractice() {
 bindSaveUi({
   getOnlineRoom,
   isOnlineAppMode: getOnlineAppMode,
+  isVehicleRestoreLocked: () => ShadowChase.active,
   readPreferences,
   fillPreferences: settings.fillPreferences,
   applyTouchSize,

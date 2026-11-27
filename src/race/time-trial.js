@@ -75,6 +75,16 @@ export class TimeTrial {
 
   get progressEstimate() { return this.routeAnchor; }
 
+  /** @param {ReadonlySet<string>} keys */
+  refreshRestoredRecords(keys) {
+    for (const key of keys) this.sessionRecords.delete(key);
+    const entry = this.entryVehicle;
+    if (!keys.has(checkpointRecordKey(this.event, entry))) return;
+    this.bestRun = loadBest(this.event, entry);
+    this.best = this.bestRun?.time ?? null;
+    if (this.phase === 'free') this.reference = this.opponent ?? this.bestRun ?? vehicleBenchmark(this.event, entry).run;
+  }
+
   setBike(bike) {
     if (this.phase === 'race' || this.phase === 'count') return false;
     this.bike = this.rider.bike = bike;

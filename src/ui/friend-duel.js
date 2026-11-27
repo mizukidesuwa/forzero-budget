@@ -57,10 +57,16 @@ export function createFriendDuelController({
     const campusScores = friendScores.filter(score => score.campus === region);
     const seedCodes = new Set([region === 'shunde' ? null : weeklySeed(region), worldState.seedCourses[region]?.seed, ...campusScores.map(score => score.seed)]);
     const courseLabels = new Map(coursesByCampus[region].map(event => [event.id, courseTitle(event)]));
+    const custom = worldState.customCourses[region];
+    if (custom) courseLabels.set(custom.id, courseTitle(custom));
     for (const code of seedCodes) {
       if (!code) continue;
       const name = /^[SU]\d-W\d{8}$/.test(code) ? message`每周挑战 ${code}` : message`种子赛 ${code}`;
       courseLabels.set('seed-' + code, name);
+    }
+    for (const { courseId } of campusScores) {
+      if (courseLabels.has(courseId) || !/^network-[0-9a-f]{8}$/.test(courseId)) continue;
+      courseLabels.set(courseId, message`道路路线 · ${courseId.slice(8)}`);
     }
     setFriendOptions(ui.friendCourse, courseLabels, campusScores, 'courseId', course ?? ui.friendCourse.value);
     const courseScores = campusScores.filter(score => score.courseId === ui.friendCourse.value);

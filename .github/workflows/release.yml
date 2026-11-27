@@ -30,6 +30,21 @@ jobs:
             exit 1
           fi
       - run: npm ci
+      - name: Fetch the official Windows runtime and matching license
+        shell: pwsh
+        run: |
+          $nodeVersion = node -p process.version
+          $distribution = "node-$nodeVersion-win-x64"
+          $archive = Join-Path $env:RUNNER_TEMP "$distribution.zip"
+          $download = "https://nodejs.org/dist/$nodeVersion"
+          Invoke-WebRequest "$download/$distribution.zip" -OutFile $archive
+          $checksums = (Invoke-WebRequest "$download/SHASUMS256.txt").Content
+          $expected = ($checksums -split '\r?\n' | Where-Object { $_.EndsWith("  $distribution.zip") }) -split '\s+' | Select-Object -First 1
+          if (!$expected -or (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne $expected) {
+            throw "Node.js distribution checksum mismatch"
+          }
+          Expand-Archive -LiteralPath $archive -DestinationPath $env:RUNNER_TEMP -Force
+          "FORZERO_NODE_EXE=$(Join-Path $env:RUNNER_TEMP "$distribution/node.exe")" >> $env:GITHUB_ENV
       - run: npm run build:release -- --bundle-node
       - run: npm run verify:fast -- --skip-build
       - run: npm run release:stage -- --skip-build

@@ -1,5 +1,15 @@
 # 更新日志（CHANGELOG）
 
+## 2.5.3 — 存档、工坊影子、联机轮换与发行修复
+
+- 导入备份时刷新受影响的个人最佳缓存，并在返回自由骑行或重新发车时应用恢复的车辆配置，保持当局配件和发车资格一致。关联 `src/ui/save-sync.js`、`src/race/time-trial.js` 和 `src/ui/workshop-ui.js`。
+- 路线工坊影子随文件保存 R1 路线码。导入时重建路线并校验地图、赛道、方向与圈数、布局及检查点数量，支持在友人对战列表重玩。关联 `src/replay/ghost.js` 和 `src/ui/friend-duel.js`。
+- 联机捉人由服务端从在房玩家中轮换捉人者，比分结算保留离场记录。轮间预告读取服务端房间状态。关联 `server/room-rules.cjs`、`server/server.mjs` 和 `src/race/online-chase.js`。
+- GitHub 导出在独立暂存目录完成校验，只替换内容完整的旧导出。当前版本性能检查独立运行并对帧耗时、JS 堆和浏览器进程内存设立上限，历史对比通过显式参数启用。关联 `scripts/stage-release.mjs` 和 `scripts/verify-performance.mjs`。
+- Windows 便携包要求提供完整的 Node.js 许可。发行工作流校验官方 Windows x64 归档的 SHA-256 后从同一归档取用二进制和许可。桌面启动器优先迁移同级 2.5.2 存档。关联 `scripts/build.mjs`、`.github/workflows/release.yml` 和 `server/server.mjs`。
+- 通过 `npm run lint`、`npm run typecheck`、`npm run build:release:win`、`npm run verify:fast -- --skip-build`、导出源码树内的 `npm test` 与 `npm run verify:all -- --skip-build`。核对附件 SHA-256、官方 Node.js 许可及空 `PATH` 建房。地图、资产、物理和历史性能基线沿用原有数据。
+- `scripts/verify-hygiene.mjs` 继续报告 `src/ui/app.js` 行数，超过 1700 行时提示复核职责边界并继续校验。同步开发与贡献说明。通过 `npm run lint`、`npm run typecheck` 和 1700 行、1701 行的定向验证。无需更新基线。
+
 ## 2.5.2 — Windows 免安装便携 Node.js 运行时发行包
 
 - **自定义导入角色四肢动态联动（兼容无四肢/Q 版角色）**：新增 `// @ts-check` 契约模块 [src/ride/skin-animation.js](src/ride/skin-animation.js) 并接入 [src/ride/models.js](src/ride/models.js)、[src/ui/app.js](src/ui/app.js) 与 [src/data/rider-skin-prompt.js](src/data/rider-skin-prompt.js)；依据 `anchor`（`leftHand`/`rightHand`/`leftFoot`/`rightFoot`）及兜底四肢命名自动识别左右臂与左右腿，骑行自行车时恢复曲柄脚踏旋转并驱动腿脚自适应踩踏、手臂/手随车把转向，电自与越野小摩托同步驱动手臂随车把转向；未标四肢或无四肢角色与耳/尾配饰保持原样静态随车体动作，协议 `schemaVersion` 与 `skinSpecHash` 保持兼容，并在 [scripts/verify-data.mjs](scripts/verify-data.mjs) 新增四肢与无肢模型探针校验。

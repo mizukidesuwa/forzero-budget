@@ -132,8 +132,8 @@ export function createWorkshopController({
     ui.riderSkin.value = selectedSkin;
     ui.riderSkin.disabled = locked;
     if (!bicycle) {
-      const tuned = buildVehicleTuning(vehicle, vehicleTunings[vehicle]);
-      race.rider.tuning = tuned;
+      const tuned = locked ? race.rider.tuning : buildVehicleTuning(vehicle, vehicleTunings[vehicle]);
+      if (!locked) race.rider.tuning = tuned;
       setText(ui.vehicleNote, vehicle === 'trail' ? '长行程越野避震提升碎石抓地。' :
         vehicle === 'ebike' ? '宽齿防滑胎提升碎石抓地。' : '户外越野轮提升碎石抓地。');
       const slots = vehicleTuningChoices[vehicle] ?? [];

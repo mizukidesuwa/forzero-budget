@@ -5,6 +5,8 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { openTestBrowser } from './browser-runner.mjs';
+import { makeGhostFile } from '../src/replay/ghost.js';
+import { buildCustomNetworkRoute, buildRidingScene, makeNetworkCourse, networkForCampus, setActiveCampus } from '../src/test-exports.js';
 
 const desktop = resolve(process.env.FORZERO_RELEASE_DIR ??
   (existsSync('dist-v2/desktop/index.html') ? 'dist-v2/desktop' : '.'));
@@ -57,6 +59,17 @@ try {
     } f.closeSettings()})()`);
   }
 
+  async function uploadGhost(ghost) {
+    await evaluate(`(()=>{
+      const f=__FORZERO__;
+      f.race.freeRide();f.ui.friendButton.click();
+      const upload = new DataTransfer();
+      upload.items.add(new File([${JSON.stringify(JSON.stringify(ghost))}], 'regression.ghost.json', {type:'application/json'}));
+      f.ui.friendFile.files = upload.files;
+      f.ui.friendFile.dispatchEvent(new Event('change'));
+    })()`);
+  }
+
   await wait('globalThis.__FORZERO__?.ready===true', 'Game initialization timed out');
   await wait("__FORZERO__.ui.fpsCounter && !__FORZERO__.ui.fpsCounter.hidden && /^FPS [0-9]+$/.test(__FORZERO__.ui.fpsCounter.textContent)", 'FPS HUD did not update');
   assert.equal(await evaluate('document.documentElement.lang'), 'zh-CN');
@@ -81,6 +94,53 @@ try {
     await f.applySaveSnapshot(save,{preferIncoming:true});
   })()`);
   assert.deepEqual(await evaluate('[__FORZERO__.preferences.hudScale,__FORZERO__.preferences.touchSize,__FORZERO__.preferences.cameraView]'), [115, 110, 'third']);
+  await evaluate(`(()=>{
+    const f=__FORZERO__, r=f.race;
+    globalThis.finishBackupTrial = time => {
+      r.splits = r.event.gates.map((_, i) => time * i / (r.event.gates.length - 1));
+      r.finishAt(time);
+    };
+    r.start();
+    finishBackupTrial(120000);
+    r.start();
+    f.openSettings();
+    const key=f.checkpointRecordKey(r.event, r.rider.vehicle);
+    const previous=JSON.parse(localStorage.getItem(key));
+    const restored={...previous, time:100000, splits:previous.splits.map(t=>t*5/6),
+      samples:previous.samples.map(([t,...pose])=>[t*5/6,...pose])};
+    const backup={format:'litchi-save', version:1, storage:{
+      [key]:JSON.stringify(restored), 'szu-litchi-bike-1':JSON.stringify({tyres:'traction'})
+    }};
+    const upload=new DataTransfer();
+    upload.items.add(new File([JSON.stringify(backup)], 'backup.json', {type:'application/json'}));
+    f.ui.saveFile.files=upload.files;
+    f.ui.saveFile.dispatchEvent(new Event('change'));
+  })()`);
+  await wait('__FORZERO__.race.best===100000 && __FORZERO__.ui.saveStatus.textContent.length>0', 'Restored personal best did not refresh while a trial was active');
+  assert.deepEqual(await evaluate(`(()=>{
+    const r=__FORZERO__.race;
+    return [r.phase, r.reference.time, r.bike.tyres, r.rider.bike.tyres, r.unranked];
+  })()`), ['count', 120000, 'stock', 'stock', false]);
+  await evaluate('finishBackupTrial(110000);__FORZERO__.closeSettings()');
+  assert.deepEqual(await evaluate(`(()=>{
+    const f=__FORZERO__,r=f.race;
+    return [r.record,JSON.parse(localStorage.getItem(f.checkpointRecordKey(r.event,r.rider.vehicle))).time,r.rider.bike.tyres];
+  })()`), [false, 100000, 'stock']);
+  await evaluate('__FORZERO__.ui.freeRide.click()');
+  await wait("__FORZERO__.race.phase==='free' && __FORZERO__.race.rider.bike.tyres==='traction'", 'Restored tyres did not apply after returning to free ride');
+  await evaluate(`(async()=>{
+    const f=__FORZERO__,r=f.race;
+    r.start(); f.openSettings();
+    await f.applySaveSnapshot({format:'litchi-save',version:1,storage:{'szu-litchi-bike-1':'{"tyres":"race"}'}},{preferIncoming:true});
+    if(r.rider.bike.tyres!=='traction') throw Error('Active setup changed on restore');
+    finishBackupTrial(110000);
+    f.closeSettings();
+    f.ui.startTrial.click();
+    delete globalThis.finishBackupTrial;
+  })()`);
+  await wait("__FORZERO__.race.phase==='count' && __FORZERO__.race.rider.bike.tyres==='race'", 'Restored tyres did not apply on direct restart');
+  await evaluate('__FORZERO__.ui.freeRide.click()');
+
   const expand = await evaluate('(()=>{const r=__FORZERO__.ui.expand.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()');
   await rpc('Input.dispatchMouseEvent',{type:'mousePressed',...expand,button:'left',clickCount:1},sessionId);
   await rpc('Input.dispatchMouseEvent',{type:'mouseReleased',...expand,button:'left',clickCount:1},sessionId);
@@ -97,14 +157,7 @@ try {
   assert.equal(await evaluate('__FORZERO__.stage.dataset.cameraView'), 'third');
   for (const campus of ['szu', 'ucl', 'shunde']) {
     const ghost = fixtures[campus].ghost;
-    await evaluate(`(()=>{
-      const f=__FORZERO__;
-      f.race.freeRide();f.ui.friendButton.click();
-      const upload = new DataTransfer();
-      upload.items.add(new File([${JSON.stringify(JSON.stringify(ghost))}], 'regression.ghost.json', {type:'application/json'}));
-      f.ui.friendFile.files = upload.files;
-      f.ui.friendFile.dispatchEvent(new Event('change'));
-    })()`);
+    await uploadGhost(ghost);
     await wait(`__FORZERO__.activeCampus===${JSON.stringify(campus)} && __FORZERO__.race.event.id===${JSON.stringify(ghost.course.id)} && __FORZERO__.race.opponent?.name===${JSON.stringify(ghost.rider.name)} && !__FORZERO__.ui.friendDialog.open`, `${campus} ghost import or map travel failed`);
     assert.equal(await evaluate('__FORZERO__.race.opponent.time'), ghost.run.time);
     assert.equal(await evaluate(`/[\\p{Script=Han}]/u.test(__FORZERO__.ui.courseBrief.textContent + __FORZERO__.ui.stationList.textContent + __FORZERO__.ui.campusName.textContent)`), false, `${campus} course copy or checkpoint names`);
@@ -125,6 +178,23 @@ try {
     await evaluate('__FORZERO__.ui.freeRide.click()');
     await wait("__FORZERO__.race.phase==='free'", `${campus} failed to return to free ride`);
     console.log(campus, 'weekly route selected and started', weeklyCode);
+
+    setActiveCampus(campus);
+    buildRidingScene(campus);
+    const network = networkForCampus(campus);
+    const waypoints = Object.keys(network.endpoints).slice(0, 3);
+    const route = buildCustomNetworkRoute(campus, waypoints, network);
+    assert.equal(route.valid, true);
+    const event = makeNetworkCourse(route.route, network);
+    const networkGhost = makeGhostFile(event, { ...event.benchmark, vehicle: 'bike' }, { name: 'Workshop QA', paint: 'classic' });
+    await uploadGhost(networkGhost);
+    await wait(`__FORZERO__.race.event.id===${JSON.stringify(event.id)} && __FORZERO__.race.opponent?.name==='Workshop QA' && !__FORZERO__.ui.friendDialog.open`,
+      `${campus} workshop ghost did not reconstruct its course`);
+    await evaluate('__FORZERO__.ui.friendButton.click()');
+    await wait("Boolean(__FORZERO__.ui.friendScores.querySelector('.friend-play:not(:disabled)'))", `${campus} workshop ghost was missing from the archive`);
+    assert.equal(await evaluate('__FORZERO__.ui.friendCourse.value'), event.id);
+    await evaluate("__FORZERO__.ui.friendScores.querySelector('.friend-play').click()");
+    await wait("__FORZERO__.race.opponent?.name==='Workshop QA' && !__FORZERO__.ui.friendDialog.open", `${campus} archive could not reload workshop ghost`);
   }
   await evaluate(`(()=>{
     const u=__FORZERO__.ui;

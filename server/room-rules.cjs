@@ -175,6 +175,22 @@ function beginTuning(room,now) {
   for (const player of room.players.values()) player.ready = false;
 }
 
+/**
+ * @param {{ format: string, phase: string, roster?: { id: string }[], players: Map<string, { id: string }>,
+ *   history: { chase?: { hunterId: string } }[] }} room
+ * @returns {string | null}
+ */
+function nextChaseHunterId(room) {
+  if (room.format !== 'chase' || room.phase === 'done') return null;
+  const roster = room.roster?.length ? room.roster : [...room.players.values()];
+  const previous = roster.findIndex(player => player.id === room.history.at(-1)?.chase?.hunterId);
+  for (let offset = 1; offset <= roster.length; offset++) {
+    const { id } = roster[(previous + offset) % roster.length];
+    if (room.players.has(id)) return id;
+  }
+  return null;
+}
+
 function beginRoomRound(room,now) {
   lockRoomVehicle(room);
   const blocked=roomBudgetProblems(room);
@@ -190,7 +206,7 @@ function beginRoomRound(room,now) {
   room.tuning = null;
   const goAt = now+5000;
   const isChase = room.format === 'chase';
-  const hunterId = isChase ? room.roster[room.history.length % room.roster.length].id : null;
+  const hunterId = nextChaseHunterId(room);
   room.round = {number:room.history.length+1,goAt,deadline:goAt+(isChase?ONLINE_CHASE_RULES.durationMs:20*60_000),
     trafficSeed:randomBytes(4).readUInt32LE(),
     windSeed:randomBytes(4).readUInt32LE(),windMode:room.windMode,budget,blindSeed,
@@ -211,5 +227,5 @@ function beginRoomRound(room,now) {
   return [];
 }
 
-module.exports = {ROOM_ROUNDS,ALL_ROUND_VEHICLES,ONLINE_CHASE_RULES,lockRoomVehicle,tally,settle,settleChaseRound,tagChaseRunner,retire,beginTuning,beginRoomRound,
+module.exports = {ROOM_ROUNDS,ALL_ROUND_VEHICLES,ONLINE_CHASE_RULES,lockRoomVehicle,tally,settle,settleChaseRound,tagChaseRunner,retire,beginTuning,beginRoomRound,nextChaseHunterId,
   roomVehicle,roomParts,roomBuildProblem,roomBudgetProblems,blindBudget};
