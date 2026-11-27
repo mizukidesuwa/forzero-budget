@@ -1,4 +1,15 @@
+// @ts-check
+
+/**
+ * Emit a curved-arm campus street lamp facing `direction`.
+ * @param {{ x: number, z: number, direction: readonly [number, number, number] }} spec
+ * @param {{ scenery: { box: Function, tube: Function } }} sinks
+ */
 export function emitStreetLamp({ x, z, direction: dir }, { scenery }) {
+  /**
+   * @param {number} u
+   * @param {number} y
+   */
   const at = (u, y) => [x + dir[0] * u, y, z + dir[2] * u];
   const paint = '#495a50';
   scenery.tube(at(0, 0), at(0, .27), .115, .083, paint, 6);
@@ -10,6 +21,11 @@ export function emitStreetLamp({ x, z, direction: dir }, { scenery }) {
   scenery.box(at(.80, 3.555), [.25, .045, .15], '#ded9b9', yaw);
 }
 
+/**
+ * Emit a London-style square topped street lantern.
+ * @param {{ x: number, z: number }} spec
+ * @param {{ scenery: { box: Function, tube: Function } }} sinks
+ */
 export function emitLondonLantern({ x, z }, { scenery }) {
   scenery.tube([x,0,z],[x,3.13,z],.093,.046,'#444a49',6,false);
   scenery.box([x,3.37,z],[.34,.42,.34],'#d8c9a4',Math.PI/4);

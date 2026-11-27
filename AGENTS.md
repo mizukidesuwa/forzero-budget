@@ -35,7 +35,7 @@
 ## 修改原则
 
 - 新增参数和规则放在 src/data/，不要把魔法数字散落在物理、地图或 UI 中。
-- 新增可复用的围挡、灯、树、车辆或场景网格时，在 src/world/assets/ 创建 emitXxx(spec, dependencies) 形式的纯函数。资产模块不得读取全局 worldState、消费全局随机流或操作 DOM。
+- 新增可复用的围挡、栏杆、树、街具、路灯、车辆或场景网格时，在 src/world/assets/ 对应分类模块（`trees.js`、`rail-fence.js`、`street-furniture.js`、`lamps.js`、`barriers.js`、`traffic-vehicles.js`、`campus-v220.js`）创建或扩展 emitXxx(spec, dependencies) 形式的纯函数，并在 `src/world/assets/index.js` 统一重导出，不要把同类小件建模再内联堆入地图主文件。资产模块不得读取全局 worldState、消费全局随机流或操作 DOM。
 - 地图特有逻辑通过地图注册和查询接口接入。不要继续向 src/world/maps/szu.js、src/world/maps/ucl.js、src/ui/app.js 等聚合文件直接堆叠独立子系统。修改 app.js 时按修改区块增量拆分并运行浏览器验收。
 - 已稳定的地图主文件和 src/online/client.js 不做没有收益的强行拆分。
 - 客户端与服务端共用的配件、价格、预算和协议规则必须同时检查两侧。违禁配件成绩不得进入正式存档、勋章或官方影子。

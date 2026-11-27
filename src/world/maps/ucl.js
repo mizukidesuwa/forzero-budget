@@ -8,7 +8,7 @@ import { cityVehicles } from '../geometry.js';
 import { brakingCorners, buildCornerCuts } from '../../race/records.js';
 import { referenceCornerScores } from '../../replay/ghost.js';
 import { emitLondonLantern } from '../assets/lamps.js';
-import { emitRailFence } from '../assets/rail-fence.js';
+import { emitIronGateRail, emitRailFence, emitSlopedCourtRail } from '../assets/rail-fence.js';
 import { emitUclArrivalCourtDetails, emitUclGardenDetails, emitUclStreetWall, emitUclUrbanInfill } from '../assets/campus-v220.js';
 import { OBSTACLE_MARGIN, treeBlocks, uclFixtureAt } from '../collision-index.js';
 import {
@@ -472,18 +472,11 @@ function frontLodgeBuilding(lot) {
   lotBox(vent,0,4.61,0,vent.w+.19,.091,vent.depth+.18,'#434d52');
 }
 
-function mainGateRail(a,b,tall=1.68) {
-  const [x,z]=a,[xx,zz]=b, span=Math.hypot(xx-x,zz-z);
-  const yaw=-Math.atan2(zz-z,xx-x),iron='#202729';
-  const [cx,cz]=[mix(x,xx,.5),mix(z,zz,.5)];
-  for(const y of [.23,tall-.21]) masonry.box([cx,y,cz],[span,.056,.063],iron,yaw);
-  const bars=Math.ceil(span/.177);
-  for(let i=0;i<=bars;i++) {
-    const t=i/bars,bx=mix(x,xx,t),bz=mix(z,zz,t);
-    masonry.box([bx,tall/2,bz],[.034,tall-.07,.034],iron);
-    masonry.tube([bx,tall-.045,bz],[bx,tall+.047,bz],.033,.002,iron,5);
-  }
-  uclFixtures.push(campusFootprint(cx,cz,span,.085,yaw,tall));
+function mainGateRail(a, b, tall = 1.68) {
+  emitIronGateRail({ from: a, to: b, height: tall }, {
+    masonry,
+    footprint: (...args) => uclFixtures.push(campusFootprint(...args)),
+  });
 }
 
 function mainQuadGates() {
@@ -2041,13 +2034,8 @@ function senateForecourt() {
   }
 }
 
-function campusCourtRail(lot,z) {
-  const base=lotPoint(lot,-7.2,1.19,z),top=lotPoint(lot,6.72,6.09,z);
-  scenery.tube(base,top,.065,.065,'#817867',6);
-  for(let i=0;i<=10;i++) {
-    const p=lotPoint(lot,-7.2+i*1.392,1.19+i*.49,z);
-    scenery.tube(add(p,[0,-.94,0]),p,.038,.038,'#817867',5);
-  }
+function campusCourtRail(lot, z) {
+  emitSlopedCourtRail({ point: (u, y, v) => lotPoint(lot, u, y, v), z }, { scenery });
 }
 
 function renderLondonBuilding(lot,shopLabels) {

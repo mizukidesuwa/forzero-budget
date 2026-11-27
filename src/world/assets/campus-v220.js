@@ -1,36 +1,13 @@
-import { clamp, lerpPoint } from '../../core/math.js';
+import { clamp } from '../../core/math.js';
+import { emitStoneRail } from './rail-fence.js';
+import { emitCourtyardBench, emitPlanter } from './street-furniture.js';
+import { emitLowTree } from './trees.js';
 
 function bounds(outline) {
   const xs = outline.map(([x]) => x), zs = outline.map(([, z]) => z);
   return {
     minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs),
   };
-}
-
-function emitLowTree({ x, z, size, crown }, { scenery, foliage }) {
-  const h = 2.45 * size;
-  scenery.tube([x, .02, z], [x, h, z], .13 * size, .07 * size, '#6d5d45', 6, false);
-  foliage.ellipsoid([x, h + .18 * size, z], [1.15 * size, .92 * size, 1.04 * size], crown, 8, 4);
-  foliage.ellipsoid([x - .42 * size, h - .05 * size, z + .18 * size],
-    [.72 * size, .58 * size, .70 * size], crown, 7, 3);
-  foliage.ellipsoid([x + .38 * size, h + .06 * size, z - .16 * size],
-    [.68 * size, .55 * size, .64 * size], crown, 7, 3);
-}
-
-function emitPlanter({ x, z, width, depth, paving, planter }, { pavement, scenery }) {
-  pavement.box([x, .035, z], [width, .07, depth], paving);
-  scenery.box([x, .19, z - depth * .47], [width, .30, .18], planter);
-  scenery.box([x, .19, z + depth * .47], [width, .30, .18], planter);
-  scenery.box([x - width * .47, .19, z], [.18, .30, depth], planter);
-  scenery.box([x + width * .47, .19, z], [.18, .30, depth], planter);
-}
-
-function emitBench({ x, z, yaw = 0 }, { scenery }) {
-  const c = Math.cos(yaw), s = Math.sin(yaw);
-  const point = (u, y, v = 0) => [x + c * u - s * v, y, z + s * u + c * v];
-  for (const side of [-.72, .72]) scenery.box(point(side, .27), [.12, .54, .54], '#46564e', yaw);
-  for (let i = 0; i < 4; i++) scenery.box(point(0, .47, -.19 + i * .125), [1.95, .08, .09], i % 2 ? '#b78455' : '#c3925e', yaw);
-  scenery.box(point(0, .75, -.21), [1.95, .08, .08], '#a6754e', yaw);
 }
 
 // Formal gardens and squares from the UCL campus map receive a central axis,
@@ -42,8 +19,8 @@ export function emitUclGardenDetails(spec, sinks) {
   const width = clamp(box.maxX - box.minX, 18, 82), depth = clamp(box.maxZ - box.minZ, 18, 82);
   const axis = Math.min(width, depth) * .50;
   emitPlanter({ x: cx, z: cz, width: Math.max(4.2, width * .12), depth: Math.max(3.2, depth * .08), paving, planter }, sinks);
-  emitBench({ x: cx - axis * .42, z: cz, yaw: Math.PI / 2 }, sinks);
-  emitBench({ x: cx + axis * .42, z: cz, yaw: -Math.PI / 2 }, sinks);
+  emitCourtyardBench({ x: cx - axis * .42, z: cz, yaw: Math.PI / 2 }, sinks);
+  emitCourtyardBench({ x: cx + axis * .42, z: cz, yaw: -Math.PI / 2 }, sinks);
   for (let row = 0; row < treeRows; row++) {
     const t = (row + 1) / (treeRows + 1);
     const span = Math.max(4, width * (.28 + row * .08));
@@ -206,18 +183,6 @@ export function emitSzuFrontageDetails(spec, sinks) {
     sinks.scenery.box([px, .52, pz], [.58, 1.04, .58], style.shade);
     sinks.scenery.box([px, 1.14, pz], [.72, .12, .72], style.canopy);
   }
-}
-
-function emitStoneRail({ from, to, height, rail }, { scenery }) {
-  const [x, z] = from, [xx, zz] = to;
-  const length = Math.hypot(xx - x, zz - z), yaw = -Math.atan2(zz - z, xx - x);
-  const count = Math.max(2, Math.ceil(length / 2.2));
-  for (let i = 0; i <= count; i++) {
-    const t = i / count;
-    const [px, , pz] = lerpPoint([x, 0, z], [xx, 0, zz], t);
-    scenery.box([px, height * .5, pz], [.22, height, .22], rail, yaw);
-  }
-  scenery.box([(x + xx) / 2, height * .82, (z + zz) / 2], [length, .16, .16], rail, yaw);
 }
 
 // The real Shunfengshan gate opens onto a broad paved forecourt with low stone

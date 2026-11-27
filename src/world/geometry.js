@@ -7,6 +7,7 @@ import { Shape } from '../core/shape.js';
 import { getActiveCampus } from '../core/state.js';
 import { getCampusProvider } from './registry.js';
 import { emitStreetLamp } from './assets/lamps.js';
+import { emitParkBench } from './assets/street-furniture.js';
 import { emitDeciduous, emitPalm } from './assets/trees.js';
 
 export const terrain = new Shape();
@@ -92,14 +93,7 @@ export function plate(canvas, center, width, height, yaw = 0, layer = signs) {
 }
 
 export function bench(x, z, yaw) {
-  const m = placement([x, 0, z], 0, yaw);
-  const box = (p, size, color) => scenery.box(transform(m, p), size, color, yaw);
-  for (const d of [-.79, .79]) {
-    box([d, .235, 0], [.10, .47, .58], '#3f5145');
-    box([d, .59, -.23], [.075, .67, .072], '#3c4b3f');
-  }
-  for (let i = 0; i < 5; i++) box([0, .451, -.245 + i * .112], [2.07, .078, .088], i % 2 ? '#b88755' : '#c68c59');
-  for (let i = 0; i < 3; i++) box([0, .65 + i * .14, -.25], [2.07, .102, .069], '#ab784d');
+  emitParkBench({ x, z, yaw }, { scenery });
 }
 
 export function lamppost(x, z, dir) {

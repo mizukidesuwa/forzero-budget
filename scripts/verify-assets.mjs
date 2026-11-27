@@ -4,6 +4,21 @@ import * as game from '../src/test-exports.js';
 import { emitBarrier } from '../src/world/assets/barriers.js';
 import { emitLondonTrafficVehicle } from '../src/world/assets/traffic-vehicles.js';
 import { emitRailFence } from '../src/world/assets/rail-fence.js';
+import {
+  emitCityTrafficVehicle,
+  emitCourtyardBench,
+  emitGatePalm,
+  emitIronGateRail,
+  emitLowHedgeBorder,
+  emitLowTree,
+  emitMountainTree,
+  emitParkBench,
+  emitParkShuttleVehicle,
+  emitPlanter,
+  emitSlopedCourtRail,
+  emitStoneRail,
+  emitTrailPost,
+} from '../src/world/assets/index.js';
 
 const fence = game.gordonNorthFence;
 const fakeGpu = { Mesh: class { } };
@@ -86,6 +101,34 @@ game.withRandom(() => { throw Error('2.1 assets consumed the map random stream')
 assert.deepEqual(barrierFootprints[0].slice(0, 5), [0, 0, 8, .34, .5]);
 for (const shape of [sampleBarrier, sampleCab, sampleBus]) {
   assert.ok(shape.indices.length > 0 && shape.indices.length / 3 <= 480);
+  assert.ok(shape.vertices.every(Number.isFinite));
+}
+
+const propShapes = Array.from({ length: 12 }, () => new game.Shape());
+const gateRailFootprints = [];
+const gatePalmSolids = [];
+game.withRandom(() => { throw new Error('Pure prop consumed the map random stream'); }, () => {
+  emitLowTree({ x: 0, z: 0, size: 1, crown: '#5f8148' }, { scenery: propShapes[0], foliage: propShapes[0] });
+  emitMountainTree({ x: 0, y: 1, z: 0, height: 4.5, roadside: true, withTrunk: true }, { scenery: propShapes[1], foliage: propShapes[1] });
+  emitGatePalm({ point: (u, y, v) => [u, y, v], u: 0, v: 0, height: 3.4 }, { scenery: propShapes[2], foliage: propShapes[2], solid: (...args) => gatePalmSolids.push(args) });
+  emitStoneRail({ from: [0, 0], to: [0, 6], height: 1.05, rail: '#c8bea7' }, { scenery: propShapes[3] });
+  emitIronGateRail({ from: [0, 0], to: [4, 0], height: 1.68 }, { masonry: propShapes[4], footprint: (...args) => gateRailFootprints.push(args) });
+  emitLowHedgeBorder({ x: 0, z: 0, length: 2.4, yaw: .25 }, { scenery: propShapes[5] });
+  emitSlopedCourtRail({ point: (u, y, v) => [u, y, v], z: 0 }, { scenery: propShapes[6] });
+  emitParkBench({ x: 0, z: 0, yaw: .4 }, { scenery: propShapes[7] });
+  emitCourtyardBench({ x: 0, z: 0, yaw: -.4 }, { scenery: propShapes[8] });
+  emitPlanter({ x: 0, z: 0, width: 4, depth: 3, paving: '#c8c0ad', planter: '#b6aa94' }, { pavement: propShapes[9], scenery: propShapes[9] });
+  emitTrailPost({ x: 0, y: .5, z: 0, firm: true }, { masonry: propShapes[10] });
+  emitCityTrafficVehicle({ paint: '#5d9f92', bus: false }, { shape: propShapes[11] });
+  emitCityTrafficVehicle({ paint: '#5d9f92', bus: true }, { shape: propShapes[11] });
+  emitParkShuttleVehicle({ paint: '#5c9a79' }, { shape: propShapes[11] });
+});
+assert.equal(gatePalmSolids.length, 1);
+assert.equal(gateRailFootprints.length, 1);
+assert.deepEqual(gateRailFootprints[0].slice(0, 4), [2, 0, 4, .085]);
+assert.equal(gateRailFootprints[0][5], 1.68);
+for (const shape of propShapes) {
+  assert.ok(shape.indices.length > 0);
   assert.ok(shape.vertices.every(Number.isFinite));
 }
 

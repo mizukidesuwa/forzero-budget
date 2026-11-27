@@ -12,6 +12,9 @@ import {
 } from '../geometry.js';
 import { registerCampus } from '../registry.js';
 import { emitShundeGateDetails } from '../assets/campus-v220.js';
+import { emitTrailPost } from '../assets/street-furniture.js';
+import { emitParkShuttleVehicle } from '../assets/traffic-vehicles.js';
+import { emitMountainTree } from '../assets/trees.js';
 import { shundeGateDetailStyle } from '../../data/map-assets.js';
 
 import { createShundeCourses, parkStops } from './shunde/courses.js';
@@ -427,14 +430,8 @@ export function buildParkWorld() {
 }
 
 export function parkShuttleModel(paint) {
-  const m = new Shape(), l = 3.75, w = 1.42;
-  m.box([0, .42, 0], [l, .34, w], paint);
-  m.box([.25, .84, 0], [l * .68, .46, w * .84], '#e6dec6');
-  m.box([1.48, .76, 0], [.52, .36, w * .92], '#4e6d74');
-  m.box([-.05, 1.80, 0], [l * .84, .09, w * .94], '#f2ede0');
-  for (const x of [-1.25, 1.25]) for (const z of [-.58, .58]) m.box([x, 1.18, z], [.08, 1.22, .08], '#3c4743');
-  for (const x of [-1.18, 1.18]) for (const side of [-1, 1]) m.tube([x, .26, side * .60], [x, .26, side * .74], .24, .24, '#303837', 8);
-  for (const x of [-l * .505, l * .505]) for (const side of [-1, 1]) m.box([x, .44, side * w * .32], [.06, .10, .20], x < 0 ? '#cf6552' : '#ede8bd');
+  const m = new Shape();
+  emitParkShuttleVehicle({ paint }, { shape: m });
   return m;
 }
 
@@ -646,8 +643,7 @@ export function buildShundeShortcutVisuals() {
     for (const [px, pz] of cut.posts) {
       const h = parkHeight(px, pz);
       campusFixtures.push({ name: cut.name + '护桩', x: px, z: pz, w: .60, depth: .60, height: h + 1.05, yaw: 0, c: 1, s: 0 });
-      masonry.box([px, h + .46, pz], [.50, .92, .50], cut.firm ? '#b6a88d' : '#7d6850');
-      masonry.box([px, h + .96, pz], [.56, .12, .56], '#d96b43');
+      emitTrailPost({ x: px, y: h, z: pz, firm: cut.firm }, { masonry });
     }
   }
 }
@@ -657,8 +653,6 @@ export function plantMountainTree(x, z, height) {
   if (near && near.gap < near.lane.path.width + 2.8) return;
   if (x < 194 && parkPaved(x, z, -4)) return;
   if (shundeShortcutAt(x, z, -2.2)) return;
-  const y = mountainHeight(x, z), roadside = near && near.gap < 15;
-  foliage.ellipsoid([x, y + height * .73, z], [height * .52, height * .47, height * .51],
-    height > 5 ? '#4f7245' : '#668248', roadside ? 7 : 6, roadside ? 4 : 3);
-  if (roadside || !near || height >= 4.5) scenery.tube([x, y - .13, z], [x, y + height * .73, z], .15, .07, '#756750', 4, false);
+  const y = mountainHeight(x, z), roadside = Boolean(near && near.gap < 15);
+  emitMountainTree({ x, y, z, height, roadside, withTrunk: Boolean(roadside || !near || height >= 4.5) }, { scenery, foliage });
 }

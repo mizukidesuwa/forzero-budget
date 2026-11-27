@@ -33,6 +33,9 @@ import {
 } from './szu/layout.js';
 import { emitSzuBarriers } from './szu/barriers.js';
 import { emitSzuFrontageDetails } from '../assets/campus-v220.js';
+import { emitLowHedgeBorder } from '../assets/rail-fence.js';
+import { emitCityTrafficVehicle } from '../assets/traffic-vehicles.js';
+import { emitGatePalm } from '../assets/trees.js';
 import { szuFrontageDetailStyles } from '../../data/map-assets.js';
 import { dujuanHill, hillHeight, hillGrade, hillNormal, szuRiderGrade, flyover, flyoverHeight, flyoverAt } from './szu/terrain.js';
 import {
@@ -1136,21 +1139,8 @@ function westGateWing(f,side) {
   for(let i=0;i<5;i++) box(side*5.01,.039,6.24+.5*i,2.38,.013,.17,'#dedbc7',masonry);
 }
 
-function gatePalm(f,u,v,h) {
-  const {p,solid}=f,root=p(u,0,v),top=p(u+.18,h,v-.15);
-  scenery.tube(root,top,.14,.087,'#8e8271',8);
-  for(let i=0;i<13;i++) {
-    const a=i*2.39996,len=1.65+.22*(i%4);
-    const frond=(t,off)=>p(u+.18+Math.cos(a)*len*t-Math.sin(a)*off,
-      h+.8*Math.sin(t*Math.PI)-.46*t*t,v-.15+Math.sin(a)*len*t+Math.cos(a)*off);
-    for(let j=0;j<5;j++) {
-      const t=j/5,next=(j+1)/5,wide=.24*Math.sin(Math.PI*(next-.08));
-      const tip=frond(next,0),base=frond(t,0);
-      for(const side of [-1,1]) foliage.triangle(base,tip,frond((t+next)/2,wide*side),
-        (i+j)%3?'#557d45':'#79964e',[.07,.96,.16]);
-    }
-  }
-  solid(u,v,.30,.30,h);
+function gatePalm(f, u, v, h) {
+  emitGatePalm({ point: f.p, u, v, height: h }, { scenery, foliage, solid: f.solid });
 }
 
 function lideGate(gate) {
@@ -1671,17 +1661,9 @@ function metroEntrance() {
   placeTravelSign(x+4.3,z+2.53,'站点旅行','选择目的地');
 }
 
-function vehicleModel(paint,bus) {
-  const model=new Shape(), w=bus?2.19:1.58, l=bus?7.9:3.78, top=bus?2.49:1.24;
-  model.box([0,top*.50,0],[l,top*.73,w],paint);
-  model.box([-.09,top*.82,0],[l*(bus?.92:.53),top*.34,w*.94],'#4e7680');
-  model.box([-.05,top*.989,0],[l*(bus?.98:.53),.085,w*.96],tint(paint,1.10));
-  for(const x of [-l*.29,l*.30]) for(const side of [-1,1]) {
-    model.tube([x,.30,side*w*.42],[x,.30,side*w*.528],.285,.285,'#363e3d',9);
-  }
-  for(const x of [-l*.507,l*.507]) for(const side of [-1,1]) {
-    model.box([x,.55,w*side*.303],[.058,.10,.22],x<0?'#cf6552':'#ede8bd');
-  }
+function vehicleModel(paint, bus) {
+  const model = new Shape();
+  emitCityTrafficVehicle({ paint, bus }, { shape: model });
   return model;
 }
 
@@ -1891,9 +1873,7 @@ function fenceOpenAt(x, z) {
 }
 
 function drawLowBorder(x, z, len, yaw) {
-  scenery.box([x, .14, z], [len, .28, .34], '#b4ac95', yaw);
-  scenery.box([x, .31, z], [len, .06, .40], '#c8c0a9', yaw);
-  scenery.box([x, .53, z], [len, .38, .28], '#63804c', yaw);
+  emitLowHedgeBorder({ x, z, length: len, yaw }, { scenery });
 }
 
 function szuBorderClear(x, z) {
