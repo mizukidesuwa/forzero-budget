@@ -18,7 +18,7 @@ import { advanceMapReplay, mapReplay, replayGapAt } from '../replay/map-replay.j
 import { soloBudget } from '../ride/budget.js';
 import {
   FRONT, REAR, TYRE_RADIUS, bicycleRigCache, bicycleRock, movingParts,
-  poweredPose, riderSkinBodyCache, uploadPoweredRig,
+  movingPoweredSkinArms, poweredPose, riderSkinBodyCache, uploadPoweredRig,
 } from '../ride/models.js';
 import { vehicleSkills } from '../ride/physics.js';
 import { tuning190 } from '../ride/tuning-rules.js';
@@ -1131,7 +1131,8 @@ function run() {
   let ownSkin=null,friendSkin=null,remoteSkins=new Map();
   const getRig=kind=>motorRigs.get(kind);
   const resolveSkinEntry=profile=>riderSkins.prepare(skinForProfile(profile));
-  const activeSkinMesh=(entry,vehicle)=>entry&&skinAllowedOnVehicle(entry.skin,vehicle)?entry.mesh:null;
+  const activeSkinMesh=(entry,vehicle)=>entry&&skinAllowedOnVehicle(entry.skin,vehicle)
+    ?(vehicle==='bike'?entry.bikeBodyMesh:vehicle==='chair'?entry.mesh:entry.poweredBodyMesh):null;
   function prepareMotor(vehicle) {
     if(vehicle!=='bike'&&!motorRigs.has(vehicle)) motorRigs.set(vehicle,uploadPoweredRig(gpu,vehicle));
   }
@@ -1192,8 +1193,10 @@ function run() {
     const skinEntry=ghost.id?(remoteSkins.get(ghost.id)??(ghost.skin?riderSkins.prepare(ghost.skin):null)):friendSkin;
     const customSkin=activeSkinMesh(skinEntry,kind);
     if(kind!=='bike') {
-      const lean=kind==='chair'?0:ghost.steering*clamp(Math.abs(ghost.speed)*.026,0,.216);
-      return poweredPose(getRig(kind),placement(add(ghost.position,[0,.006,0]),lean,-ghost.heading,pitch),ghost,customSkin);
+      const lean=kind==='chair'?0:ghost.steering*clamp(Math.abs(ghost.speed)*.026,0,.216), rig=getRig(kind);
+      const armed=(kind==='ebike'||kind==='trail')&&customSkin&&skinEntry?.hasArms;
+      if (armed) limbMesh.update(movingPoweredSkinArms(skinEntry.skin,rig,ghost.steering??0));
+      return poweredPose(rig,placement(add(ghost.position,[0,.006,0]),lean,-ghost.heading,pitch),ghost,customSkin,armed?limbMesh:null);
     }
     const rig=ghost.id?remoteBicycles.get(ghost.id)??ownBicycle:friendBicycle;
     const turn=-.253*ghost.steering;
@@ -1279,8 +1282,12 @@ function run() {
         [rig.fork,multiply(root,facing)],[customSkin??rig.body,multiply(root,parts.bodyPose)],[limbs,root]];
       tagHeight+=stand*.11-tuck*.16;
     } else {
-      const rig=getRig(rider.vehicle);
-      riderMeshes=poweredPose(rig,root,{ ...rider, travel: poseVisual.travel },customSkin);
+      const rig=getRig(rider.vehicle), angle=-.25*rider.steering, armed=(rider.vehicle==='ebike'||rider.vehicle==='trail')&&customSkin&&ownSkin?.hasArms;
+      if (armed&&(poseRig!==rig||poseSkin!==ownSkin.skin||steering!==angle)) {
+        limbs.update(movingPoweredSkinArms(ownSkin.skin,rig,rider.steering));
+        poseRig=rig; poseSkin=ownSkin.skin; steering=angle;
+      }
+      riderMeshes=poweredPose(rig,root,{ ...rider, travel: poseVisual.travel },customSkin,armed?limbs:null);
       tagHeight=rig.tagHeight;
     }
     if(lastCameraRevision!==cameraRevision){previousCamera=undefined;lastCameraRevision=cameraRevision;}

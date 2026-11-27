@@ -4,6 +4,7 @@ import {
 import { Shape } from '../core/shape.js';
 import { RIDER_SKIN_HIP, vehicleSkinMounts } from '../data/vehicles.js';
 import { skinSpecHash } from './rider-skin.js';
+import { analyzeSkinLimbs, emitAnimatedSkinLimbs, emitStaticSkinParts } from './skin-animation.js';
 import { bicyclePaints, bicycleStyle } from './vehicles.js';
 
 export const HUB_Y = .347;
@@ -120,6 +121,7 @@ export function makeEbike() {
       hand: [.398, 1.038, .25], feetWidth: .125, seatWidth: .166, armsWidth: .142,
     }), wheels: poweredWheel(.286, .060, '#aab6a9'), mounts: [{ center: rear, radius: .286 }, { center: front, radius: .286, steer: true }],
     tagHeight: 1.76,
+    grip: [.398, 1.038, .25],
   };
 }
 
@@ -186,6 +188,7 @@ export function makeTrailBike() {
       hand: [.429, 1.052, .277], feetWidth: .158, seatWidth: .168, armsWidth: .146,
     }), wheels: poweredWheel(.317, .092, '#b2b9ad', true), mounts: [{ center: rear, radius: .317 }, { center: front, radius: .317, steer: true }],
     tagHeight: 1.76,
+    grip: [.429, 1.052, .277],
   };
 }
 
@@ -215,10 +218,11 @@ export function uploadPoweredRig(gpu, kind) {
   };
 }
 
-export function poweredPose(rig, root, rider, skinBody = null) {
+export function poweredPose(rig, root, rider, skinBody = null, armMesh = null) {
   const bodyMesh = skinBody ?? rig.body;
   const bodyTransform = skinBody ? multiply(root, rig.skinTransform ?? vehicleSkinTransform(rig.kind)) : root;
   const items = [[rig.frame, root], [bodyMesh, bodyTransform]];
+  if (skinBody && armMesh) items.push([armMesh, bodyTransform]);
   const angle = -.25 * rider.steering;
   const turn = rig.steering ? placement(rig.pivot, 0, angle, 0) : null;
   const steer = turn ? multiply(turn, placement(scale(rig.pivot, -1))) : null;
@@ -292,9 +296,9 @@ export function addBicycleAccessory(frame, steering, pivot, look, paint) {
   }
 }
 
-export function makeRiderSkinBody(skinSpec) {
+export function makeRiderSkinBody(skinSpec, { excludeLimbs = 'none' } = {}) {
   const body = new Shape();
-  emitCustomRiderBody(body, skinSpec);
+  emitCustomRiderBody(body, skinSpec, excludeLimbs);
   return body;
 }
 
@@ -307,11 +311,23 @@ export function riderSkinBodyCache(gpu, capacity = 8) {
       const key = `${skin.id}:${hash}`;
       let entry = skins.get(key);
       if (entry) skins.delete(key);
-      else entry = { mesh: new gpu.Mesh(makeRiderSkinBody(skin)), skin, hash };
+      else {
+        const info = analyzeSkinLimbs(skin);
+        const mesh = new gpu.Mesh(makeRiderSkinBody(skin));
+        const bikeBodyMesh = (info.hasArms || info.hasLegs)
+          ? new gpu.Mesh(makeRiderSkinBody(skin, { excludeLimbs: 'all' }))
+          : mesh;
+        const poweredBodyMesh = info.hasArms
+          ? new gpu.Mesh(makeRiderSkinBody(skin, { excludeLimbs: 'arms' }))
+          : mesh;
+        entry = { mesh, bikeBodyMesh, poweredBodyMesh, skin, hash, hasArms: info.hasArms, hasLegs: info.hasLegs };
+      }
       skins.set(key, entry);
       if (skins.size > capacity) {
         const [old, build] = skins.entries().next().value;
-        build.mesh.dispose();
+        for (const gpuMesh of new Set([build.mesh, build.bikeBodyMesh, build.poweredBodyMesh])) {
+          gpuMesh?.dispose?.();
+        }
         skins.delete(old);
       }
       return entry;
@@ -373,30 +389,13 @@ function emitSkinAccessory(mesh, accessory, colors, points, height) {
   }
 }
 
-function emitDeclaredSkinModel(mesh, spec) {
-  const palette = spec.palette ?? {};
-  const p = spec.proportions ?? {};
-  const height = p.heightScale ?? 1, width = p.bodyWidthScale ?? 1, depth = p.bodyDepthScale ?? 1;
-  const hip = [-.222, .990, 0];
-  const point = value => [hip[0] + (value[0] - hip[0]) * depth, hip[1] + (value[1] - hip[1]) * height, value[2] * width];
-  for (const part of spec.model?.parts ?? []) {
-    const color = palette[part.material] ?? (part.material.startsWith('#') ? part.material : palette.body ?? shirt);
-    const headScale = /head|eye/i.test(part.id) ? { height: p.headHeightScale ?? 1, width: p.headWidthScale ?? 1 } : { height: 1, width: 1 };
-    if (part.primitive === 'ellipsoid') {
-      const size = [part.size[0] * depth, part.size[1] * height * headScale.height, part.size[2] * width * headScale.width];
-      mesh.ellipsoid(point(part.center), size, color, 16, 10, part.roll, part.yaw);
-    } else if (part.primitive === 'box') {
-      const size = [part.size[0] * depth, part.size[1] * height * headScale.height, part.size[2] * width * headScale.width];
-      mesh.box(point(part.center), size, color, part.yaw, part.roll);
-    } else if (part.primitive === 'tube') {
-      mesh.tube(point(part.from), point(part.to), part.radius * (p.limbRadiusScale ?? 1), part.radius2 * (p.limbRadiusScale ?? 1), color, 10);
-    }
-  }
+function emitDeclaredSkinModel(mesh, spec, excludeLimbs = 'none') {
+  emitStaticSkinParts(mesh, spec, excludeLimbs);
 }
 
-function emitCustomRiderBody(mesh, spec) {
+function emitCustomRiderBody(mesh, spec, excludeLimbs = 'none') {
   if (spec.model?.parts?.length) {
-    emitDeclaredSkinModel(mesh, spec);
+    emitDeclaredSkinModel(mesh, spec, excludeLimbs);
     return;
   }
   const palette = spec.palette ?? {}, p = spec.proportions ?? {};
@@ -521,13 +520,47 @@ export function bendLeg(hip, ankle) {
   return knee;
 }
 
+function emitBicycleCranks(shape, spin) {
+  for (const side of [-1, 1]) {
+    const a = spin + (side < 0 ? Math.PI : 0);
+    const pedal = [CRANK[0] + CRANK_RADIUS * Math.cos(a), CRANK[1] + CRANK_RADIUS * Math.sin(a), side * .146];
+    shape.tube([CRANK[0], CRANK[1], side * .076], [pedal[0], pedal[1], side * .103], .020, .017, '#b4baab', 8);
+    shape.tube([pedal[0], pedal[1], side * .095], [pedal[0], pedal[1], side * .189], .011, .011, '#6b7c70', 9);
+    shape.box(pedal, [.108, .028, .106], '#354742');
+    shape.box([pedal[0], pedal[1], side * .2], [.068, .018, .010], '#d1a05a');
+  }
+}
+
+export function movingPoweredSkinArms(skinSpec, rig, steering = 0) {
+  const shape = new Shape();
+  if (!skinSpec?.model?.parts?.length || !rig?.steering || !rig?.grip) return shape;
+  const angle = -.25 * steering;
+  const turn = placement(rig.pivot, 0, angle, 0);
+  const steer = multiply(turn, placement(scale(rig.pivot, -1)));
+  emitAnimatedSkinLimbs(shape, skinSpec, {
+    bodyPose: null,
+    steerTransform: steer,
+    grip: rig.grip,
+    spin: 0,
+    mode: 'powered',
+    skinTransform: rig.skinTransform ?? vehicleSkinTransform(rig.kind),
+  });
+  return shape;
+}
+
 export function movingParts(distance, steerTransform, grip = grips, rider) {
   const shape = new Shape();
-  if (rider?.skin?.model?.parts?.length) {
-    return { shape, bodyPose: bicycleBodyTransform({ tuck: rider?.tuck ?? 0, stand: rider?.stand ?? 0, bob: 0 }) };
-  }
   const spin = rider?.pedalPhase ?? (-distance / TYRE_RADIUS / WHEEL_TEETH_RATIO);
   const tuck = rider?.tuck ?? 0, stand = rider?.stand ?? 0;
+  if (rider?.skin?.model?.parts?.length) {
+    const bob = .009 * Math.cos(spin * 2) + stand * .012 * Math.sin(spin);
+    const bodyPose = bicycleBodyTransform({ tuck, stand, bob });
+    emitBicycleCranks(shape, spin);
+    emitAnimatedSkinLimbs(shape, rider.skin, {
+      bodyPose, steerTransform, grip, spin, mode: 'bike', crankRadius: CRANK_RADIUS,
+    });
+    return { shape, bodyPose };
+  }
   const customSkin = rider?.skin?.id && rider.skin.id !== 'default';
   const palette = rider?.skin?.palette ?? {};
   const limbSkin = customSkin && rider.skin.headMode === 'integrated' ? palette.body ?? skin : skin;

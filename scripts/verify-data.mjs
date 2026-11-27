@@ -150,6 +150,95 @@ assert.equal(game.validateSkinProposal(JSON.parse(game.extractSkinJsonText(noisy
 
 const customSkinBody = game.makeRiderSkinBody(camelResult.spec);
 assert.ok(customSkinBody.vertices.length > 0);
+const limblessSpec = game.normalizeSkinSpec({
+  schemaVersion: 1,
+  id: 'orb-blob-test',
+  label: '无肢圆球测试',
+  class: 'model',
+  rig: 'shared-rider-v1',
+  palette: { body: '#66bb88', eye: '#18241d' },
+  proportions: camelResult.spec.proportions,
+  headMode: 'integrated',
+  limbMode: 'hidden',
+  animationProfile: 'seated-soft',
+  accessories: [],
+  allowedVehicles: ['bike', 'ebike', 'chair', 'trail'],
+  bounds: { width: 1.04, height: 1.80, depth: 0.96 },
+  triangleBudget: 2400,
+  model: {
+    version: 1,
+    parts: [
+      { id: 'body', primitive: 'ellipsoid', material: 'body', center: [-0.10, 1.06, 0], size: [0.24, 0.34, 0.24] },
+      { id: 'head', primitive: 'ellipsoid', material: 'body', center: [0.02, 1.62, 0], size: [0.18, 0.20, 0.18] },
+      { id: 'tail', primitive: 'tube', material: 'eye', anchor: 'back', from: [-0.26, 1.02, 0], to: [-0.36, 1.18, 0], radius: 0.04, radius2: 0.02 },
+    ],
+  },
+  unlock: null,
+});
+assert.ok(limblessSpec, 'Limbless custom sphere spec must validate cleanly');
+const limblessLimbs = game.analyzeSkinLimbs(limblessSpec);
+assert.equal(limblessLimbs.hasArms, false);
+assert.equal(limblessLimbs.hasLegs, false);
+assert.equal(game.makeRiderSkinBody(limblessSpec, { excludeLimbs: 'all' }).vertices.length,
+  game.makeRiderSkinBody(limblessSpec).vertices.length);
+
+const animatedSkinSpec = game.normalizeSkinSpec({
+  schemaVersion: 1,
+  id: 'humanoid-rider-test',
+  label: '人形四肢测试',
+  class: 'model',
+  rig: 'shared-rider-v1',
+  palette: { body: '#5a8f6c', skin: '#e0b394', shoe: '#2c3330' },
+  proportions: camelResult.spec.proportions,
+  headMode: 'separate',
+  limbMode: 'full',
+  animationProfile: 'seated-soft',
+  accessories: [],
+  allowedVehicles: ['bike', 'ebike', 'chair', 'trail'],
+  bounds: { width: 1.04, height: 1.80, depth: 0.96 },
+  triangleBudget: 2400,
+  model: {
+    version: 1,
+    parts: [
+      { id: 'body', primitive: 'ellipsoid', material: 'body', center: [-0.10, 1.18, 0], size: [0.17, 0.24, 0.19] },
+      { id: 'head', primitive: 'ellipsoid', material: 'skin', center: [0.05, 1.56, 0], size: [0.13, 0.14, 0.13] },
+      { id: 'left_ear', primitive: 'box', material: 'body', anchor: 'body', center: [0.04, 1.72, -0.10], size: [0.04, 0.08, 0.04] },
+      { id: 'tail', primitive: 'tube', material: 'body', anchor: 'body', from: [-0.24, 1.02, 0], to: [-0.35, 1.15, 0], radius: 0.03, radius2: 0.02 },
+      { id: 'left_arm', primitive: 'tube', material: 'body', anchor: 'body', from: [-0.02, 1.32, -0.15], to: [0.38, 1.06, -0.23], radius: 0.04, radius2: 0.03 },
+      { id: 'right_arm', primitive: 'tube', material: 'skin', anchor: 'rightHand', from: [-0.02, 1.32, 0.15], to: [0.38, 1.06, 0.23], radius: 0.04, radius2: 0.03 },
+      { id: 'left_leg', primitive: 'tube', material: 'body', anchor: 'leftFoot', from: [-0.18, 0.98, -0.12], to: [-0.06, 0.60, -0.14], radius: 0.05, radius2: 0.035 },
+      { id: 'right_leg', primitive: 'tube', material: 'body', anchor: 'body', from: [-0.18, 0.98, 0.12], to: [-0.06, 0.60, 0.14], radius: 0.05, radius2: 0.035 },
+      { id: 'left_shoe', primitive: 'box', material: 'shoe', anchor: 'leftFoot', center: [-0.03, 0.56, -0.14], size: [0.12, 0.06, 0.08] },
+      { id: 'right_shoe', primitive: 'box', material: 'shoe', anchor: 'rightFoot', center: [-0.03, 0.56, 0.14], size: [0.12, 0.06, 0.08] },
+    ],
+  },
+  unlock: null,
+});
+assert.ok(animatedSkinSpec, 'Humanoid animated limb skin spec must validate cleanly');
+assert.equal(game.skinPartLimbRole({ id: 'left_ear', anchor: 'body' }), null);
+assert.equal(game.skinPartLimbRole({ id: 'tail', anchor: 'body' }), null);
+assert.equal(game.skinPartLimbRole({ id: 'left_arm', anchor: 'body' }), 'leftHand');
+assert.equal(game.skinPartLimbRole({ id: 'right_leg', anchor: 'body' }), 'rightFoot');
+const animatedAnalysis = game.analyzeSkinLimbs(animatedSkinSpec);
+assert.equal(animatedAnalysis.hasArms, true);
+assert.equal(animatedAnalysis.hasLegs, true);
+assert.ok(game.makeRiderSkinBody(animatedSkinSpec, { excludeLimbs: 'all' }).vertices.length < game.makeRiderSkinBody(animatedSkinSpec).vertices.length);
+const poseA = game.movingParts(0, game.IDENTITY, game.grips, { pedalPhase: 0, tuck: 0, stand: 0, skin: animatedSkinSpec });
+const poseB = game.movingParts(0, game.IDENTITY, game.grips, { pedalPhase: Math.PI * 0.5, tuck: 0, stand: 0, skin: animatedSkinSpec });
+const steerPivot = [0.483, 0.756, 0];
+const steerLeft = game.multiply(game.placement(steerPivot, 0, 0.25, 0), game.placement(game.scale(steerPivot, -1)));
+const poseSteered = game.movingParts(0, steerLeft, game.grips, { pedalPhase: 0, tuck: 0, stand: 0, skin: animatedSkinSpec });
+assert.ok(poseA.shape.vertices.length > 0 && poseA.shape.vertices.every(Number.isFinite));
+assert.notDeepEqual(poseA.shape.vertices, poseB.shape.vertices, 'Custom bike legs/cranks must animate with pedalPhase');
+assert.notDeepEqual(poseA.shape.vertices, poseSteered.shape.vertices, 'Custom bike arms must respond to steering');
+const limblessBikePose = game.movingParts(0, game.IDENTITY, game.grips, { pedalPhase: 0, tuck: 0, stand: 0, skin: limblessSpec });
+assert.ok(limblessBikePose.shape.vertices.length > 0, 'Limbless skin on bike must still render bicycle cranks/pedals');
+const fakeEbike = { kind: 'ebike', pivot: [0.46, 0.61, 0], grip: [0.398, 1.038, 0.25], steering: true, skinTransform: game.vehicleSkinTransform('ebike') };
+const poweredArm0 = game.movingPoweredSkinArms(animatedSkinSpec, fakeEbike, 0);
+const poweredArmTurn = game.movingPoweredSkinArms(animatedSkinSpec, fakeEbike, 0.8);
+assert.ok(poweredArm0.vertices.length > 0 && poweredArm0.vertices.every(Number.isFinite));
+assert.notDeepEqual(poweredArm0.vertices, poweredArmTurn.vertices, 'Custom arms on ebike must steer with handlebars');
+assert.equal(game.movingPoweredSkinArms(limblessSpec, fakeEbike, 0.8).vertices.length, 0);
 for (const kind of ['ebike', 'chair', 'trail']) {
   const mountTransform = game.vehicleSkinTransform(kind);
   assert.equal(mountTransform.length, 16);

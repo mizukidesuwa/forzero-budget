@@ -61,7 +61,7 @@ model 规则：
 - ellipsoid 和 box 只能使用 center、size、可选 anchor、yaw、roll。tube 只能使用 from、to、radius、可选 radius2、anchor、yaw、roll。禁止使用其它字段。
 - center、size、from、to 都必须是恰好三个数字的数组。所有局部坐标每轴必须在 -2.5–2.5，ellipsoid 半径和 box 尺寸每轴必须在 0.004–1.2，radius 和 radius2 必须在 0.004–0.45。实际生成尺寸还必须满足上面的部位推荐范围和最终外包络范围。
 - yaw、roll 必须是有限数字，绝对值不能超过 4π。不得使用 NaN、Infinity、字符串数字或数学表达式。
-- anchor 只能是 body、head、neck、back、leftHand、rightHand、leftFoot、rightFoot。身体部件应挂到合理挂点，不能发明新挂点。
+- anchor 只能是 body、head、neck、back、leftHand、rightHand、leftFoot、rightFoot。身体部件应挂到合理挂点，不能发明新挂点。左右手臂与手部部件请优先标 anchor="leftHand"/"rightHand"，左右腿与脚部部件请优先标 anchor="leftFoot"/"rightFoot"，游戏会自动联动车把转向与踩踏动画；无四肢角色可不标这些挂点，不会强行拉伸。
 - 身体原点接近座位髋部，车辆把手参考位置约为 [0.43, 1.052, ±0.238]。手臂和手部可以合法延伸到该把手参考点，不要为了贴近髋部而截断手臂。不要生成车架、车轮、道路、碰撞盒或场景。
 
 面数和配饰：
@@ -121,7 +121,7 @@ Model:
 - Ellipsoid and box use center and size, plus optional anchor, yaw and roll. Tube uses the endpoints from and to and radius, plus optional radius2, anchor, yaw and roll. Do not add other fields.
 - center, size, from and to each contain exactly three numbers. Local coordinates range from −2.5 to 2.5. Ellipsoid size is three radii. Box size is three full dimensions. Each radius or dimension is 0.004–1.2. Tube radius and radius2 are 0.004–0.45. Apply the narrower body, head and combined limits above.
 - yaw and roll are finite numbers with absolute value ≤ 4π. Do not use NaN, Infinity, strings for numbers or expressions.
-- Allowed anchors: body, head, neck, back, leftHand, rightHand, leftFoot, rightFoot. Arms may extend to the handlebar reference. Do not generate a bicycle frame, wheels, roads, collision boxes or scenery.
+- Allowed anchors: body, head, neck, back, leftHand, rightHand, leftFoot, rightFoot. Tag left/right arms and hands with anchor="leftHand"/"rightHand", and left/right legs and feet with anchor="leftFoot"/"rightFoot" so the game animates steering and pedaling automatically; omit limb anchors on limbless characters. Arms may extend to the handlebar reference. Do not generate a bicycle frame, wheels, roads, collision boxes or scenery.
 
 Budget each ellipsoid at 288 triangles, each tube at 40 and each box at 12, with a hard maximum total of 2400. Follow these primitive caps so the total never exceeds 2400: at most **6 ellipsoids** (only for torso/head), at most **8 tubes** (limbs/tail), and at most **14 boxes** (hands, feet, ears, snout, eyes). **Always set "triangleBudget": 2400** instead of guessing a smaller integer. Allow at most 6 accessories from eye, belly, scarf, vest, tail and antenna. Allowed accessory anchors: body, head, back, leftHand, rightHand. Accessory scale is 0.5–1.5 and colour is #RRGGBB.
 

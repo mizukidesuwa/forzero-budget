@@ -30,6 +30,7 @@ export { default as tuning190 } from './ride/tuning-rules.js';
 export * from './ride/vehicles.js';
 export * from './ride/budget.js';
 export * from './ride/models.js';
+export * from './ride/skin-animation.js';
 export * from './ride/physics.js';
 export * from './ride/drafting.js';
 
