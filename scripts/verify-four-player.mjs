@@ -10,6 +10,7 @@ import { openTestBrowser } from './browser-runner.mjs';
 // channels. --drive uses accelerated fixed-step auto-driving; without it finish
 // times are simulated API submissions.
 const drive = process.argv.includes('--drive');
+const networkOnly = process.argv.includes('--network-only');
 const desktop = resolve(process.env.FORZERO_RELEASE_DIR ??
   (existsSync('dist-v2/desktop/index.html') ? 'dist-v2/desktop' : '.'));
 const serverUrl = pathToFileURL(join(desktop, 'server.mjs')).href;
@@ -37,7 +38,7 @@ try {
     throw new Error(`Localhost HTTP cannot be reached: ${error.cause?.code ?? error.message}`);
   }
   console.log('[1/7] Local HTTP is reachable. Starting Chrome...');
-  browser = await openTestBrowser();
+  browser = await openTestBrowser({timeoutMs:45_000});
   const { rpc } = browser;
   async function open() {
     const { browserContextId } = await rpc('Target.createBrowserContext', { disposeOnDetach: true });
@@ -75,6 +76,10 @@ try {
     console.log(`[2/7] Starting browser ${i + 1}/4...`);
     const page = await open();
     await wait(page, "globalThis.__FORZERO__?.ready===true", 'game initialization');
+    // Keep the game's frame loop, physics and WebRTC active without four continuous SwiftShader renders.
+    if (networkOnly) {
+      await page.evalPage("__FORZERO__.stage.style.setProperty('display','none','important')");
+    }
     if (i % 2) await page.evalPage("(()=>{const f=__FORZERO__;f.openSettings();f.ui.settingsLanguage.value='en';f.ui.settingsLanguage.dispatchEvent(new Event('change'));f.closeSettings()})()");
     pages.push(page);
   }

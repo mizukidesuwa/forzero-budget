@@ -59,7 +59,7 @@ jobs:
           echo "Using browser: $CHROME"
           echo "CHROME_PATH=$CHROME" >> "$GITHUB_ENV"
       - run: node scripts/verify-browser.mjs
-      - run: node scripts/verify-four-player.mjs
+      - run: node scripts/verify-four-player.mjs --network-only
 
   pages:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'

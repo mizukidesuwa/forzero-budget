@@ -2,6 +2,8 @@
 
 ## 2.5.4 — 联机复赛、存档兼容与发布验收
 
+- CI 的四客户端联机验收完成场景初始化后暂停持续绘制，覆盖实际 WebRTC、骑行状态、重连和 BO1 复赛。桌面与手机浏览器验收继续覆盖完整渲染。关联 `scripts/verify-four-player.mjs` 和 `.github/workflows/ci.yml`。
+
 - 联机比赛和轮次分别使用服务端身份。BO1 结算后，同一房间可以连续开跑同一赛道，旧轮次的完赛请求会被拒绝。浏览器联机验收覆盖只改天气的复赛。关联 `server/room-rules.cjs`、`server/server.mjs`、`src/online/client.js` 和 `scripts/verify-four-player.mjs`。
 - 桌面端按版本查找轻量版和 Windows 便携版的解压目录，同版本优先匹配当前包型。实例按规范化后的存档位置识别。关联 `server/server.mjs`、`scripts/verify-save.mjs` 和 `scripts/verify-desktop-start.mjs`。
 - 备份包含自定义骑手皮肤库，并兼容从旧备份的驾驶员记录恢复内嵌模型。友人影子档案超限时，导出和自动存档回退到可导入的个人存档并提示，桌面端保留已保存的友人档案。友人对战列表复用导入时的路线布局校验，支持重玩青云湖等固定赛道变体。关联 `src/ui/save-sync.js`、`src/ride/rider-skin.js`、`src/ride/vehicles.js`、`src/replay/ghost.js` 和 `src/ui/friend-duel.js`。
