@@ -684,7 +684,7 @@ export function createRideServer({page,assets,soundDir,iceServers=[{urls:'stun:s
       }
       if (req.method==='POST' && pathname==='/online/rooms') {
         const body = await readRequest(req);
-        if (body?.protocol!==tuning190.protocol) throw new RoomError('联机版本不匹配，请更新到支持协议 v3 的版本。',400);
+        if (body?.protocol!==tuning190.protocol) throw new RoomError('联机版本不匹配，请更新到支持协议 v4 的版本。',400);
         const joining = typeof body.code==='string';
         let room = joining?rooms.get(body.code):null;
         if (joining && !room) throw new RoomError('找不到房间。',404);
@@ -787,7 +787,7 @@ async function listenWithFallback(server,host,requestedPort,allowFallback) {
 
 const gameVersion = (page,assets) => /(?:FORZERO:\s*BUDGET[^<]*?|荔园环骑)\s+([0-9.]+)<\/title>/.exec(String(assets?.['/index.html']?.body??page))?.[1]??null;
 
-const desktopSaveVersions = ['2.5.6','2.5.5','2.5.4','2.5.3','2.5.2','2.5.1.1','2.5.1','2.5.0','2.4.0','2.3.4','2.3.3.1','2.3.3','2.3.2','2.3.1',
+const desktopSaveVersions = ['2.5.7','2.5.6','2.5.5','2.5.4','2.5.3','2.5.2','2.5.1.1','2.5.1','2.5.0','2.4.0','2.3.4','2.3.3.1','2.3.3','2.3.2','2.3.1',
   '2.1.0','2.0.0','1.9.1.1','1.9.1','1.9.0','1.8.8','1.8.7','1.8.6','1.8.5','1.8.1'];
 const legacySaveVersions = ['1.8.0','1.7.0','1.6.6','1.6.5','1.6.4','1.6.3','1.6.2','1.6.1','1.6.0','1.5.0'];
 

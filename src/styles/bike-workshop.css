@@ -33,18 +33,10 @@
   .speed-readout strong { line-height:.96; }
   .speed-readout small { margin-left:0; }
   .speed-readout .slope-grade { display:inline-block; margin-left:3px; font-size:.73rem; }
-  .sprint-meter { margin-top:5px; }
-  .sprint-hint { margin-top:3px; font-size:.66rem; }
   .speed-badges { position:absolute; left:0; bottom:calc(100% + 6px); display:flex; align-items:center; flex-wrap:wrap; gap:5px; width:max-content; max-width:240px; pointer-events:none; }
   .status-pill.posture-pill { display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px; font-size:.72rem; font-weight:650; border:1px solid #ddeb9c66; background:#192e22e8; color:#e9f6c8; white-space:nowrap; }
   .posture-pill[data-posture="tuck"] { border-color:#7ce2d488; background:#15302ce8; color:#c8fff5; }
   .posture-pill[data-posture="stand"] { border-color:#f0c67488; background:#2e2817e8; color:#ffe6a8; }
-  .bike-feedback { display:grid; width:min(148px,100%); gap:2px; margin-top:4px; color:#deeccf; font-size:.69rem; }
-  .bike-feedback[hidden] { display:none; }
-  .bike-feedback label { display:flex; gap:6px; justify-content:space-between; align-items:center; white-space:nowrap; }
-  .bike-feedback meter { width:58%; flex-shrink:0; height:.5rem; }
-  #bikeGripMeter[data-load="high"]::-webkit-meter-optimum-value { background:#e0a55b; }
-  #bikeGripMeter[data-load="limit"]::-webkit-meter-optimum-value { background:#ed7967; }
   .settings-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
   .settings-head-main { min-width:0; }
   .settings-guide-btn { min-height:36px; padding:0 11px; font-size:.82rem; flex:none; }
@@ -110,7 +102,6 @@
     .speedometer { padding:6px 9px 7px; min-width:110px; }
     .speedometer strong { font-size:1.62rem; }
     .speed-readout .slope-grade { font-size:.69rem; }
-    .bike-feedback { gap:2px; margin-top:3px; font-size:.65rem; width:min(132px,100%); }
     .next { left:auto; right:11px; bottom:126px; max-width:calc(100% - 178px); padding:5px 8px; font-size:.72rem; text-align:right; }
     #stationList li { flex-wrap:nowrap; flex:none; padding:4px 6px; }
   }
@@ -147,9 +138,6 @@
     .speed-mat { font-size:.67rem; margin-bottom:2px; }
     .speedometer strong { font-size:1.48rem; }
     .speed-readout .slope-grade { font-size:.67rem; }
-    .sprint-meter { margin-top:4px; }
-    .sprint-hint { display:none; }
-    .bike-feedback { margin-top:3px; gap:2px; font-size:.64rem; width:124px; }
     .mini { right:8px; bottom:10px; width:136px; padding:6px 6px 4px; }
     .mini span { font-size:.68rem; margin-bottom:3px; }
     .mini canvas { height:64px; }

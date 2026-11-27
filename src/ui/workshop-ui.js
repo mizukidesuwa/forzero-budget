@@ -1,5 +1,6 @@
 import { clamp } from '../core/math.js';
 import { getStorage } from '../core/state.js';
+import { weatherTraction } from '../data/surfaces.js';
 import { getOnlineRoom, syncOnlineProfile } from '../online/client.js';
 import { courseMedalSummary, isPaintUnlocked } from '../race/records.js';
 import { workshopBudget } from '../ride/budget.js';
@@ -13,10 +14,30 @@ import {
   bicycleStyle, bicycleStyles, bikeKey, bikePartOptions, brakeChoices, buildBike,
   buildVehicleTuning, frameChoices, gearChoices, normalizeVehicleParts,
   sprintChoices, stockBike, storeDriverProfile, storeVehicleTunings, tyreChoices,
-  vehicleTuningChoices, workshopPartTitle, workshopSpeed,
+  vehicleTuningChoices, wetBrakeScale, wetGripScale, workshopPartTitle, workshopSpeed,
 } from '../ride/vehicles.js';
-import { bindText, message, setLabel as setText, setText as setRawText, translate } from './language.js';
+import { bindText, getLanguage, message, setLabel as setText, setText as setRawText, translate } from './language.js';
 import { scheduleLocalSave } from './save-sync.js';
+
+const sharedAbilityLabels = [
+  '铺装抓地', '低速推力', '直线制动',
+  '雨地抓地', '雨地带刹抓地', '雨地直线制动',
+];
+
+function sharedWorkshopAbility(tuning, stock) {
+  const { gripScale, brakeScale } = weatherTraction.rain;
+  const grip = tuning.roadGrip * wetGripScale(tuning, gripScale) * (tuning.rainGrip ?? 1);
+  const stockGrip = stock.roadGrip * wetGripScale(stock, gripScale) * (stock.rainGrip ?? 1);
+  const gripRatio = grip / stockGrip;
+  return [
+    tuning.roadGrip / stock.roadGrip,
+    tuning.force / stock.force,
+    tuning.brakePower / stock.brakePower,
+    gripRatio,
+    gripRatio * (1 - tuning.brakeTurnLoss) / (1 - stock.brakeTurnLoss),
+    tuning.brakePower * wetBrakeScale(tuning, brakeScale) / (stock.brakePower * wetBrakeScale(stock, brakeScale)),
+  ];
+}
 
 export function createWorkshopController({
   ui,
@@ -28,6 +49,11 @@ export function createWorkshopController({
   updateHud,
   savePreferences,
 }) {
+  const bicycleSelects = [ui.bikeTyres, ui.bikeGears, ui.bikeBrakes, ui.bikeFrame, ui.bikeSprint];
+  const bicycleSlots = new Map(bicyclePartKeys.map((slot, index) => [slot, bicycleSelects[index]]));
+  const poweredSlots = new Map();
+  let renderedPoweredVehicle, renderedPoweredLanguage;
+
   function renderWorkshopBudget() {
     const { total, limit, over, illegal } = workshopBudget(race);
     const budget = limit === null ? translate('不限预算') : message`预算 ¥${limit}`;
@@ -45,17 +71,19 @@ export function createWorkshopController({
   function highlightBudgetParts() {
     const { items, over } = workshopBudget(race);
     const vehicle = race.rider.vehicle;
-    const selects = vehicle === 'bike'
-      ? [ui.bikeTyres, ui.bikeGears, ui.bikeBrakes, ui.bikeFrame, ui.bikeSprint] : [ui.vehSlot0, ui.vehSlot1, ui.vehSlot2];
+    const controlFor = slot => vehicle === 'bike' ? bicycleSlots.get(slot) : poweredSlots.get(slot)?.select;
+    let first;
     let excess = over;
-    items.map((item, index) => ({ ...item, select: selects[index] })).sort((a, b) => b.price - a.price).forEach(item => {
-      if (excess <= 0) return;
-      item.select.dataset.overBudget = 'true';
-      const group = item.select.closest('details');
+    for (const item of items.sort((a, b) => b.price - a.price)) {
+      if (excess <= 0) break;
+      const select = controlFor(item.slot);
+      if (!select) continue;
+      select.dataset.overBudget = 'true';
+      const group = select.closest('details');
       if (group) group.open = true;
+      first ??= select;
       excess -= item.price;
-    });
-    const first = selects.find(select => select.dataset.overBudget);
+    }
     first?.focus();
   }
 
@@ -75,9 +103,47 @@ export function createWorkshopController({
     setText(ui.vehGravel, workshopSpeed(tuned.gravelSpeed));
     setText(ui.vehGrass, workshopSpeed(tuned.grassSpeed));
     renderWorkshopAbility(ui.vehAbility, [
-      tuned.roadGrip / stock.roadGrip, tuned.gravelGrip / stock.gravelGrip, tuned.force / stock.force,
-      tuned.brakePower / stock.brakePower, tuned.steerScale / stock.steerScale,
+      ...sharedWorkshopAbility(tuned, stock),
+      tuned.gravelGrip / stock.gravelGrip, tuned.steerScale / stock.steerScale,
     ]);
+  }
+
+  function renderPoweredSlots(vehicle, parts, locked) {
+    const slots = vehicleTuningChoices[vehicle];
+    const language = getLanguage();
+    if (vehicle !== renderedPoweredVehicle || language !== renderedPoweredLanguage) {
+      poweredSlots.clear();
+      const controls = document.createDocumentFragment();
+      for (const { key, label: text, options } of slots) {
+        const row = document.createElement('div');
+        row.className = 'setting-line';
+        const label = document.createElement('label');
+        const select = document.createElement('select');
+        const note = document.createElement('p');
+        note.className = 'bike-note';
+        note.id = 'vehNote-' + key;
+        select.id = 'vehSlot-' + key;
+        select.name = key;
+        select.setAttribute('aria-describedby', note.id);
+        label.htmlFor = select.id;
+        setText(label, text);
+        for (const [value, option] of Object.entries(options)) {
+          select.append(new Option(workshopPartTitle(vehicle, key, value, translate(option.name), translate('违禁')), value));
+        }
+        row.append(label, select);
+        controls.append(row, note);
+        poweredSlots.set(key, { select, note });
+      }
+      ui.vehSlots.replaceChildren(controls);
+      renderedPoweredVehicle = vehicle;
+      renderedPoweredLanguage = language;
+    }
+    for (const { key, options } of slots) {
+      const { select, note } = poweredSlots.get(key);
+      select.value = parts[key] ?? 'stock';
+      select.disabled = locked;
+      setText(note, options[select.value]?.note ?? '');
+    }
   }
 
   function renderWorkshop(bike, locked) {
@@ -95,7 +161,7 @@ export function createWorkshopController({
       button.setAttribute('aria-pressed', String(button.dataset.preset === preset?.[0]));
     }
     setText(ui.bikeGravel, workshopSpeed(bicycleGravelSpeed(bike)));
-    renderWorkshopAbility(ui.bikeAbility, bicycleAbility(bike));
+    renderWorkshopAbility(ui.bikeAbility, [...sharedWorkshopAbility(bike, stockBike), ...bicycleAbility(bike)]);
   }
 
   function showBikeSetup() {
@@ -137,23 +203,7 @@ export function createWorkshopController({
       if (!locked) race.rider.tuning = tuned;
       setText(ui.vehicleNote, vehicle === 'trail' ? '长行程越野避震提升碎石抓地。' :
         vehicle === 'ebike' ? '宽齿防滑胎提升碎石抓地。' : '户外越野轮提升碎石抓地。');
-      const slots = vehicleTuningChoices[vehicle] ?? [];
-      const labels = [ui.vehLabel0, ui.vehLabel1, ui.vehLabel2];
-      const selects = [ui.vehSlot0, ui.vehSlot1, ui.vehSlot2];
-      const notes = [ui.vehNote0, ui.vehNote1, ui.vehNote2];
-      slots.forEach((slot, i) => {
-        setText(labels[i], slot.label);
-        const sel = selects[i];
-        sel.replaceChildren();
-        for (const [val, opt] of Object.entries(slot.options)) {
-          const el = document.createElement('option');
-          el.value = val; el.textContent = workshopPartTitle(vehicle, slot.key, val, translate(opt.name), translate('违禁')); sel.append(el);
-        }
-        const cur = tuned.parts[slot.key] ?? 'stock';
-        sel.value = cur;
-        sel.disabled = locked;
-        setText(notes[i], slot.options[cur]?.note ?? '');
-      });
+      renderPoweredSlots(vehicle, tuned.parts, locked);
       renderPoweredWorkshop(vehicle, tuned);
     }
 
@@ -190,18 +240,19 @@ export function createWorkshopController({
     if (typeof getOnlineRoom() !== 'undefined' && getOnlineRoom()?.state.phase === 'tuning') syncOnlineProfile();
   }
 
-  function installVehicleTuning() {
+  function installVehicleTuning(event) {
     const vehicle = race.rider.vehicle;
-    const slots = vehicleTuningChoices[vehicle];
-    if (!slots || race.phase === 'race' || race.phase === 'count') return;
-    const selects = [ui.vehSlot0, ui.vehSlot1, ui.vehSlot2];
-    const next = {};
-    slots.forEach((slot, i) => { next[slot.key] = selects[i].value; });
+    const select = event.target;
+    const room = getOnlineRoom();
+    if (vehicle !== renderedPoweredVehicle || poweredSlots.get(select.name)?.select !== select) return;
+    if (select.disabled || race.phase === 'race' || race.phase === 'count' || room?.state.phase === 'race') return;
+    const next = Object.fromEntries(Array.from(poweredSlots, ([key, { select }]) => [key, select.value]));
     vehicleTunings[vehicle] = normalizeVehicleParts(vehicle, next);
     race.rider.tuning = buildVehicleTuning(vehicle, vehicleTunings[vehicle]);
     storeVehicleTunings(vehicleTunings);
+    scheduleLocalSave();
     showBikeSetup();
-    if (typeof getOnlineRoom() !== 'undefined' && getOnlineRoom()?.state.phase === 'tuning') syncOnlineProfile();
+    if (room?.state.phase === 'tuning') syncOnlineProfile();
   }
 
   function importRiderSkinText(text) {
@@ -238,15 +289,15 @@ export function createWorkshopController({
     }
   }
 
-  function initBicycleWorkshop() {
-    const selects = [ui.bikeTyres, ui.bikeGears, ui.bikeBrakes, ui.bikeFrame, ui.bikeSprint];
-    bicyclePartKeys.forEach((slot, index) => {
-      selects[index].replaceChildren(...Object.entries(bikePartOptions[slot]).map(([key, { name }]) => {
+  function initWorkshop() {
+    for (const [slot, select] of bicycleSlots) {
+      select.replaceChildren(...Object.entries(bikePartOptions[slot]).map(([key, { name }]) => {
         const option = new Option('', key);
         bindText(option, () => workshopPartTitle('bike', slot, key, translate(name), translate('违禁')));
         return option;
       }));
-    });
+    }
+    ui.vehSlots.addEventListener('change', installVehicleTuning);
     ui.budgetPicker.addEventListener('change', () => {
       preferences.soloBudget = tuning190.normalizeBudget(ui.budgetPicker.value);
       savePreferences();
@@ -285,8 +336,8 @@ export function createWorkshopController({
       });
       row.append(title, select); ui.bikeStyles.append(row);
     }
-    initWorkshopAbility(ui.bikeAbility, ['直道巡航', '冲刺爆发', '弯道抓地', '爬坡出弯', '越野湿地', '直线制动']);
-    initWorkshopAbility(ui.vehAbility, ['铺装抓地', '碎石抓地', '低速推力', '直线制动', '转向响应']);
+    initWorkshopAbility(ui.bikeAbility, [...sharedAbilityLabels, '冲刺爆发', '草地表现']);
+    initWorkshopAbility(ui.vehAbility, [...sharedAbilityLabels, '碎石抓地', '转向响应']);
   }
 
   return {
@@ -294,8 +345,7 @@ export function createWorkshopController({
     highlightBudgetParts,
     showBikeSetup,
     installBikeParts,
-    installVehicleTuning,
     importRiderSkinText,
-    initBicycleWorkshop,
+    initWorkshop,
   };
 }

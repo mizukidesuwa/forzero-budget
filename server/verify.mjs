@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { Readable, Writable } from 'node:stream';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { createRideServer } from './server.mjs';
+import tuning190 from './tuning-190.cjs';
+
+const { protocol } = tuning190;
 
 class Response extends Writable {
   chunks = [];
@@ -39,7 +42,7 @@ async function request(method,url,body,token,status=200) {
 const route = {campus:'ucl',id:'seed-U2-326',seed:'U2-326',layout:'0123abcd'};
 async function enter(name,format,code) {
   const payload = code ? {code} : {format,route};
-  const result = await request('POST','/online/rooms',{name,protocol:3,...payload});
+  const result = await request('POST','/online/rooms',{name,protocol,...payload});
   const url = '/online/rooms/'+result.room.code;
   const eventURL = url+'/events?id='+result.id+'&token='+result.token;
   const stream = emit('GET',eventURL);
@@ -64,14 +67,16 @@ async function race(players,times,{checkEarly=false}={}) {
 }
 
 try {
-  await request('POST','/online/rooms',{name:'A',protocol:3,format:'bo1',route:{...route,seed:'S2-326'}},undefined,400);
+  const legacyBuild = await request('POST','/online/rooms',{name:'Old',protocol:3,format:'bo1',route},undefined,400);
+  assert.match(JSON.stringify(legacyBuild), /协议 v4/);
+  await request('POST','/online/rooms',{name:'A',protocol,format:'bo1',route:{...route,seed:'S2-326'}},undefined,400);
   const a = await enter('甲','bo1');
   const b = await enter('乙',null,a.room.code);
   const c = await enter('丙',null,a.room.code);
   const d = await enter('丁',null,a.room.code);
   assert.match(a.iceServers[0].username,new RegExp(':'+a.id+'$'));
   assert.ok(a.iceServers[0].credential);
-  await request('POST','/online/rooms',{name:'E',protocol:3,code:a.room.code},undefined,409);
+  await request('POST','/online/rooms',{name:'E',protocol,code:a.room.code},undefined,409);
   await request('POST',a.command.url,{action:'start'},'invalid',403);
   await command(b,'start',{},409);
   await command(a,'start',{},409);
@@ -86,7 +91,7 @@ try {
   const y = await enter('乙',null,x.room.code);
   const firstHeat = await race([x,y],[10_000,11_000]);
   assert.equal(firstHeat.phase,'between');
-  await request('POST','/online/rooms',{name:'新',protocol:3,code:x.room.code},undefined,409);
+  await request('POST','/online/rooms',{name:'新',protocol,code:x.room.code},undefined,409);
   assert.equal((await race([x,y],[12_000,13_000])).phase,'done');
   assert.deepEqual(x.stream.state().winners,[x.id]);
   assert.equal(x.stream.state().history.length,2);
@@ -161,9 +166,9 @@ try {
     assetServer.emit('close');
   }
 
-  await request('POST','/online/rooms',{name:'BadShunde',protocol:3,format:'bo1',route:{campus:'shunde',id:'seed-S2-123',seed:'S2-123',layout:'0123abcd'}},undefined,400);
+  await request('POST','/online/rooms',{name:'BadShunde',protocol,format:'bo1',route:{campus:'shunde',id:'seed-S2-123',seed:'S2-123',layout:'0123abcd'}},undefined,400);
   const shundeRoute = {campus:'shunde',id:'shunde-endurance',seed:null,layout:'deadbeef'};
-  const tHostRes = await request('POST','/online/rooms',{name:'TuneH',protocol:3,vehicleRule:'any',traffic:'standard',format:'bo1',route:shundeRoute,tuningSeconds:2,collision:true,windSpeed:6.5,windDir:3});
+  const tHostRes = await request('POST','/online/rooms',{name:'TuneH',protocol,vehicleRule:'any',traffic:'standard',format:'bo1',route:shundeRoute,tuningSeconds:2,collision:true,windSpeed:6.5,windDir:3});
   assert.equal(tHostRes.room.tuningSeconds,2);
   assert.equal(tHostRes.room.collision,true);
   assert.equal(tHostRes.room.windSpeed,6.5);
@@ -176,7 +181,7 @@ try {
   assert.equal(tHost.stream.state().windDir,5);
   assert.equal(tHostRes.room.traffic,'standard');
   await request('POST','/online/rooms',{name:'Old',protocol:2,code:tHostRes.room.code},undefined,400);
-  const tGuestRes = await request('POST','/online/rooms',{name:'TuneG',protocol:3,code:tHostRes.room.code});
+  const tGuestRes = await request('POST','/online/rooms',{name:'TuneG',protocol,code:tHostRes.room.code});
   const tGuest = {...tGuestRes,stream:emit('GET',tUrl+'/events?id='+tGuestRes.id+'&token='+tGuestRes.token),command:{url:tUrl+'/command?id='+tGuestRes.id,token:tGuestRes.token}};
   await Promise.all([tHost,tGuest].map(p=>command(p,'ready',{ready:true})));
   await command(tHost,'start');
@@ -194,10 +199,10 @@ try {
   assert.equal(tGuest.stream.state().round.trafficSeed,tHost.stream.state().round.trafficSeed);
   assert.equal(tHost.stream.state().players.length,2);
 
-  const aHostRes = await request('POST','/online/rooms',{name:'AutoH',protocol:3,format:'bo1',route:shundeRoute,tuningSeconds:1,collision:false});
+  const aHostRes = await request('POST','/online/rooms',{name:'AutoH',protocol,format:'bo1',route:shundeRoute,tuningSeconds:1,collision:false});
   const aUrl = '/online/rooms/'+aHostRes.room.code;
   const aHost = {...aHostRes,stream:emit('GET',aUrl+'/events?id='+aHostRes.id+'&token='+aHostRes.token),command:{url:aUrl+'/command?id='+aHostRes.id,token:aHostRes.token}};
-  const aGuestRes = await request('POST','/online/rooms',{name:'AutoG',protocol:3,code:aHostRes.room.code});
+  const aGuestRes = await request('POST','/online/rooms',{name:'AutoG',protocol,code:aHostRes.room.code});
   const aGuest = {...aGuestRes,stream:emit('GET',aUrl+'/events?id='+aGuestRes.id+'&token='+aGuestRes.token),command:{url:aUrl+'/command?id='+aGuestRes.id,token:aGuestRes.token}};
   await Promise.all([aHost,aGuest].map(p=>command(p,'ready',{ready:true})));
   await command(aHost,'start');
@@ -206,10 +211,10 @@ try {
   await sleep(650);
   assert.equal(aHost.stream.state().phase,'race');
 
-  const sHostRes = await request('POST','/online/rooms',{name:'SkipH',protocol:3,format:'bo1',route:shundeRoute,tuningSeconds:45});
+  const sHostRes = await request('POST','/online/rooms',{name:'SkipH',protocol,format:'bo1',route:shundeRoute,tuningSeconds:45});
   const sUrl = '/online/rooms/'+sHostRes.room.code;
   const sHost = {...sHostRes,stream:emit('GET',sUrl+'/events?id='+sHostRes.id+'&token='+sHostRes.token),command:{url:sUrl+'/command?id='+sHostRes.id,token:sHostRes.token}};
-  const sGuestRes = await request('POST','/online/rooms',{name:'SkipG',protocol:3,code:sHostRes.room.code});
+  const sGuestRes = await request('POST','/online/rooms',{name:'SkipG',protocol,code:sHostRes.room.code});
   const sGuest = {...sGuestRes,stream:emit('GET',sUrl+'/events?id='+sGuestRes.id+'&token='+sGuestRes.token),command:{url:sUrl+'/command?id='+sGuestRes.id,token:sGuestRes.token}};
   await Promise.all([sHost,sGuest].map(p=>command(p,'ready',{ready:true})));
   await command(sHost,'start');
@@ -219,7 +224,7 @@ try {
 
   const budgetHost=await enter('BudgetH','bo1');
   const budgetGuest=await enter('BudgetG',null,budgetHost.room.code);
-  assert.equal(budgetHost.room.protocol,3);
+  assert.equal(budgetHost.room.protocol,protocol);
   await command(budgetHost,'config',{budget:'400',blind:true,windMode:'steady'});
   await command(budgetGuest,'profile',{bike:{tyres:'race',gears:'long',frame:'aero'}});
   await Promise.all([budgetHost,budgetGuest].map(p=>command(p,'ready',{ready:true})));
@@ -281,6 +286,23 @@ try {
   assert.deepEqual(allHost.stream.state().standing.map(row => row.points), [8, 4]);
   console.log('Four all-round heats, vehicle locks, stock ebike, legal controller upgrade and budget rejection passed.');
 
+  const fiveSlotHost = await enter('FiveSlotH','bo1');
+  const fiveSlotGuest = await enter('FiveSlotG',null,fiveSlotHost.room.code);
+  await request('POST','/online/rooms',{name:'Old',protocol:3,code:fiveSlotHost.room.code},undefined,400);
+  await command(fiveSlotHost,'config',{vehicleRule:'ebike',budget:'700',tuningSeconds:0});
+  const ebikeBuild = {tyres:'grip',motor:'standard',brakes:'combo',thermal:'regenTuning'};
+  await command(fiveSlotGuest,'profile',{tuning:ebikeBuild});
+  const tooExpensive = await command(fiveSlotGuest,'ready',{ready:true},409);
+  assert.match(JSON.stringify(tooExpensive), /超预算 ¥10/);
+  const legalEbikeBuild = {...ebikeBuild,geometry:'stock',thermal:'quickCooling'};
+  await command(fiveSlotGuest,'profile',{tuning:legalEbikeBuild});
+  await Promise.all([fiveSlotHost,fiveSlotGuest].map(player=>command(player,'ready',{ready:true})));
+  await command(fiveSlotHost,'start');
+  assert.deepEqual(fiveSlotHost.stream.state().round.builds[fiveSlotGuest.id].parts,legalEbikeBuild);
+  assert.equal(fiveSlotHost.stream.state().round.builds[fiveSlotHost.id].parts.thermal,'stock');
+  await command(fiveSlotGuest,'profile',{tuning:ebikeBuild},409);
+  console.log('Five-slot ebike budget, frozen profile and legacy client exclusion passed.');
+
   const partyHost=await enter('PartyH','bo1');
   const partyGuest=await enter('PartyG',null,partyHost.room.code);
   await command(partyGuest,'profile',{bike:{sprint:'rocket'}});
@@ -289,7 +311,7 @@ try {
   await Promise.all([partyHost,partyGuest].map(p=>command(p,'ready',{ready:true})));
   await command(partyHost,'start');
   assert.equal(partyHost.stream.state().round.builds[partyGuest.id].parts.sprint,'rocket');
-  console.log('Protocol 3: shared blind budget, over-budget block, frozen gear, seed and party-only mods passed.');
+  console.log('Shared blind budget, over-budget block, frozen gear, seed and party-only mods passed.');
   console.log('Room API: capacity and auth, signal routing, BO1 tie, BO3 2–0 and 2–1, five league rounds, reconnect, host transfer, timeout, tuning phase, shunde route, collision rule, CORS, host-info and static assets passed.');
 } finally {
   Date.now = realNow;

@@ -12,10 +12,10 @@ import { cityVehicles } from '../world/geometry.js';
 import { courseGround, createWorldQuery } from '../world/query.js';
 import { cachedTrafficPosition } from '../world/traffic.js';
 import { TYRE_RADIUS, WHEEL_TEETH_RATIO } from './models.js';
-import { bicycleGravelSpeed, buildVehicleTuning, stockBike } from './vehicles.js';
+import { bicycleGravelSpeed, buildVehicleTuning, stockBike, wetBrakeScale, wetGripScale } from './vehicles.js';
 
 import { surfacePhysics, windPhysics } from '../data/surfaces.js';
-import { skillPhysics } from '../data/vehicle-skills.js';
+import { rocketSkill, skillPhysics } from '../data/vehicle-skills.js';
 import { poweredDefaults } from '../data/vehicles.js';
 
 export { vehicleSkills } from '../data/vehicle-skills.js';
@@ -37,16 +37,49 @@ export function updateBicyclePosture(rider, input, grade, dt) {
   rider.pedalPhase = ((rider.pedalPhase ?? 0) - rider.cadence * (TAU / 60) * dt) % TAU;
 }
 
+function updateRocketBoost(rider, input, held, dt) {
+  const { boostTime, cooldownTime, force, limit } = skillPhysics.rocket;
+  let remaining = rider.rocketTime ?? 0;
+  if (remaining === 0 && held && !rider.skillHeld && input.gas && !input.brake) {
+    remaining = boostTime + cooldownTime;
+  }
+  // Sample the middle of the physics step to keep floating point error from adding a tick.
+  if (remaining - dt / 2 > cooldownTime) {
+    rider.skill = rocketSkill.active;
+    rider.skillForce = force;
+    rider.skillLimit = limit;
+  }
+  remaining -= dt;
+  rider.rocketTime = remaining > dt / 2 ? remaining : 0;
+  rider.energy = Math.max(0, 1 - rider.rocketTime / cooldownTime);
+}
+
 export function updateVehicleSkill(rider, input, dt) {
   const held = Boolean(input.sprint), speed = Math.max(0, rider.speed);
   rider.skill = '';
   rider.skillForce = rider.skillLimit = rider.skillYaw = 1;
-  rider.regenDrag = 0;
+  const ebike = skillPhysics.ebike, chair = skillPhysics.chair;
+  const tuning = rider.tuning, skillTuning = tuning?.skillTuning;
+  const windingDown = rider.vehicle === 'ebike' && speed > ebike.regenSpeed && (!input.gas || input.brake);
+  rider.regenDrag = windingDown ? ebike.regenDrag : 0;
+  if (rider.vehicle === 'chair') {
+    rider.skillYaw = mix(chair.lowSpeedYaw, 1, clamp((speed - chair.yawFadeStart) / chair.yawFadeRange, 0, 1));
+  }
   if (rider.vehicle === 'trail') {
+    const tractionPart = tuning?.rocketBoost ? 'rocket' : tuning?.parts?.traction ?? 'stock';
+    if (rider.tractionPart !== tractionPart) {
+      // Changing parts in free ride ends any charge or boost from the previous part.
+      if (rider.tractionPart !== undefined) rider.driftTime = rider.exitBoost = 0;
+      rider.tractionPart = tractionPart;
+    }
+  }
+  if (tuning?.rocketBoost) {
+    updateRocketBoost(rider, input, held, dt);
+  } else if (rider.vehicle === 'trail') {
     const skill = skillPhysics.trail;
     const drifting = held && Boolean(input.left) !== Boolean(input.right) && speed >= skill.driftSpeed && !input.brake && rider.energy > skill.driftMinEnergy;
     if (!held && rider.skillHeld && rider.driftTime >= skill.boostMinDriftTime && rider.energy > skill.boostEnergy) {
-      rider.exitBoost = skill.boostTime;
+      rider.exitBoost = skill.boostTime * (skillTuning?.boostTime ?? 1);
       rider.energy -= skill.boostEnergy;
     }
     rider.driftTime = drifting ? (rider.driftTime ?? 0) + dt : held ? (rider.driftTime ?? 0) : 0;
@@ -55,35 +88,34 @@ export function updateVehicleSkill(rider, input, dt) {
       rider.skill = '手刹甩尾'; rider.skillYaw = skill.driftYaw; rider.skillForce = skill.driftForce;
       rider.energy -= skill.driftDrain * dt;
     } else if (rider.exitBoost > 0) {
-      rider.skill = '出弯牵引'; rider.skillForce = skill.boostForce; rider.skillLimit = skill.boostLimit;
+      rider.skill = '出弯牵引'; rider.skillForce = skill.boostForce * (skillTuning?.boostForce ?? 1); rider.skillLimit = skill.boostLimit;
     } else rider.energy += skill.recovery * dt;
   } else if (rider.vehicle === 'ebike') {
-    const skill = skillPhysics.ebike;
+    const skill = ebike;
     rider.overheat = Math.max(0, (rider.overheat ?? 0) - dt);
     if (!held) rider.overclockLocked = false;
-    const windingDown = speed > skill.regenSpeed && (!input.gas || input.brake);
-    if (windingDown) rider.regenDrag = skill.regenDrag;
     if (held && input.gas && !input.brake && !rider.overclockLocked && rider.overheat === 0 && rider.energy > skill.minEnergy) {
-      rider.skill = '超频'; rider.skillForce = rider.skillLimit = skill.forceAndLimit;
-      rider.energy -= skill.drain * dt;
+      rider.skill = '超频'; rider.skillForce = rider.skillLimit = skill.forceAndLimit * (skillTuning?.forceAndLimit ?? 1);
+      rider.energy -= skill.drain * dt * (skillTuning?.drain ?? 1);
       if (rider.energy <= skill.minEnergy) {
-        rider.energy = 0; rider.overheat = skill.overheatTime; rider.overclockLocked = true;
+        rider.energy = 0; rider.overheat = skill.overheatTime * (skillTuning?.overheatTime ?? 1); rider.overclockLocked = true;
       }
     } else {
-      rider.energy += (windingDown ? skill.regenRecovery : held ? skill.heldRecovery : skill.recovery) * dt;
+      const recovery = windingDown ? skill.regenRecovery * (skillTuning?.regenRecovery ?? 1) : held ? skill.heldRecovery : skill.recovery;
+      rider.energy += recovery * dt;
       if (rider.overheat > 0) {
         rider.skill = '过热保护'; rider.skillForce = skill.overheatForce; rider.skillLimit = skill.overheatLimit;
       } else if (windingDown) rider.skill = '动能回收';
     }
   } else {
-    const skill = skillPhysics.chair;
-    rider.skillYaw = mix(skill.lowSpeedYaw, 1, clamp((speed - skill.yawFadeStart) / skill.yawFadeRange, 0, 1));
+    const skill = chair;
     if (held && input.gas && !input.brake && rider.energy > skill.minEnergy) {
       rider.skill = '双电机爆发';
-      rider.skillForce = mix(skill.lowSpeedForce, skill.highSpeedForce, clamp(speed / skill.forceFadeSpeed, 0, 1));
+      const lowSpeedForce = skill.lowSpeedForce * (skillTuning?.lowSpeedForce ?? 1);
+      rider.skillForce = mix(lowSpeedForce, skill.highSpeedForce, clamp(speed / skill.forceFadeSpeed, 0, 1));
       rider.skillLimit = skill.limit;
       rider.energy -= skill.drain * dt;
-    } else rider.energy += skill.recovery * dt;
+    } else rider.energy += skill.recovery * dt * (skillTuning?.recovery ?? 1);
   }
   rider.skillHeld = held;
   rider.energy = clamp(rider.energy, 0, 1);
@@ -288,8 +320,8 @@ export function moveCyclist(rider, input, dt, exploring = false, wind = null, tr
   if (puddle && !rider.inPuddle && rider.speed > puddleRules.splashMinSpeed) worldState.hooks.playSound?.('splash');
   rider.inPuddle = puddle;
   wind = shelteredWind(wind, rider, dt, query);
-  const wetGrip = wet && !bike.magicGrip ? mix(weather.gripScale, 1, bike.wetMitigate ?? 0) : 1;
-  const wetBrake = wet ? mix(weather.brakeScale, 1, bike.wetBrakeMitigate ?? 0) : 1;
+  const wetGrip = wet ? wetGripScale(bike, weather.gripScale) : 1;
+  const wetBrake = wet ? wetBrakeScale(bike, weather.brakeScale) : 1;
   const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
   const trackedWake = rider.draft?.wake?.id;
   const raceRiders = worldState.onlineRoom && worldState.race?.phase === 'race'
@@ -344,20 +376,25 @@ export function moveCyclist(rider, input, dt, exploring = false, wind = null, tr
   const steer = Number(input.right) - Number(input.left);
   const speedFactor = clamp(velocity / 13.2, 0, 1);
   const trail = vehicle === 'trail';
+  const steerScale = bike.steerScale ?? 1;
+  const speedSteerScale = mix(steerScale, bike.highSteerScale ?? steerScale, speedFactor);
   const steeringRate = (steer === 0 ? mix(trail ? 23 : 20, 17.5, speedFactor) :
-    mix(trail ? 17 : cycling ? 15.2 : 14, trail ? 9.6 : 10, speedFactor)) * (bike.steerScale ?? 1) * (1 - .14 * tuck);
+    mix(trail ? 17 : cycling ? 15.2 : 14, trail ? 9.6 : 10, speedFactor)) * speedSteerScale * (1 - .14 * tuck);
   rider.steering = mix(rider.steering, steer, 1 - Math.exp(-steeringRate * dt));
   const low = mix(.55, 1, clamp(velocity / 2.1, 0, 1));
   const wanted = rider.steering * low * mix(trail ? 1.88 : 1.75, trail ? 1.19 : 1.35, speedFactor) * (rider.skillYaw ?? 1);
   const gravelGrip = cycling ? mix(bike.grassGrip, bike.roadGrip, bicycleGravel.gripBlend) : bike.gravelGrip * wetGrip;
-  const grip = (paved ? bike.roadGrip * wetGrip : gravel ? gravelGrip : bike.grassGrip) * (1 - (bike.brakeTurnLoss ?? poweredDefaults.brakeTurnLoss) * rider.brake) *
+  const roadGrip = bike.roadGrip * wetGrip * mix(1, bike.highRoadGripScale ?? 1, speedFactor);
+  const grip = (paved ? roadGrip : gravel ? gravelGrip : bike.grassGrip) * (1 - (bike.brakeTurnLoss ?? poweredDefaults.brakeTurnLoss) * rider.brake) *
     (puddle && !bike.magicGrip ? puddleRules.gripScale : 1) * (weather.rain ? (bike.rainGrip ?? 1) : 1) *
     (bike.sideWind && wind ? 1 - clamp(Math.abs(Math.sin(rider.heading - wind.angle)) * wind.speed * windRules.sideGripLoss, 0, windRules.sideGripLossMax) : 1);
-  const maxTurn = grip * (rider.skill === '手刹甩尾' ? skillPhysics.trail.driftGrip : 1) / Math.max(vehicle === 'chair' ? 1.45 : 2.75, velocity);
+  const turnGrip = grip * (rider.skill === '手刹甩尾' ? skillPhysics.trail.driftGrip : 1);
+  const turnSpeed = Math.max(vehicle === 'chair' ? 1.45 : 2.75, velocity);
+  const maxTurn = turnGrip / turnSpeed;
   const load = Math.abs(wanted) / maxTurn;
   rider.slip = mix(rider.slip, clamp((load - .88) * .92 + (rider.skill === '手刹甩尾' ? skillPhysics.trail.driftSlip : 0) + (puddle && !bike.magicGrip ? puddleRules.slipAdded : 0), 0, 1), 1 - Math.exp(-8.6 * dt));
   rider.yawRate = mix(rider.yawRate, clamp(wanted, -maxTurn, maxTurn) * forward, 1 - Math.exp(-16.1 * dt));
-  if (cycling) rider.gripLoad = Math.abs(rider.yawRate) * velocity / grip;
+  rider.gripLoad = Math.abs(rider.yawRate) * turnSpeed / turnGrip;
   rider.heading += rider.yawRate * dt;
   rider.heading = Math.atan2(Math.sin(rider.heading), Math.cos(rider.heading));
   if (velocity > 4.2 && rider.slip > .04) rider.speed -= forward * rider.slip * (vehicle === 'chair' ? 1.05 : 2.30) * dt;

@@ -14,8 +14,8 @@ export const tyreChoices = {
     road: .985, grass: 1.18, grip: 1.19, loose: 1.24, drag: 1.025, grassDrag: 1.46, grassSlowdown: 2.90, wetMitigate: .55,
   },
   usedSlick: {
-    name: '二手光头胎', note: '干地极速高、滚阻低。湿地抓地和碎石表现很差。',
-    road: 1.048, grass: .76, grip: .89, loose: .64, drag: .86, grassDrag: 2.35, grassSlowdown: 5.6, rainGrip: .58,
+    name: '二手光头胎', note: '铺装极速高 1.5%、滚阻低 4%，湿地和碎石抓地差。',
+    road: 1.015, grass: .76, grip: .89, loose: .64, drag: .96, grassDrag: 2.35, grassSlowdown: 5.6, rainGrip: .58,
   },
   glue: {
     name: '超级胶水胎', note: '全地形极限抓地、草地与积水近乎无损。',
@@ -39,7 +39,7 @@ export const frameChoices = {
   stock: { name: '综合车架', note: '直线、弯道与爬坡均衡。', top: 1, sprintTop: 1, force: 1, grip: 1, steer: 1, drag: 1 },
   aero: { name: '气动车架', note: '高速风阻低、冲刺极速高 3.5%，急弯转向与极限抓地略降。', top: 1.01, sprintTop: 1.035, force: .97, grip: .95, steer: .88, drag: .91 },
   agile: { name: '轻量爬坡架', note: '爬坡与低速推力高 7%、转向更敏捷，铺装极速低 2.5%。', top: .975, sprintTop: .98, force: 1.07, grip: 1.03, steer: 1.15, drag: 1.04 },
-  usedFrame: { name: '二手改装轻框', note: '轻量爬坡推力好，侧风下抓地明显降低。', top: .99, sprintTop: 1, force: 1.17, grip: .96, steer: 1.06, drag: 1.05 },
+  usedFrame: { name: '二手改装轻框', note: '低速推力高 9%，侧风下抓地下降。', top: .99, sprintTop: 1, force: 1.09, grip: .96, steer: 1.06, drag: 1.05 },
   gravity: { name: '反重力碳纤架', note: '上坡几乎忽略重力，低速推力大幅提高。', top: 1.15, sprintTop: 1.21, force: 1.36, grip: 1, steer: 1.06, drag: .84 },
 };
 
@@ -47,8 +47,20 @@ export const sprintChoices = {
   stock: { name: '均衡输出', note: '标准冲刺推力与耐力消耗。', force: 1, top: 1, drain: 1, recover: 1 },
   burst: { name: '爆发冲刺', note: '冲刺推力高 14%、极速高 3%，耐力消耗快 35% 且恢复更慢。', force: 1.14, top: 1.03, drain: 1.35, recover: .85 },
   endurance: { name: '耐力巡航', note: '冲刺耗能降 28%、回复快 22%，瞬间爆发与冲刺极速略低。', force: .90, top: .975, drain: .72, recover: 1.22 },
-  rocket: { name: '火箭助推', note: '踩下冲刺后以超常推力突破巡航极速。', force: 2.8, top: 1.92, drain: 1.3, recover: 1.15 },
+  rocket: { name: '火箭助推', note: '短时冲刺推力高 65%、极速高 24%，耐力消耗加倍。', force: 1.65, top: 1.24, drain: 2, recover: 1 },
   capacitor: { name: '无限电容', note: '技能储备持续回复，长时间冲刺。', force: 1.12, top: 1.08, drain: .18, recover: 3 },
+};
+
+const ebikeHandlingSpeeds = { roadSpeed: 42 / 48, grassSpeed: 26 / 28 };
+const ebikeCruiseSpeeds = { ...ebikeHandlingSpeeds, roadSpeed: 45 / 48 };
+
+export const extraPoweredParts = {
+  usedSlick: { name: '二手光头胎', note: '铺装极速上限最多提高 1.5%、滚阻降低 6%，碎石、湿地和草地容易滑。', roadSpeed: 1.015, rolling: .94, grassSpeed: .78, grassGrip: .64, gravelGrip: .73, rainGrip: .58 },
+  usedFrame: { name: '二手改装轻框', note: '低速推力高 10%，侧风下抓地下降。', force: 1.10, steerScale: 1.05 },
+  glue: { name: '超级胶水胎', note: '全地形极限抓地，湿地和积水几乎无影响。', roadGrip: 2.8, grassGrip: 3.4, grassSpeed: 1.8, gravelGrip: 1.8 },
+  rocket: { name: '暴力解限控制器', note: '按下技能键短时提高推力与极速，随后冷却。' },
+  gravity: { name: '反重力车架', note: '上坡几乎忽略重力。', force: 1.27 },
+  capacitor: { name: '无限电容', note: '技能储备持续回复，高负载时保持输出。' },
 };
 
 export const vehicleTuningChoices = {
@@ -68,6 +80,16 @@ export const vehicleTuningChoices = {
       stiff: { name: '竞技硬避震', note: '铺装制动 +12%、转向更利落，碎石和草地抓地下降。', brakePower: 1.12, steerScale: 1.10, grassSlowdown: 1.25, grassGrip: .90, gravelGrip: .94 },
       soft: { name: '长行程越野避震', note: '入草减速减 30%，碎石、草地和湿地更稳，转向响应降 10%。', grassSlowdown: .70, grassGrip: 1.10, gravelGrip: 1.06, wetMitigate: .35, steerScale: .90, brakeTurnLoss: .85 },
     } },
+    { key: 'brakes', label: '制动分配', options: {
+      stock: { name: '原厂制动分配', note: '直线制动与带刹入弯均衡。' },
+      frontDisc: { name: '前轮强刹', note: '直线制动力提高 7%，带刹转向损失增加。', brakePower: 1.07, brakeTurnLoss: 1.28 },
+      linked: { name: '联动制动', note: '湿地带刹入弯更稳，直线制动力降低 6%。', brakePower: .94, brakeTurnLoss: .72, wetBrakeMitigate: .25 },
+    } },
+    { key: 'traction', label: '出弯牵引', options: {
+      stock: { name: '均衡牵引', note: '标准出弯牵引强度与持续时间。' },
+      quickEngage: { name: '快接合', note: '出弯牵引推力提高 8%，持续时间缩短 20%。', skillTuning: { boostForce: 1.08, boostTime: .80 } },
+      longDrive: { name: '长牵引', note: '出弯牵引持续时间延长 30%，推力降低 6%。', skillTuning: { boostForce: .94, boostTime: 1.30 } },
+    } },
   ],
   ebike: [
     { key: 'tyres', label: '轮胎', options: {
@@ -77,14 +99,26 @@ export const vehicleTuningChoices = {
     } },
     { key: 'motor', label: '电控输出', options: {
       stock: { name: '原厂配件', note: '铺装限速 25 km/h，碎石和草地输出低于标准电控。', roadSpeed: 25 / 48, grassSpeed: .72 },
-      standard: { name: '标准输出', note: '48 km/h 极速上限，加速与控弯均衡。' },
-      torque: { name: '强扭爬坡', note: '起步与爬坡推力 +24%，弯道更易接近抓地极限。', force: 1.24, roadGrip: .94, brakeTurnLoss: 1.14 },
-      smooth: { name: '平顺控弯', note: '过弯与带刹极稳、转向更顺，起步推力降 14%。', force: .86, roadGrip: 1.08, brakeTurnLoss: .65, steerScale: 1.08 },
+      standard: { name: '标准输出', note: '铺装基础限速 45 km/h，低速推力降 5%。', ...ebikeCruiseSpeeds, force: .95 },
+      torque: { name: '强扭爬坡', note: '铺装基础限速 42 km/h，低速爬坡推力高 18%，弯道更易接近抓地极限。', ...ebikeHandlingSpeeds, grassSpeed: 1, force: 1.18, roadGrip: .94, brakeTurnLoss: 1.14 },
+      smooth: { name: '平顺控弯', note: '铺装基础限速 42 km/h，过弯与带刹更稳，低速推力降 10%。', ...ebikeHandlingSpeeds, force: .90, roadGrip: 1.08, brakeTurnLoss: .65, steerScale: 1.08 },
+      rocket: { ...extraPoweredParts.rocket, ...ebikeCruiseSpeeds },
+      capacitor: { ...extraPoweredParts.capacitor, ...ebikeCruiseSpeeds },
     } },
     { key: 'brakes', label: '刹车系统', options: {
       stock: { name: '标准鼓刹', note: '制动力与转向余量均衡。' },
       disc: { name: '前碟强刹', note: '直线制动 +18%，重刹时带刹转向损失增大。', brakePower: 1.18, brakeTurnLoss: 1.25 },
       combo: { name: '联动渐进刹', note: '带刹转向损失减 45%、湿地更稳，直线制动略降 10%。', brakePower: .90, brakeTurnLoss: .55, wetBrakeMitigate: .50 },
+    } },
+    { key: 'geometry', label: '车架几何', options: {
+      stock: { name: '原厂车架几何', note: '标准转向响应与高速抓地。' },
+      shortWheelbase: { name: '短轴架', note: '低速转向响应提高 12%，高速铺装抓地最多降低 5%。', steerScale: 1.12, highSteerScale: .95, highRoadGripScale: .95 },
+      stableWheelbase: { name: '稳态架', note: '带刹损失更小，高速铺装抓地最多提高 6%，低速转向响应降低 10%。', steerScale: .90, highSteerScale: .97, highRoadGripScale: 1.06, brakeTurnLoss: .82 },
+    } },
+    { key: 'thermal', label: '超频与回收', options: {
+      stock: { name: '原厂温控', note: '标准超频耗电、过热冷却与动能回收。' },
+      quickCooling: { name: '快冷调校', note: '过热冷却时间缩短 25%，超频耗电速度提高 18%。', skillTuning: { drain: 1.18, overheatTime: .75 } },
+      regenTuning: { name: '回收调校', note: '滑行与刹车时的回充速度提高 30%，超频时的推力与速度倍率降低 4%。', skillTuning: { regenRecovery: 1.30, forceAndLimit: .96 } },
     } },
   ],
   chair: [
@@ -103,22 +137,23 @@ export const vehicleTuningChoices = {
       agile: { name: '灵巧竞速', note: '急弯转向响应 +20%，极限弯道略易侧滑。', steerScale: 1.20, roadGrip: .93 },
       steady: { name: '稳态直线', note: '高速与湿地抓地 +12%，急弯转向偏慢。', steerScale: .86, roadGrip: 1.12, wetMitigate: .40 },
     } },
+    { key: 'brakes', label: '制动响应', options: {
+      stock: { name: '原厂电刹', note: '标准电制动力与带刹转向余量。' },
+      power: { name: '强力电刹', note: '直线制动力提高 11%，带刹转向损失增加。', brakePower: 1.11, brakeTurnLoss: 1.30 },
+      progressive: { name: '渐进电刹', note: '湿地带刹更易控，直线制动力降低 7%。', brakePower: .93, brakeTurnLoss: .65, wetBrakeMitigate: .35 },
+    } },
+    { key: 'motorSplit', label: '双电机分配', options: {
+      stock: { name: '原厂电机分配', note: '标准低速爆发与回充速度。' },
+      hillPulse: { name: '坡起脉冲', note: '低速爆发推力提高 10%，回充速度降低 20%。', skillTuning: { lowSpeedForce: 1.10, recovery: .80 } },
+      sustained: { name: '连续输出', note: '连续弯坡间回充速度提高 28%，低速爆发推力降低 10%。', skillTuning: { lowSpeedForce: .90, recovery: 1.28 } },
+    } },
   ],
-};
-
-export const extraPoweredParts = {
-  usedSlick: { name: '二手光头胎', note: '铺装极速较高，碎石、湿地和草地容易滑。', roadSpeed: 1.04, rolling: .86, grassSpeed: .78, grassGrip: .64, gravelGrip: .73, rainGrip: .58 },
-  usedFrame: { name: '二手改装轻框', note: '低速爬坡更有力，侧风下抓地下降。', force: 1.16, steerScale: 1.05 },
-  glue: { name: '超级胶水胎', note: '全地形极限抓地，湿地和积水几乎无影响。', roadGrip: 2.8, grassGrip: 3.4, grassSpeed: 1.8, gravelGrip: 1.8 },
-  rocket: { name: '暴力解限控制器', note: '高扭矩与超高极速。', force: 1.95, highForce: 1.95, roadSpeed: 1.72, grassSpeed: 1.45 },
-  gravity: { name: '反重力车架', note: '上坡几乎忽略重力。', force: 1.27 },
-  capacitor: { name: '无限电容', note: '技能储备持续回复，高负载时保持输出。' },
 };
 
 for (const [vehicle, slots] of Object.entries(vehicleTuningChoices)) {
   for (const { key, options } of slots) {
     for (const id of Object.keys(tuning190.prices[vehicle][key])) {
-      if (extraPoweredParts[id]) options[id] = extraPoweredParts[id];
+      if (extraPoweredParts[id] && !Object.hasOwn(options, id)) options[id] = extraPoweredParts[id];
     }
   }
 }

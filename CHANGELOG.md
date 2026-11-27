@@ -1,5 +1,19 @@
 # 更新日志（CHANGELOG）
 
+## 2.6.0 — 动力车五槽改装与预算策略
+
+- 越野小摩托增加制动分配与出弯牵引，电自增加车架几何与超频回收，轮椅增加制动响应与双电机分配。新增槽位各提供 ¥0 原厂件和两种合法取舍。现有配件价格与违禁清单沿用，动力火箭继续独立计算。关联 `src/data/parts.js`、`src/data/tuning-190.cjs` 与 `src/ride/physics.js`。
+- 三种动力车的 ¥700 档分别允许 272、270 和 301 套合法搭配，均少于全目录的 432 套。穷举三车型的 ¥400 与 ¥700 合法配装，比较无风干直道、雨地带刹转向和短陡坡，六组均无同时在三个工况领先的构筑。动力二手光头胎的铺装加成收敛至 1.5%、滚阻系数 0.94，保留廉价干地定位与原雨地代价。
+- 车库按配件目录显示槽位，沿用通用数值、预算高亮和发车锁定。2.5.7 桌面存档可迁移，历史三槽配装读取为新增槽位的原厂件。联机升级到协议 v4，采用同一套五槽核价、技能效果和发车配置。关联 `src/ui/workshop-ui.js`、`server/server.mjs` 与 `server/verify.mjs`。
+
+- 调整自行车二手光头胎、各车型二手轻框和电自合法电控。电自新国标原厂保留 ¥0、25 km/h 与原草地表现，标准、强扭、平顺电控的铺装上限为 45、42、42 km/h。价格表与违禁规则沿用现有配置。关联 `src/data/parts.js`。
+- 自行车火箭收敛冲刺峰值并提高消耗。三种动力车型的火箭改为技能键触发，爆发 2 秒、冷却 8 秒，替代原主动技能。HUD 显示就绪、爆发与冷却，持续按键、发车倒计时和返场均按同一计时规则处理。关联 `src/data/vehicle-skills.js`、`src/ride/physics.js`、`src/race/time-trial.js` 和 `src/ui/hud-controls.js`。
+- 车库能力栏增加雨地抓地、雨地带刹抓地与雨地直线制动，按同车型原厂在无积水湿铺装下的表现比较。自行车原越野湿地综合项改为草地表现。关联 `src/ui/workshop-ui.js`、`src/ride/vehicles.js` 和 `scripts/verify-browser.mjs`。
+- 平衡改动通过 `npm run verify:all -- --skip-build` 的 17 项检查。雨地面板完成后重跑 `npm run build`、`npm run lint`、`npm run typecheck`、`npm run verify:fast -- --skip-build` 与 `node scripts/verify-browser.mjs`。车库选装及 Shift 火箭烟测通过，面板接入前后的干地、雨地与爬坡物理对照一致。沿用地图、资产、物理与性能验证基线。旧版 1.9.1.1 对拍因本地无旧包跳过。
+- 四种车型的速度仪表统一显示实时抓地余量与技能百分比。抓地余量沿用各车型当下的横向转向极限，包含路面、雨地、带刹和甩尾修正。车库将六项同口径能力放在相同位置，后接车型特色项。关联 `src/ride/physics.js`、`src/ui/hud-controls.js` 与 `src/ui/workshop-ui.js`。
+- 仪表和车库统一通过 `npm run build`、`npm run lint`、`npm run typecheck`、`npm run verify:fast -- --skip-build`、`node scripts/verify-deterministic-race.mjs` 与 `node scripts/verify-browser.mjs`。浏览器覆盖四车型转向读数、车库顺序和三个手机尺寸的仪表布局。沿用现有验证基线。
+- 2.6.0 通过 `npm run lint`、`npm run typecheck`、`npm run build:release` 与 `npm run verify:all -- --skip-build` 的 17 项检查，覆盖桌面和手机五槽、联机过预算及旧协议拒绝、四人 WebRTC、存档迁移和性能。沿用现有地图、资产、原厂物理及性能基线。旧版 1.9.1.1 对拍因本地无旧包跳过。
+
 ## 2.5.7 — 桌面存档恢复与联机比赛修复
 
 - 同一桌面安装写盘失败后，重开会保留有效的更快个人最佳，以及尚待写盘的手动导入成绩。临时写入失败会在设置中提示并重试。采集存档时一次枚举安装内的存储键。关联 `src/ui/save-sync.js`、`src/core/browser-storage.js` 和 `scripts/verify-browser.mjs`。

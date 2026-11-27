@@ -196,7 +196,7 @@ export function createSettingsController({
   }
 
   function initSettings(initMapReplay) {
-    workshop.initBicycleWorkshop();
+    workshop.initWorkshop();
     initMapReplay();
     fillPreferences();
     ui.driverName.value = driverProfile.name;
@@ -282,7 +282,6 @@ export function createSettingsController({
     ui.bikeBrakes.addEventListener('change', workshop.installBikeParts);
     ui.bikeFrame.addEventListener('change', workshop.installBikeParts);
     ui.bikeSprint.addEventListener('change', workshop.installBikeParts);
-    for (const sel of [ui.vehSlot0, ui.vehSlot1, ui.vehSlot2]) sel.addEventListener('change', workshop.installVehicleTuning);
     ui.saveExport.addEventListener('click', () => void exportSaveFile());
     ui.saveImport.addEventListener('click', () => ui.saveFile.click());
     ui.saveFile.addEventListener('change', () => {

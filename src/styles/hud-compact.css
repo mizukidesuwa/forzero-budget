@@ -45,10 +45,8 @@
   .speed-readout { gap:3px; flex-wrap:nowrap; white-space:nowrap; }
   .speedometer small { font-size:.58rem; }
   .speed-readout .slope-grade { font-size:.60rem; }
-  .sprint-meter { margin-top:4px; }
-  .sprint-hint { display:none; }
-  .speedometer[data-skill-active] .sprint-hint { display:block; margin-top:2px; font-size:.61rem; }
-  .bike-feedback { margin-top:2px; font-size:.61rem; width:100%; }
+  .drive-gauges { gap:4px; margin-top:4px; font-size:.61rem; }
+  .drive-meter { height:3px; }
   .speed-badges { gap:3px; bottom:calc(100% + 3px); flex-wrap:nowrap; }
   .speed-badges :is(.draft-pill,.status-pill) { padding:2px 5px; font-size:.62rem; }
   .speed-badges:has(#puddleStatus:not([hidden])) :is(#bikePosture,#draftPill) { display:none; }

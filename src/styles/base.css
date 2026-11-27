@@ -175,15 +175,24 @@
   .split strong { text-align:right; color:#daf0d5; font-size:.75rem; white-space:nowrap; }
   .split strong[data-gap="ahead"] { color:#ddeb9c; }
   .split strong[data-gap="behind"] { color:#f3b6a2; }
-  .sprint-meter { width:100%; height:4px; margin-top:8px; border-radius:8px; overflow:hidden; background:#f4f7e732; }
-  .sprint-meter i { width:100%; height:100%; display:block; transform-origin:left; background:#a8d9d6; }
-  .sprint-hint { display:block; margin-top:5px; color:#d0dece; font-size:.69rem; letter-spacing:.02em; }
+  .drive-gauges { display:grid; gap:5px; margin-top:6px; color:#d0dece; font-size:.69rem; line-height:1.15; }
+  .drive-gauge { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:2px 6px; align-items:baseline; }
+  .drive-gauge-label { overflow-wrap:anywhere; }
+  .drive-gauge-value { font-family:var(--mono); font-variant-numeric:tabular-nums; }
+  .drive-meter { grid-column:1/-1; height:4px; border-radius:8px; overflow:hidden; background:#f4f7e732; }
+  .drive-meter i { width:100%; height:100%; display:block; transform-origin:left; background:#a8d9d6; }
+  .drive-gauge[data-skill-active] .drive-gauge-label { color:var(--lime); }
+  .drive-gauge[data-skill-active] .drive-meter i { background:var(--lime); }
+  .drive-gauge:has([data-load=high]) .drive-gauge-value { color:#f3bc74; }
+  .drive-meter[data-load=high] i { background:#e0a55b; }
+  .drive-gauge:has([data-load=limit]) .drive-gauge-value { color:#ff9e8e; }
+  .drive-meter[data-load=limit] i { background:#ed7967; }
   .references { margin-top:6px; font-size:.73rem; color:#b4cbb9; }
   .references a { color:#d9e7c5; text-underline-offset:3px; }
   @media (max-width:640px) {
     .split { grid-template-columns:1fr; gap:3px; margin-top:6px; padding-top:5px; }
     .split strong { text-align:left; font-size:.71rem; }
-    .sprint-hint { font-size:.62rem; }
+    .drive-gauges { font-size:.62rem; }
     .references { margin-top:3px; }
     .touch button { min-width:48px; font-size:.79rem; }
   }

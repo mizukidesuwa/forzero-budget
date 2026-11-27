@@ -22,7 +22,6 @@ import {
   FRONT, REAR, TYRE_RADIUS, bicycleRigCache, bicycleRock, movingParts,
   movingPoweredSkinArms, poweredPose, riderSkinBodyCache, uploadPoweredRig,
 } from '../ride/models.js';
-import { vehicleSkills } from '../ride/physics.js';
 import { tuning190 } from '../ride/tuning-rules.js';
 import {
   DEFAULT_RIDER_NAME, bicycleAppearance, chairCheerClock, knownVehicle,
@@ -60,9 +59,9 @@ import { updateDraftHud } from './draft-hud.js';
 import { initCustomSounds, playCustomSound, updateRideAudio } from './audio.js';
 import { getShowMapComparison, renderCampusMap, setShowMapComparison } from './minimap.js';
 import { applyPendingSaveVehicle, bindSaveUi } from './save-sync.js';
-import { observeStageControls, showCameraMode } from './hud-controls.js';
+import { createDrivingHud, observeStageControls, showCameraMode } from './hud-controls.js';
 import {
-  checkpointLabel, courseDescription, courseTitle, getLanguage, initLanguage, message,
+  checkpointLabel, courseDescription, courseTitle, initLanguage, message,
   setLanguageAttribute, setLabel as setText, setText as setRawText, translate,
 } from './language.js';
 import { courierSummary, deltaLabel, feedbackLabel, ghostLabel } from './presentation-text.js';
@@ -119,7 +118,7 @@ const ui = Object.fromEntries([
   'mapScreen','mapToggle','mapText','miniButton','bigMap','miniMap','stationList','mapClock','mapNext','mapLegend',
   'mapRouteBuild','routeBuilderPanel','routeBuilderStatus','routeBuildUndo','routeBuildLoop','routeBuildClear','routeBuildApply','routeBuildCopy','routeBuilderCode',
   'riderTag','chairCheer','sprintKeys','gateTag','next','callout','callTitle','callValue','callDetail','callAction',
-  'ghostName','splitGap','goldGoal','sprintFill','sprintMeter','sprintHint',
+  'ghostName','splitGap','goldGoal','sprintFill','sprintMeter','sprintHint','sprintValue','gripMeter','gripFill','gripValue',
   'sectorFeedback','sectorLabel','sectorGap','exitFeedback','raceReview','reviewReference',
   'slopeGrade','elevationPanel','elevationStats','elevationChart',
   'sectorRows','cornerReview','reviewCornerName','reviewCornerDetail','reviewCornerSpeed',
@@ -131,8 +130,8 @@ const ui = Object.fromEntries([
   'onlineTuningTime','onlineCollision','settingsTuneBar','settingsTuneText','settingsTuneReady','settingsTuneSkip',
   'onlineInvite','onlineReady','onlineStart','onlineStatus','onlineLatency','onlineRank','onlineBike','onlineHostHint',
   'onlineTag0','onlineTag1','onlineTag2','draftPill','weatherOverlay','settingsWeather','settingsWindSpeed','settingsWindDir','onlineWindSpeed','onlineWindDir','onlineLobbyWindSpeed','onlineLobbyWindDir','mapCompare','reviewMapButton','practiceExit',
-  'onlineBudget','onlineBlind','onlineWindMode','onlineLobbyBudget','onlineLobbyBlind','onlineLobbyWindMode','budgetPicker','budgetReadout','budgetHighlight','budgetNotice','soloRulesStatus','raceMode','aiOptions','aiDifficulty','aiWins','courseVariants','courseDirection','courseLaps','mapReplay','replayPlay','replaySpeed','replaySeek','replayDetail','settingsWindMode','puddleStatus','bikePresets','bikePresetName','bikeSprintSpeed','bikeGravel','bikeStyles','bikeAbility','bikeFeedback','bikePosture','bikeGripMeter',
-  'bikeFrame','frameNote','bikeSprint','sprintNote','motorTuning','vehLabel0','vehLabel1','vehLabel2','vehSlot0','vehSlot1','vehSlot2','vehNote0','vehNote1','vehNote2',
+  'onlineBudget','onlineBlind','onlineWindMode','onlineLobbyBudget','onlineLobbyBlind','onlineLobbyWindMode','budgetPicker','budgetReadout','budgetHighlight','budgetNotice','soloRulesStatus','raceMode','aiOptions','aiDifficulty','aiWins','courseVariants','courseDirection','courseLaps','mapReplay','replayPlay','replaySpeed','replaySeek','replayDetail','settingsWindMode','puddleStatus','bikePresets','bikePresetName','bikeSprintSpeed','bikeGravel','bikeStyles','bikeAbility','bikePosture',
+  'bikeFrame','frameNote','bikeSprint','sprintNote','motorTuning','vehSlots',
   'vehTopSpeed','vehGravel','vehGrass','vehAbility','saveExport','saveImport','saveFile','saveStatus',
   'liveDelta','windPill','courierHud','courierTitle','courierDetail','courierTag','courierButton',
   'blindHint','touchBell',
@@ -148,6 +147,7 @@ const ui = Object.fromEntries([
   'settingsResolution','settingsAA','settingsGhost','settingsBrakeLine','settingsFps','settingsStatus','settingsLanguage',
   'startTrial','freeRide','pause','best','expand','cameraToggle','cameraModeTag','notice','travel','travelDialog','travelStation','travelChoices','travelClose','campusName','mapTitle','szuReferences','uclReference','fpsCounter'
 ].map(name => [name,byId(name)]));
+const updateDrivingHud = createDrivingHud(stage, ui);
 worldState.driverProfile = driverProfile;
 worldState.vehicleTunings = vehicleTunings;
 worldState.race = race;
@@ -165,7 +165,6 @@ const mapRows = [], dotLights = [];
 let mapOpen=false, zoomMap=false, ready=false, priorTimestamp, cameraRevision=0;
 let pendingCampus=null, uclRouteVisible=false;
 let previousPhase = null, previousPaused = null, previousGate = -1, previousLaunchMode = null, previousChasePhase = null;
-let hudLanguage;
 let fpsTime = 0, fpsFrames = 0;
 
 function updateFps(now) {
@@ -367,15 +366,8 @@ export function updateHud() {
   const trial = race.phase !== 'free' || chasing;
   const event=race.event,gates=event.gates,checkpointCount=gates.length-2;
   const leg=trial?activeStage(event,race.nextGate):null;
-  const actor=race.rider.vehicle, bicycle=actor==='bike';
-  if(stage.dataset.vehicle!==actor || hudLanguage!==getLanguage()) {
-    stage.dataset.vehicle=actor;
-    hudLanguage=getLanguage();
-    const {action,meter}=vehicleSkills[actor];
-    setText(document.querySelector('.touch [data-drive="sprint"]'),action);
-    ui.sprintKeys.lastChild.nodeValue=' '+translate(action)+' ';
-    setLanguageAttribute(ui.sprintMeter,'aria-label',translate(meter));
-  }
+  const bicycle = race.rider.vehicle === 'bike';
+  updateDrivingHud(race.rider);
   ui.puddleStatus.hidden=!race.rider.inPuddle;
   setRawText(ui.riderTag,driverProfile.name);
   const opponent=race.opponent;
@@ -467,23 +459,7 @@ export function updateHud() {
   const [x,,z] = race.rider.position;
   const grade=(worldState.hooks.riderGrade ?? riderGrade)(race.rider.position,race.rider.heading)*100;
   ui.slopeGrade.hidden=!bicycle;
-  ui.bikeFeedback.hidden=!bicycle;
-  if(bicycle) {
-    const {posture,gripLoad}=race.rider;
-    setRawText(ui.slopeGrade,(grade>.05?'↗ +':grade<-.05?'↘ −':translate('坡度 '))+Math.abs(grade).toFixed(1)+'%');
-    const showPosture=posture==='tuck'||posture==='stand';
-    ui.bikePosture.hidden=!showPosture;
-    if(showPosture) {
-      ui.bikePosture.dataset.posture=posture;
-      setText(ui.bikePosture,posture==='tuck'?'伏身破风':'起身摇车');
-    } else delete ui.bikePosture.dataset.posture;
-    const load=clamp(gripLoad??0,0,1), remaining=Math.round(100*(1-load));
-    ui.bikeGripMeter.value=remaining;
-    ui.bikeGripMeter.dataset.load = load>.90?'limit':load>.72?'high':'normal';
-  } else {
-    ui.bikePosture.hidden=true;
-    delete ui.bikePosture.dataset.posture;
-  }
+  if (bicycle) setRawText(ui.slopeGrade,(grade>.05?'↗ +':grade<-.05?'↘ −':translate('坡度 '))+Math.abs(grade).toFixed(1)+'%');
   const london=getActiveCampus()==='ucl';
   const outside=getActiveCampus()==='szu'&&!inCampus(x,z)?cityStreetAt(x,z):null;
   const streetName=london?uclWayByPath.get(uclStreetAt(x,z,1.15)):outside?.name;
@@ -508,13 +484,6 @@ export function updateHud() {
   const surfaceFull=!race.rider.paved?(race.rider.surfaceKind==='gravel'?'碎石路面':'草地减速'):'柏油路面';
   setText(ui.surfaceType,race.phase==='free'?(roadLoc?translate(roadLoc)+' · '+translate(surfaceShort):surfaceFull):(!race.rider.paved?surfaceFull:(roadLoc??'柏油路面')));
   updateCoach();
-  const energy=Math.round(race.rider.energy*100);
-  if (ui.sprintMeter.getAttribute('aria-valuenow')!==String(energy)) {
-    ui.sprintFill.style.transform='scaleX('+energy/100+')';
-    ui.sprintMeter.setAttribute('aria-valuenow',String(energy));
-  }
-  ui.sprintMeter.parentElement.toggleAttribute('data-skill-active',Boolean(race.rider.sprinting||race.rider.skill));
-  setText(ui.sprintHint,bicycle?(race.rider.sprinting?'冲刺中':'冲刺耐力'):(race.rider.skill||vehicleSkills[actor].meter));
   const clock = timeLabel(race.elapsed);
   setText(ui.clock,clock);
   setText(ui.mapClock,trial ? clock : '');

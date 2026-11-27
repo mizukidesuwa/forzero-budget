@@ -15,6 +15,7 @@ import {
   resolveRouteRef,
   setActiveCampus,
   setStorage,
+  tuning190,
   vehicleBenchmark,
   makeNetworkCourse,
   makeSeedCourse,
@@ -168,11 +169,11 @@ setStorage({
 
   try {
     const route = { campus: 'szu', id: 'ring', seed: null, layout: '0123abcd' };
-    const p1 = await reqJson('POST', '/online/rooms', { name: '追击甲', protocol: 3, format: 'chase', route });
+    const p1 = await reqJson('POST', '/online/rooms', { name: '追击甲', protocol: tuning190.protocol, format: 'chase', route });
     const s1 = emitReq('GET', `/online/rooms/${p1.room.code}/events?id=${p1.id}&token=${p1.token}`);
-    const p2 = await reqJson('POST', '/online/rooms', { name: '逃跑乙', protocol: 3, code: p1.room.code });
+    const p2 = await reqJson('POST', '/online/rooms', { name: '逃跑乙', protocol: tuning190.protocol, code: p1.room.code });
     const s2 = emitReq('GET', `/online/rooms/${p1.room.code}/events?id=${p2.id}&token=${p2.token}`);
-    const p3 = await reqJson('POST', '/online/rooms', { name: '逃跑丙', protocol: 3, code: p1.room.code });
+    const p3 = await reqJson('POST', '/online/rooms', { name: '逃跑丙', protocol: tuning190.protocol, code: p1.room.code });
     const s3 = emitReq('GET', `/online/rooms/${p1.room.code}/events?id=${p3.id}&token=${p3.token}`);
     const players = [
       { id: p1.id, token: p1.token, stream: s1 },

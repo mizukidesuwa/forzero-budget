@@ -5,6 +5,9 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { openTestBrowser } from './browser-runner.mjs';
+import tuning190 from '../server/tuning-190.cjs';
+
+const { protocol } = tuning190;
 
 // Real localhost HTTP, four isolated browser profiles and real WebRTC data
 // channels. --drive uses accelerated fixed-step auto-driving; without it finish
@@ -100,16 +103,16 @@ try {
   }
   console.log('[5/7] Waiting for 12 WebRTC channels (up to two minutes)...');
   for (const page of pages) {
-    await wait(page, `(()=>{const r=__FORZERO__.onlineRoom;return r.state.protocol===3 && r.state.players.length===4 && r.peers.size===3 &&
+    await wait(page, `(()=>{const r=__FORZERO__.onlineRoom;return r.state.protocol===${protocol} && r.state.players.length===4 && r.peers.size===3 &&
       r.state.players.every(player=>player.raceProgress===true) &&
-      [...r.peers.values()].every(p=>p.pc.connectionState==='connected' && p.channel?.readyState==='open' && p.channel.label==='ride-v3')})()`, 'WebRTC peers', 120_000);
+      [...r.peers.values()].every(p=>p.pc.connectionState==='connected' && p.channel?.readyState==='open' && p.channel.label==='ride-v${protocol}')})()`, 'WebRTC peers', 120_000);
   }
   assert.equal(await pages[0].evalPage('document.documentElement.lang'), 'zh-CN');
   assert.equal(await pages[1].evalPage('document.documentElement.lang'), 'en');
   assert.equal(await pages[0].evalPage('__FORZERO__.ui.onlineReady.textContent'), '准备');
   assert.equal(await pages[1].evalPage('__FORZERO__.ui.onlineReady.textContent'), 'Ready');
   assert.equal(await pages[1].evalPage('/[\\p{Script=Han}]/u.test(__FORZERO__.ui.onlineBike.textContent)'), false);
-  console.log('PASS: real HTTP room, protocol v3, four browsers and 12 connected peer channels');
+  console.log(`PASS: real HTTP room, protocol v${protocol}, four browsers and 12 connected peer channels`);
   console.log('[5/7] Interrupting one signaling stream and checking reconnection...');
   const reconnectId = await pages[3].evalPage('__FORZERO__.onlineRoom.id');
   const stream = eventStreams.get(reconnectId);

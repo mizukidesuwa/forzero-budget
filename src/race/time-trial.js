@@ -273,6 +273,10 @@ export class TimeTrial {
         : surfaceAt(ride.position[0], ride.position[2], campus === 'szu', campus);
     }
     ride.energy = this.rider.energy;
+    if (ride.tuning?.rocketBoost) {
+      ride.rocketTime = this.rider.rocketTime;
+      ride.skillHeld = this.rider.skillHeld;
+    }
     ride.travel = this.rider.travel;
     this.saveReplayFrame(this.elapsed);
     this.rider = ride;
@@ -375,6 +379,7 @@ export class TimeTrial {
 
   step(input) {
     if (this.phase === 'count') {
+      if (this.rider.tuning?.rocketBoost) this.rider.skillHeld = Boolean(input?.sprint);
       const beforeSec = Math.ceil(this.countdownTicks * PHYSICS_STEP);
       this.countdown = --this.countdownTicks * PHYSICS_STEP;
       const afterSec = Math.ceil(this.countdown);

@@ -116,6 +116,138 @@ try {
   ]`), ['Original QA Rider','stock'], 'A quota error rolled back the earlier driver write');
   await evaluate('restoreQaStorage()');
 
+  const garage = await evaluate(`(()=>{
+    const f=__FORZERO__, u=f.ui;
+    const keys=['szu-litchi-driver-1','szu-litchi-bike-1','szu-litchi-tuning-1',f.PREF_KEY];
+    const saved=keys.map(key=>localStorage.getItem(key));
+    const select=(control,value)=>{
+      control.value=value;
+      control.dispatchEvent(new Event('change',{bubbles:true}));
+    };
+    const configure=(controls,values)=>{
+      controls.forEach((control,index)=>control.value=values[index]);
+      controls[0].dispatchEvent(new Event('change'));
+    };
+    const labels=['雨地抓地','雨地带刹抓地','雨地直线制动'];
+    const poweredParts=()=>Array.from(u.vehSlots.querySelectorAll('select'));
+    const choosePowered=(key,value)=>select(u.vehSlots.querySelector('select[name="'+key+'"]'),value);
+    const read=panel=>{
+      const rows=new Map(Array.from(panel.children,row=>[row.firstElementChild.textContent,row.querySelector('output').textContent]));
+      return labels.map(label=>rows.get(label));
+    };
+    const inspectVehicle=(vehicle,panel)=>{
+      select(u.vehiclePicker,vehicle);
+      const meter=document.querySelector('#gripMeter[role=meter]'), instrument=meter.closest('.speedometer');
+      const gripValue=document.querySelector('#gripValue'), gripLabel=document.querySelector('#gripLabel');
+      const r=f.race;
+      const previous={rider:r.rider,freeClock:r.freeClock,previousRiderPose:r.previousRiderPose,
+        moved:r.moved,freeHazardNotice:r.freeHazardNotice};
+      const introHidden=u.intro.hidden;
+      try {
+        r.rider={...r.rider,position:r.rider.position.slice(),speed:6,steering:.9,yawRate:0,draft:null};
+        const atRest=Number(meter.getAttribute('aria-valuenow'));
+        r.step({gas:false,brake:false,left:false,right:true,sprint:false});
+        f.updateHud();
+        const turning=Number(meter.getAttribute('aria-valuenow'));
+        return {
+          vehicle:r.rider.vehicle,
+          labels:Array.from(panel.children,row=>row.firstElementChild.textContent),
+          slots:vehicle==='bike'?[]:poweredParts().map(control=>control.name),
+          hud:Boolean(instrument && instrument.contains(u.sprintMeter) && instrument.contains(gripValue) &&
+            instrument.contains(gripLabel) && meter.getBoundingClientRect().width>0 && gripLabel.textContent==='抓地余量'),
+          responsive:atRest===100 && turning>0 && turning<atRest && gripValue.textContent===turning+'%',
+        };
+      } finally {
+        Object.assign(r,previous);
+        f.updateHud();
+        u.intro.hidden=introHidden;
+      }
+    };
+    u.bikeButton.click();
+    const initialVehicle=u.vehiclePicker.value;
+    const initialBudget=u.budgetPicker.value;
+    const bikeParts=[u.bikeTyres,u.bikeGears,u.bikeBrakes,u.bikeFrame,u.bikeSprint];
+    const initialBike=bikeParts.map(control=>control.value);
+    let initialEbike;
+    try {
+      const vehicles=['bike','ebike','chair','trail'].map(vehicle=>inspectVehicle(vehicle,vehicle==='bike'?u.bikeAbility:u.vehAbility));
+      select(u.vehiclePicker,'bike');
+      configure(bikeParts,['usedSlick','stock','stock','stock','stock']);
+      const usedSlick=read(u.bikeAbility);
+      configure(bikeParts,['traction','stock','control','stock','stock']);
+      const tractionControl=read(u.bikeAbility);
+      const grass=Array.from(u.bikeAbility.children).some(row=>row.firstElementChild.textContent==='草地表现');
+      select(u.vehiclePicker,'ebike');
+      initialEbike=Object.fromEntries(poweredParts().map(control=>[control.name,control.value]));
+      for (const control of poweredParts()) select(control,'stock');
+      choosePowered('tyres','grip');
+      choosePowered('brakes','combo');
+      const powered=read(u.vehAbility);
+      const geometry=u.vehSlots.querySelector('select[name=geometry]');
+      select(geometry,'shortWheelbase');
+      const geometrySaved=f.race.rider.tuning.parts.geometry==='shortWheelbase' &&
+        JSON.parse(localStorage.getItem('szu-litchi-tuning-1')).ebike.geometry==='shortWheelbase' && geometry.isConnected;
+      select(geometry,'stock');
+      choosePowered('motor','standard');
+      choosePowered('thermal','regenTuning');
+      select(u.budgetPicker,'700');
+      const at710=u.budgetReadout.textContent;
+      f.closeSettings();
+      u.startTrial.click();
+      const rejected=f.race.phase==='free' && u.settingsDialog.open && !u.bikeSettings.hidden &&
+        u.vehSlots.querySelector('select[name=thermal]').dataset.overBudget==='true';
+      choosePowered('thermal','quickCooling');
+      const at660=u.budgetReadout.textContent;
+      const budgetCleared=u.budgetReadout.dataset.over==='false' && !u.vehSlots.querySelector('[data-over-budget]');
+      f.closeSettings();
+      u.startTrial.click();
+      const accepted=f.race.phase==='count' && f.race.rider.tuning.parts.thermal==='quickCooling';
+      u.bikeButton.click();
+      const locked=poweredParts().length===5 && poweredParts().every(control=>control.disabled);
+      return {usedSlick,tractionControl,grass,powered,vehicles,budget:{at710,at660,geometrySaved,rejected,budgetCleared,accepted,locked}};
+    } finally {
+      if (f.race.phase!=='free') {
+        f.closeSettings();
+        u.freeRide.click();
+      }
+      if (!u.settingsDialog.open) u.bikeButton.click();
+      if (initialEbike) {
+        select(u.vehiclePicker,'ebike');
+        for (const [slot,value] of Object.entries(initialEbike)) choosePowered(slot,value);
+      }
+      select(u.budgetPicker,initialBudget);
+      select(u.vehiclePicker,'bike');
+      configure(bikeParts,initialBike);
+      select(u.vehiclePicker,initialVehicle);
+      keys.forEach((key,index)=>saved[index]===null?localStorage.removeItem(key):localStorage.setItem(key,saved[index]));
+      f.closeSettings();
+    }
+  })()`);
+  const { vehicles, budget, ...rainStats } = garage;
+  assert.deepEqual(rainStats, {
+    usedSlick:['-48%','-48%','持平'], tractionControl:['+31%','+42%','-5%'],
+    grass:true, powered:['+15%','+24%','-3%'],
+  }, 'Garage rain grip, braking grip and straight braking deltas');
+  const sharedStats = ['铺装抓地','低速推力','直线制动','雨地抓地','雨地带刹抓地','雨地直线制动'];
+  const expectedSlots = {
+    bike: [],
+    ebike: ['tyres','motor','brakes','geometry','thermal'],
+    chair: ['wheels','motor','caster','brakes','motorSplit'],
+    trail: ['tyres','gears','suspension','brakes','traction'],
+  };
+  assert.deepEqual(vehicles.map(({ vehicle }) => vehicle), ['bike','ebike','chair','trail']);
+  for (const { vehicle, labels, slots, hud, responsive } of vehicles) {
+    assert.equal(labels.length, sharedStats.length + 2, vehicle + ' garage stat count');
+    assert.deepEqual(labels.slice(0, sharedStats.length), sharedStats, vehicle + ' shared garage stats');
+    assert.deepEqual(slots, expectedSlots[vehicle], vehicle + ' powered tuning slots');
+    assert.ok(hud && responsive, vehicle + ' shared grip HUD did not respond to turning');
+  }
+  assert.match(budget.at710, /¥710.*¥700.*¥10/);
+  assert.match(budget.at660, /¥660.*¥700/);
+  for (const key of ['geometrySaved','rejected','budgetCleared','accepted','locked']) {
+    assert.equal(budget[key], true, 'Five-slot powered workshop ' + key);
+  }
+
   await evaluate(`(()=>{
     const f=__FORZERO__,u=f.ui,r=f.race;
     const originalCourse=u.coursePicker.value;
@@ -550,6 +682,31 @@ try {
     await chooseLanguage('en');
     await evaluate('__FORZERO__.closeSettings()');
     assert.equal(await evaluate("document.querySelector('[data-drive=gas]').textContent"), 'Accelerate');
+    const mobileSlots = await evaluate(`(()=>{
+      const f=__FORZERO__, u=f.ui;
+      f.openSettings('bike');
+      const initialVehicle=u.vehiclePicker.value;
+      const selectVehicle=value=>{
+        u.vehiclePicker.value=value;
+        u.vehiclePicker.dispatchEvent(new Event('change'));
+      };
+      try {
+        selectVehicle('ebike');
+        const controls=Array.from(u.vehSlots.querySelectorAll('select'));
+        const thermal=u.vehSlots.querySelector('select[name=thermal]');
+        thermal.scrollIntoView({block:'center'});
+        const rect=thermal.getBoundingClientRect(), dialog=u.settingsDialog.getBoundingClientRect();
+        return {
+          slotCount:controls.length,
+          localized:/^[A-Za-z]/.test(thermal.labels[0]?.textContent) && /^[A-Za-z]/.test(thermal.selectedOptions[0]?.textContent),
+          inView:rect.width>0 && rect.left>=dialog.left && rect.right<=dialog.right && rect.top>=dialog.top && rect.bottom<=dialog.bottom,
+        };
+      } finally {
+        selectVehicle(initialVehicle);
+        f.closeSettings();
+      }
+    })()`);
+    assert.deepEqual(mobileSlots, {slotCount:5,localized:true,inView:true}, 'Powered workshop fifth slot in English on mobile');
     const info = await evaluate(`(()=>{
       const button = document.querySelector('[data-drive="gas"]');
       const input = document.querySelector('input[type="text"], textarea');
@@ -599,17 +756,19 @@ try {
       const fit = await evaluate(`(()=>{
         const f=__FORZERO__, box=element=>element.getBoundingClientRect();
         const view=box(f.stage), fps=box(f.ui.fpsCounter), next=box(f.ui.next), camera=box(f.ui.cameraToggle),
-          left=box(document.querySelector('.touch-steer')), right=box(document.querySelector('.touch-pedals'));
+          left=box(document.querySelector('.touch-steer')), right=box(document.querySelector('.touch-pedals')),
+          speedometer=box(document.querySelector('.speedometer')), grip=box(document.querySelector('#gripMeter'));
         return {
           guidance:fps.width>0 && next.width>0 && fps.top>=next.bottom,
           routeFits:next.right <= view.right && next.left >= view.left,
           buttonsFit:left.width>0 && right.width>0 && left.left>=view.left && right.right<=view.right && left.right<=right.left,
           cameraFits:camera.width>0 && camera.left>=view.left && camera.right<=view.right,
+          gripFits:grip.width>0 && grip.left>=speedometer.left && grip.right<=speedometer.right,
           bounds:[view.left,view.right,next.left,next.right],
         };
       })()`);
       const { bounds, ...fits } = fit;
-      assert.deepEqual(fits,{guidance:true,routeFits:true,buttonsFit:true,cameraFits:true},`${width}×${height} at 150%, stage/route bounds ${bounds}`);
+      assert.deepEqual(fits,{guidance:true,routeFits:true,buttonsFit:true,cameraFits:true,gripFits:true},`${width}×${height} at 150%, stage/route bounds ${bounds}`);
     }
     const timeOrigin = await evaluate('performance.timeOrigin');
     await rpc('Page.reload',{},sessionId);

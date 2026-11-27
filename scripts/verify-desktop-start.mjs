@@ -7,6 +7,9 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import saveRules from '../src/data/shared-rules.cjs';
+import tuning190 from '../server/tuning-190.cjs';
+
+const { protocol } = tuning190;
 
 const portable = process.argv[2]==='--portable';
 if (portable) assert.ok(process.argv[3], 'Provide the extracted portable ZIP directory.');
@@ -96,8 +99,8 @@ try {
   const independent = snapshot('Independent');
   const archive = [{score:{name:'Friend'},replay:'existing archive entry'}];
   await Promise.all([
-    seedSave(join(temp,'forzero-budget-windows-x64-2.5.6'),oldPortable),
-    seedSave(join(temp,'forzero-budget-2.5.6'),oldLight),
+    seedSave(join(temp,'forzero-budget-windows-x64-2.5.7'),oldPortable),
+    seedSave(join(temp,'forzero-budget-2.5.7'),oldLight),
     seedSave(join(temp,'forzero-budget-windows-x64-2.5.4'),snapshot('Older Windows')),
     seedSave(second,{...independent,friends:archive}),
   ]);
@@ -128,7 +131,7 @@ try {
   const host = await request(base,'/app/host/start',{});
   assert.equal(host.status,200);
   const {port:roomPort} = await host.json();
-  const room = await request(roomPort,'/online/rooms',{name:'Desktop QA',protocol:3,format:'bo1',
+  const room = await request(roomPort,'/online/rooms',{name:'Desktop QA',protocol,format:'bo1',
     route:{campus:'szu',id:'ring',seed:null,layout:'0123abcd'}});
   assert.equal(room.status,200);
   assert.match((await room.json()).room.code,/^[A-Z2-9]{8}$/);

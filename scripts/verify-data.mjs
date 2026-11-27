@@ -7,6 +7,16 @@ const require = createRequire(import.meta.url);
 const shared = require('../server/tuning-190.cjs');
 const { roomBuildProblem } = require('../server/room-rules.cjs');
 assert.equal(game.tuning190, shared);
+assert.deepEqual([...shared.illegalParts].sort(), ['capacitor', 'glue', 'gravity', 'rocket']);
+assert.equal(shared.prices.bike.tyres.usedSlick, 60);
+assert.equal(shared.prices.bike.frame.usedFrame, 80);
+assert.equal(shared.prices.trail.suspension.usedFrame, 80);
+assert.equal(shared.prices.chair.caster.usedFrame, 80);
+assert.equal(shared.prices.bike.sprint.rocket, 400);
+assert.equal(shared.prices.bike.sprint.capacitor, 360);
+assert.deepEqual(shared.prices.ebike.motor, {
+  stock: 0, standard: 120, torque: 230, smooth: 190, rocket: 400, capacitor: 360,
+});
 
 for (const [vehicle, prices] of Object.entries(shared.prices)) {
   const options = vehicle === 'bike'
@@ -15,6 +25,7 @@ for (const [vehicle, prices] of Object.entries(shared.prices)) {
   assert.deepEqual(Object.keys(options), Object.keys(prices), vehicle);
   for (const [slot, parts] of Object.entries(prices)) {
     assert.deepEqual(Object.keys(options[slot]).sort(), Object.keys(parts).sort(), vehicle + '/' + slot);
+    assert.equal(parts.stock, 0, vehicle + '/' + slot);
     for (const [part, price] of Object.entries(parts)) {
       const selection = { [slot]: part };
       const build = shared.summarize(vehicle, selection);
@@ -25,6 +36,37 @@ for (const [vehicle, prices] of Object.entries(shared.prices)) {
       assert.equal(shared.violation(vehicle, selection, 'party'), '');
     }
   }
+}
+
+const poweredBudgetCounts = { trail: [63, 272], ebike: [65, 270], chair: [80, 301] };
+const extraSlots = { trail: ['brakes', 'traction'], ebike: ['geometry', 'thermal'], chair: ['brakes', 'motorSplit'] };
+for (const [vehicle, slots] of Object.entries(extraSlots)) {
+  const catalog = shared.prices[vehicle];
+  assert.equal(Object.keys(catalog).length, 5, vehicle);
+  const oldParts = Object.fromEntries(Object.entries(catalog).slice(0, 3).map(([slot, options]) => [slot, Object.keys(options).find(part => part !== 'stock' && !shared.illegalParts.has(part))]));
+  const restored = game.normalizeVehicleParts(vehicle, oldParts);
+  assert.deepEqual(restored, { ...oldParts, [slots[0]]: 'stock', [slots[1]]: 'stock' });
+  assert.deepEqual(game.buildVehicleTuning(vehicle, oldParts), game.buildVehicleTuning(vehicle, restored));
+  const legalTotals = Object.values(catalog).reduce((totals, options) =>
+    totals.flatMap(total => Object.entries(options).filter(([part]) => !shared.illegalParts.has(part))
+      .map(([, price]) => total + price)), [0]);
+  assert.equal(legalTotals.length, 432, vehicle);
+  assert.deepEqual([400, 700].map(budget => legalTotals.filter(total => total <= budget).length), poweredBudgetCounts[vehicle]);
+}
+
+for (const [vehicle, budget, parts, alternative, over] of [
+  ['trail', '400', { tyres: 'road', traction: 'longDrive' }, { traction: 'quickEngage' }, 60],
+  ['ebike', '700', { tyres: 'grip', motor: 'standard', brakes: 'combo', thermal: 'regenTuning' }, { thermal: 'quickCooling' }, 10],
+  ['chair', '400', { brakes: 'progressive', motorSplit: 'sustained' }, { brakes: 'power' }, 40],
+]) {
+  const room = { vehicleRule: vehicle, budget };
+  assert.equal(roomBuildProblem(room, { tuning: parts }), '超预算 ¥' + over);
+  assert.equal(roomBuildProblem(room, { tuning: { ...parts, ...alternative } }), '');
+}
+
+for (const [motor, roadKph] of [['stock', 25], ['standard', 45], ['torque', 42], ['smooth', 42]]) {
+  const tuning = game.buildVehicleTuning('ebike', { motor });
+  assert.ok(Math.abs(tuning.roadSpeed * 3.6 - roadKph) < 1e-9, `e-bike ${motor} nominal limit`);
 }
 
 game.setActiveCampus('szu');
@@ -73,6 +115,175 @@ try {
 } finally {
   part.grip = originalGrip;
   game.setActiveWeather('day');
+}
+
+const rocketRoad = {
+  campus: 'szu',
+  courseGround: () => [100_000, game.ROAD_Y, 100_000],
+  riderGrade: () => 0,
+  rideElevation: () => 0,
+  safeToRide: () => true,
+  waterHazardAt: () => false,
+  cliffHazardAt: () => false,
+  surfaceAt: () => true,
+};
+const cruise = { gas: true, brake: false, left: false, right: true, sprint: false };
+const skillPressed = { ...cruise, sprint: true };
+const stepRocketRoad = (rider, input) =>
+  game.moveCyclist(rider, input, game.PHYSICS_STEP, false, null, null, [], rocketRoad);
+const framesFor = seconds => Math.round(seconds / game.PHYSICS_STEP);
+function tunedRider(vehicle, parts, speed = 6) {
+  const rider = game.makeCyclist(event, game.stockBike, vehicle, game.buildVehicleTuning(vehicle, parts), rocketRoad);
+  rider.speed = speed;
+  return rider;
+}
+
+function trailBoost(traction) {
+  const rider = tunedRider('trail', { traction });
+  for (let frame = 0; frame < framesFor(.5); frame++) game.updateVehicleSkill(rider, skillPressed, game.PHYSICS_STEP);
+  game.updateVehicleSkill(rider, cruise, game.PHYSICS_STEP);
+  assert.equal(rider.skill, '出弯牵引');
+  return rider;
+}
+
+const stockTrail = trailBoost('stock');
+const quickTrail = trailBoost('quickEngage');
+const longTrail = trailBoost('longDrive');
+assert.ok(quickTrail.skillForce > stockTrail.skillForce && stockTrail.skillForce > longTrail.skillForce);
+assert.ok(quickTrail.exitBoost < stockTrail.exitBoost && stockTrail.exitBoost < longTrail.exitBoost);
+longTrail.tuning = quickTrail.tuning;
+game.updateVehicleSkill(longTrail, cruise, game.PHYSICS_STEP);
+assert.equal(longTrail.exitBoost, 0, 'swapping a free-ride part ends the previous traction boost');
+assert.equal(longTrail.skillForce, 1);
+
+function overheatEbike(thermal) {
+  const rider = tunedRider('ebike', { motor: 'standard', thermal });
+  let frames = 0;
+  while (frames < framesFor(5) && !(rider.overheat > 0)) {
+    game.updateVehicleSkill(rider, skillPressed, game.PHYSICS_STEP);
+    frames++;
+  }
+  assert.ok(rider.overheat > 0);
+  return { frames, overheat: rider.overheat };
+}
+
+const stockHeat = overheatEbike('stock');
+const quickHeat = overheatEbike('quickCooling');
+assert.ok(quickHeat.frames < stockHeat.frames && quickHeat.overheat < stockHeat.overheat);
+const stockEbike = tunedRider('ebike', { motor: 'standard' });
+const regenEbike = tunedRider('ebike', { motor: 'standard', thermal: 'regenTuning' });
+for (const rider of [stockEbike, regenEbike]) game.updateVehicleSkill(rider, skillPressed, game.PHYSICS_STEP);
+assert.ok(regenEbike.skillForce < stockEbike.skillForce);
+for (const rider of [stockEbike, regenEbike]) {
+  rider.energy = .5;
+  game.updateVehicleSkill(rider, { ...cruise, gas: false }, game.PHYSICS_STEP);
+}
+assert.ok(regenEbike.energy > stockEbike.energy);
+
+const hillChair = tunedRider('chair', { motor: 'climb', motorSplit: 'hillPulse' }, 1);
+const sustainedChair = tunedRider('chair', { motor: 'climb', motorSplit: 'sustained' }, 1);
+for (const rider of [hillChair, sustainedChair]) stepRocketRoad(rider, skillPressed);
+assert.ok(hillChair.speed > sustainedChair.speed);
+for (const rider of [hillChair, sustainedChair]) {
+  rider.energy = .5;
+  stepRocketRoad(rider, cruise);
+}
+assert.ok(sustainedChair.energy > hillChair.energy);
+
+const shortEbike = tunedRider('ebike', { motor: 'standard', geometry: 'shortWheelbase' }, 2);
+const stableEbike = tunedRider('ebike', { motor: 'standard', geometry: 'stableWheelbase' }, 2);
+for (const rider of [shortEbike, stableEbike]) stepRocketRoad(rider, cruise);
+assert.ok(shortEbike.steering > stableEbike.steering, 'short wheelbase responds more quickly at low speed');
+for (const rider of [shortEbike, stableEbike]) {
+  rider.speed = 12;
+  rider.steering = 1;
+  rider.yawRate = 0;
+  stepRocketRoad(rider, cruise);
+}
+assert.ok(stableEbike.yawRate > shortEbike.yawRate, 'stable geometry grips better at high speed');
+
+for (const [vehicle, chassis, straightBrake, cornerBrake] of [
+  ['trail', { suspension: 'stiff' }, 'frontDisc', 'linked'],
+  ['chair', { caster: 'steady' }, 'power', 'progressive'],
+]) {
+  const straight = game.buildVehicleTuning(vehicle, { ...chassis, brakes: straightBrake });
+  const corner = game.buildVehicleTuning(vehicle, { ...chassis, brakes: cornerBrake });
+  assert.ok(straight.brakePower > corner.brakePower && corner.brakeTurnLoss < straight.brakeTurnLoss);
+  assert.ok(straight.brakePower < 1.20, vehicle + ' stacked straight-line brake force');
+}
+
+const rocketNativeSkill = { trail: ['traction', 'quickEngage'], ebike: ['thermal', 'regenTuning'], chair: ['motorSplit', 'hillPulse'] };
+
+assert.deepEqual(game.skillPhysics.rocket, { boostTime: 2, cooldownTime: 8, force: 1.45, limit: 1.25 });
+
+for (const [vehicle, slot] of [['trail', 'gears'], ['ebike', 'motor'], ['chair', 'motor']]) {
+  assert.equal(shared.prices[vehicle][slot].rocket, 400);
+  assert.equal(shared.prices[vehicle][slot].capacitor, 360);
+  const [skillSlot, skillOption] = rocketNativeSkill[vehicle];
+  const tuning = game.buildVehicleTuning(vehicle, { [slot]: 'rocket', [skillSlot]: skillOption });
+  assert.ok(tuning.skillTuning, vehicle + ' tests rocket with a native skill part installed');
+  const baseTuning = game.buildVehicleTuning(vehicle, vehicle === 'ebike' ? { motor: 'capacitor' } : {});
+  for (const property of ['roadSpeed', 'grassSpeed', 'force', 'highForce']) {
+    assert.equal(tuning[property], baseTuning[property], `${vehicle} rocket cruise ${property}`);
+  }
+
+  const rocket = game.makeCyclist(event, game.stockBike, vehicle, tuning, rocketRoad);
+  const baseline = game.makeCyclist(event, game.stockBike, vehicle, baseTuning, rocketRoad);
+  rocket.speed = baseline.speed = 6;
+  stepRocketRoad(baseline, cruise);
+  stepRocketRoad(rocket, cruise);
+  assert.equal(rocket.speed, baseline.speed, `${vehicle} acceleration without skill`);
+  assert.equal(rocket.yawRate, baseline.yawRate, `${vehicle} native steering without skill`);
+
+  if (vehicle === 'ebike') {
+    stepRocketRoad(baseline, skillPressed);
+    assert.equal(baseline.skill, '超频', 'capacitor keeps the native e-bike skill');
+    assert.equal(baseline.skillLimit, 1.18);
+  }
+
+  stepRocketRoad(rocket, { ...skillPressed, gas: false });
+  assert.equal(rocket.skillForce, 1, `${vehicle} requires throttle to launch`);
+  stepRocketRoad(rocket, cruise);
+  stepRocketRoad(rocket, skillPressed);
+  assert.equal(rocket.skill, '火箭爆发', vehicle);
+  assert.equal(rocket.skillForce, 1.45, vehicle);
+  assert.equal(rocket.skillLimit, 1.25, vehicle);
+  stepRocketRoad(rocket, cruise);
+  assert.equal(rocket.skillForce, 1.45, `${vehicle} boost survives key release`);
+
+  let boostFrames = 2;
+  for (let frame = 2; frame < framesFor(10.125); frame++) {
+    // Release and re-press during cooldown, then keep holding past the ready time.
+    stepRocketRoad(rocket, frame === framesFor(9.875) ? cruise : skillPressed);
+    if (rocket.skill === '火箭爆发') boostFrames++;
+  }
+  assert.ok(Math.abs(boostFrames - framesFor(2)) <= 1, `${vehicle} burst lasted ${boostFrames} frames`);
+  assert.equal(rocket.skillForce, 1, `${vehicle} held key does not re-trigger`);
+  assert.equal(rocket.skillLimit, 1, `${vehicle} returns to its cruise limit`);
+  stepRocketRoad(rocket, cruise);
+  stepRocketRoad(rocket, skillPressed);
+  assert.equal(rocket.skillForce, 1.45, `${vehicle} can launch again after cooldown`);
+}
+
+const originalTunings = game.worldState.vehicleTunings;
+game.worldState.vehicleTunings = { ...originalTunings, trail: { gears: 'rocket' } };
+try {
+  const trial = new game.TimeTrial(event, game.stockBike, 'trail', query);
+  assert.notEqual(trial.start(), false);
+  assert.equal(trial.phase, 'count');
+  for (let frame = 0; frame < game.COUNTDOWN_TICKS; frame++) trial.step(skillPressed);
+  assert.equal(trial.phase, 'race');
+  trial.step(skillPressed);
+  assert.equal(trial.rider.skillForce, 1, 'holding the rocket key through countdown does not start its boost');
+  trial.step(cruise);
+  trial.step(skillPressed);
+  assert.equal(trial.rider.skillForce, 1.45);
+  const remaining = trial.rider.rocketTime;
+  assert.ok(trial.rejoin());
+  assert.equal(trial.rider.rocketTime, remaining, 'rejoin preserves the rocket timer');
+  assert.equal(trial.rider.skillHeld, true, 'rejoin preserves the pressed skill key');
+} finally {
+  game.worldState.vehicleTunings = originalTunings;
 }
 
 const stored = new Map();
@@ -268,4 +479,4 @@ for (const key of [
   assert.ok(englishText[key].trim().length > 0, `Empty English translation: ${key}`);
 }
 
-console.log('Shared four-vehicle part catalogs, price through solo/room gates, wet/puddle grip, unranked isolation and SkinSpec checks passed.');
+console.log('Shared four-vehicle part catalogs, solo/room prices, wet/puddle grip, five-slot trade-offs, powered skill and rocket timing, unranked isolation and SkinSpec checks passed.');

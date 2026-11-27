@@ -105,7 +105,7 @@ function addOnlinePeer(session,id,offer) {
   function useChannel(channel) {
     if(channel.label!==ONLINE_CHANNEL) {
       channel.close();
-      showOnlineMessage('骑手版本不一致，请更新到支持协议 v3 的版本。');
+      showOnlineMessage('骑手版本不一致，请更新到支持协议 v4 的版本。');
       return;
     }
     peer.channel = channel;
@@ -872,7 +872,7 @@ function receiveOnlineRoom(session,state) {
   if (onlineRoom!==session) return;
   if(state.protocol!==tuning190.protocol) {
     leaveOnline();
-    showOnlineMessage('联机版本不匹配，请更新到支持协议 v3 的版本。');
+    showOnlineMessage('联机版本不匹配，请更新到支持协议 v4 的版本。');
     return;
   }
   const previous = session.state;

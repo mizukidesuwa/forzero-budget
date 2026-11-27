@@ -6,13 +6,13 @@
 <meta name="theme-color" content="#0b0d0f">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 340 340'%3E%3Crect width='340' height='340' rx='52' fill='%230b0d0f'/%3E%3Cg transform='translate(0,116)'%3E%3Cg transform='translate(14,0) skewX(-10)' font-family='Arial Black, Arial, sans-serif'%3E%3Ctext x='10' y='65' font-size='59' font-weight='950' letter-spacing='-2' fill='%23ffffff'%3EFOR%3Ctspan fill='%23ff6433'%3EZERO%3C/tspan%3E:%3C/text%3E%3Ctext x='15' y='96' font-size='26' font-weight='900' letter-spacing='9' fill='%23ff6433'%3EBUDGET%3C/text%3E%3C/g%3E%3C/g%3E%3C/svg%3E">
 <meta name="description" content="FORZERO: BUDGET（有限竞速：地贫线）— 在深圳大学、伦敦与顺峰山公园之间自由骑行与计时竞速。">
-<title>FORZERO: BUDGET · 有限竞速：地贫线 2.5.7</title>
+<title>FORZERO: BUDGET · 有限竞速：地贫线 2.6.0</title>
 <!-- @style -->
 </head>
 <body>
 <main class="shell">
   <header class="masthead">
-    <div class="identity"><span class="brand-badge" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 108"><g transform="translate(14,0) skewX(-10)" font-family="Arial Black, Arial, sans-serif"><text x="10" y="65" font-size="59" font-weight="950" letter-spacing="-2" fill="#FFFFFF">FOR<tspan fill="#FF6433">ZERO</tspan>:</text><text x="15" y="96" font-size="26" font-weight="900" letter-spacing="9" fill="#FF6433">BUDGET</text></g></svg></span><div><strong class="brand-zh">有限竞速：地贫线</strong><small lang="en">FORZERO: BUDGET · 2.5.7</small></div></div>
+    <div class="identity"><span class="brand-badge" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 108"><g transform="translate(14,0) skewX(-10)" font-family="Arial Black, Arial, sans-serif"><text x="10" y="65" font-size="59" font-weight="950" letter-spacing="-2" fill="#FFFFFF">FOR<tspan fill="#FF6433">ZERO</tspan>:</text><text x="15" y="96" font-size="26" font-weight="900" letter-spacing="9" fill="#FF6433">BUDGET</text></g></svg></span><div><strong class="brand-zh">有限竞速：地贫线</strong><small lang="en">FORZERO: BUDGET · 2.6.0</small></div></div>
     <div class="location" id="campusName">深圳大学 · 粤海校区</div>
   </header>
   <section class="stage" tabindex="0" id="stage" data-phase="free" aria-label="FORZERO: BUDGET 有限竞速：地贫线">
@@ -39,9 +39,19 @@
         <output id="onlineRank" class="online-rank" hidden></output>
         <output id="onlineLatency" class="online-latency" hidden></output>
       </section>
-      <div class="speedometer"><div class="speed-badges" id="speedBadges"><span id="bikePosture" class="status-pill posture-pill" hidden></span><span id="draftPill" class="draft-pill" hidden>尾流充能</span><span id="puddleStatus" class="draft-pill" hidden>积水打滑</span></div><span class="speed-mat" id="surfaceType">柏油路面</span><div class="speed-readout"><strong id="velocity">0</strong><small>km/h</small><span id="slopeGrade" class="slope-grade" hidden></span></div><div class="sprint-meter" id="sprintMeter" role="meter" aria-label="冲刺耐力" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i id="sprintFill"></i></div><span class="sprint-hint" id="sprintHint">冲刺耐力</span><div id="bikeFeedback" class="bike-feedback" hidden>
-        <label>抓地 <meter id="bikeGripMeter" min="0" max="100" value="100"></meter></label>
-      </div><span class="brake-hint" id="brakeHint" hidden></span></div>
+      <div class="speedometer"><div class="speed-badges" id="speedBadges"><span id="bikePosture" class="status-pill posture-pill" hidden></span><span id="draftPill" class="draft-pill" hidden>尾流充能</span><span id="puddleStatus" class="draft-pill" hidden>积水打滑</span></div><span class="speed-mat" id="surfaceType">柏油路面</span><div class="speed-readout"><strong id="velocity">0</strong><small>km/h</small><span id="slopeGrade" class="slope-grade" hidden></span></div>
+        <div class="drive-gauges">
+          <div class="drive-gauge">
+            <span class="drive-gauge-label" id="gripLabel">抓地余量</span><span class="drive-gauge-value" id="gripValue" aria-hidden="true">100%</span>
+            <div class="drive-meter" id="gripMeter" role="meter" aria-labelledby="gripLabel" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i id="gripFill"></i></div>
+          </div>
+          <div class="drive-gauge">
+            <span class="drive-gauge-label" id="sprintHint">冲刺耐力</span><span class="drive-gauge-value" id="sprintValue" aria-hidden="true">100%</span>
+            <div class="drive-meter" id="sprintMeter" role="meter" aria-label="冲刺耐力" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i id="sprintFill"></i></div>
+          </div>
+        </div>
+        <span class="brake-hint" id="brakeHint" hidden></span>
+      </div>
       <div class="courier-hud" id="courierHud" hidden><strong id="courierTitle"></strong><span id="courierDetail"></span></div>
       <div class="hud-navigation">
       <div class="route-hud">
@@ -267,12 +277,7 @@
           </dl>
           <div class="workshop-ability" id="vehAbility" aria-label="相对原厂能力"></div>
           <details class="workshop-group" open><summary>性能调校</summary>
-          <div class="setting-line"><label for="vehSlot0" id="vehLabel0">槽位一</label><select id="vehSlot0"></select></div>
-          <p class="bike-note" id="vehNote0"></p>
-          <div class="setting-line"><label for="vehSlot1" id="vehLabel1">槽位二</label><select id="vehSlot1"></select></div>
-          <p class="bike-note" id="vehNote1"></p>
-          <div class="setting-line"><label for="vehSlot2" id="vehLabel2">槽位三</label><select id="vehSlot2"></select></div>
-          <p class="bike-note" id="vehNote2"></p>
+            <div id="vehSlots"></div>
           </details>
         </div>
         <details class="workshop-group" id="riderSkinGroup"><summary>骑手皮肤</summary>

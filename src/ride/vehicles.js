@@ -108,10 +108,25 @@ export const bicycleAppearance = (profile, bike) => {
 
 export function bicycleAbility(bike) {
   return [
-    bike.roadSpeed / stockBike.roadSpeed, bike.sprintForce * bike.force, bike.roadGrip / stockBike.roadGrip,
-    bike.force / bike.rolling, (bike.grassGrip / stockBike.grassGrip + bike.grassSpeed / stockBike.grassSpeed + bike.wetMitigate * .3) / 2,
-    bike.brakePower,
+    bike.sprintForce * bike.force,
+    (bike.grassGrip / stockBike.grassGrip + bike.grassSpeed / stockBike.grassSpeed) / 2,
   ];
+}
+
+/**
+ * @param {{ magicGrip?: boolean, wetMitigate?: number }} tuning
+ * @param {number} weatherGrip
+ */
+export function wetGripScale(tuning, weatherGrip) {
+  return tuning.magicGrip ? 1 : mix(weatherGrip, 1, tuning.wetMitigate ?? 0);
+}
+
+/**
+ * @param {{ wetBrakeMitigate?: number }} tuning
+ * @param {number} weatherBrake
+ */
+export function wetBrakeScale(tuning, weatherBrake) {
+  return mix(weatherBrake, 1, tuning.wetBrakeMitigate ?? 0);
 }
 
 export const workshopSpeed = speed => (speed * 3.6).toFixed(1) + ' km/h';
@@ -135,7 +150,7 @@ export function tuningTraits(parts) {
   return {
     illegal: selected.some(key => tuning190.illegalParts.has(key)),
     magicGrip: selected.includes('glue'),
-    magicPower: selected.includes('rocket'),
+    rocketBoost: selected.includes('rocket'),
     magicGravity: selected.includes('gravity'),
     magicEnergy: selected.includes('capacitor'),
     sideWind: selected.includes('usedFrame'),
@@ -194,6 +209,7 @@ export function buildVehicleTuning(vehicle, parts) {
   let roadGrip = base.roadGrip, grassGrip = base.grassGrip, rolling = base.rolling, gravelGripScale = 1;
   let grassRolling = base.grassRolling ?? poweredDefaults.grassRolling, grassSlowdown = base.grassSlowdown ?? poweredDefaults.grassSlowdown;
   let brakePower = 1, brakeTurnLoss = poweredDefaults.brakeTurnLoss, steerScale = 1, wetMitigate = 0, wetBrakeMitigate = 0, rainGrip = 1;
+  let highSteerScale = 1, highRoadGripScale = 1, skillTuning;
   for (const slot of slots) {
     const m = slot.options[clean[slot.key]];
     if (!m) continue;
@@ -209,12 +225,15 @@ export function buildVehicleTuning(vehicle, parts) {
     if (m.brakePower) brakePower *= m.brakePower;
     if (m.brakeTurnLoss) brakeTurnLoss *= m.brakeTurnLoss;
     if (m.steerScale) steerScale *= m.steerScale;
+    highSteerScale *= m.highSteerScale ?? m.steerScale ?? 1;
+    if (m.highRoadGripScale) highRoadGripScale *= m.highRoadGripScale;
+    if (m.skillTuning) skillTuning = m.skillTuning;
     if (m.wetMitigate) wetMitigate = Math.max(wetMitigate, m.wetMitigate);
     if (m.wetBrakeMitigate) wetBrakeMitigate = Math.max(wetBrakeMitigate, m.wetBrakeMitigate);
     if (m.rainGrip) rainGrip *= m.rainGrip;
   }
   const traits = tuningTraits(clean);
-  if (!traits.magicPower) roadSpeed = Math.min(base.roadSpeed, roadSpeed);
+  roadSpeed = Math.min(base.roadSpeed, roadSpeed);
   const gravel = poweredGravel[vehicle];
   return {
     ...base,
@@ -226,6 +245,9 @@ export function buildVehicleTuning(vehicle, parts) {
     gravelRolling: mix(rolling, grassRolling, gravel.rolling),
     gravelForce: gravel.force, gravelSlowdown: gravel.slowdown, gravelBrake: gravel.brake,
     rainGrip, ...traits,
+    ...(highSteerScale !== steerScale ? { highSteerScale } : {}),
+    ...(highRoadGripScale !== 1 ? { highRoadGripScale } : {}),
+    ...(skillTuning ? { skillTuning } : {}),
     cornerPace: Math.sqrt(roadGrip / base.roadGrip),
   };
 }

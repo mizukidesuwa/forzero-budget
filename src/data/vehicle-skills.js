@@ -5,7 +5,12 @@ export const vehicleSkills = {
   chair: { action: '爆发', meter: '扭矩储备' },
 };
 
+export const rocketSkill = {
+  action: '火箭助推', meter: '火箭充能', ready: '火箭就绪', active: '火箭爆发', cooldown: '火箭冷却',
+};
+
 export const skillPhysics = {
+  rocket: { boostTime: 2, cooldownTime: 8, force: 1.45, limit: 1.25 },
   trail: {
     driftSpeed: 5, driftMinEnergy: .025, boostMinDriftTime: .4, boostEnergy: .08, boostTime: 1.2,
     driftYaw: 1.34, driftForce: .91, driftDrain: .24, boostForce: 1.24, boostLimit: 1.045, recovery: .07,
