@@ -12,7 +12,6 @@
 - GitHub 导出在独立暂存目录完成校验，只替换内容完整的旧导出。当前版本性能检查独立运行并对帧耗时、JS 堆和浏览器进程内存设立上限，历史对比通过显式参数启用。关联 `scripts/stage-release.mjs` 和 `scripts/verify-performance.mjs`。
 - Windows 便携包要求提供完整的 Node.js 许可。发行工作流校验官方 Windows x64 归档的 SHA-256 后从同一归档取用二进制和许可。桌面启动器优先迁移同级 2.5.2 存档。关联 `scripts/build.mjs`、`.github/workflows/release.yml` 和 `server/server.mjs`。
 - 通过 `npm run lint`、`npm run typecheck`、`npm run build:release:win`、`npm run verify:fast -- --skip-build`、导出源码树内的 `npm test` 与 `npm run verify:all -- --skip-build`。核对附件 SHA-256、官方 Node.js 许可及空 `PATH` 建房。地图、资产、物理和历史性能基线沿用原有数据。
-- `scripts/verify-hygiene.mjs` 继续报告 `src/ui/app.js` 行数，超过 1700 行时提示复核职责边界并继续校验。同步开发、贡献说明与 PR 模板。通过 `npm run lint`、`npm run typecheck` 和 1700 行、1701 行的定向验证。无需更新基线。
 
 ## 2.5.2 — Windows 免安装便携 Node.js 运行时发行包
 
