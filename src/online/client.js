@@ -51,6 +51,7 @@ export function bindOnlineApp(callbacks) {
 }
 
 const ONLINE_POSE_BYTES = 32;
+const ONLINE_PROGRESS_POSE_BYTES = ONLINE_POSE_BYTES + 4;
 const ONLINE_POSE_INTERVAL = 1000/15;
 const ONLINE_INTERPOLATION = 125;
 const ONLINE_PROBE_INTERVAL = 1000;
@@ -189,23 +190,28 @@ function sendOnlinePose(session,now) {
     session.lastRejoin = worldState.race.lastRejoin;
     session.epoch++;
   }
-  const packet = new ArrayBuffer(ONLINE_POSE_BYTES);
-  const view = new DataView(packet);
   const { round } = session.state;
+  const packet = new ArrayBuffer(ONLINE_PROGRESS_POSE_BYTES);
+  const view = new DataView(packet);
   view.setUint16(0, round.poseNumber ?? round.number);
   view.setUint16(2,++session.sequence);
   view.setUint16(4,session.epoch);
   view.setInt16(6,Math.round(clamp(rider.steering,-1,1)*32767));
   const pose = [...rider.position,rider.heading,rider.speed,rider.travel];
   for (const [index,value] of pose.entries()) view.setFloat32(8+index*4,value);
-  for (const peer of session.peers.values()) {
+  view.setFloat32(ONLINE_POSE_BYTES,worldState.race.progressEstimate);
+  let legacyPacket;
+  for (const [id,peer] of session.peers) {
     const channel = peer.channel;
-    if (channel?.readyState==='open' && channel.bufferedAmount<4096) channel.send(packet);
+    if (channel?.readyState!=='open' || channel.bufferedAmount>=4096) continue;
+    const supportsProgress = session.state.players.find(player=>player.id===id)?.raceProgress;
+    channel.send(supportsProgress ? packet : (legacyPacket ??= packet.slice(0,ONLINE_POSE_BYTES)));
   }
 }
 
 function receiveOnlinePose(session,peer,packet) {
-  if (onlineRoom!==session || session.state.phase!=='race' || !(packet instanceof ArrayBuffer) || packet.byteLength!==ONLINE_POSE_BYTES) return;
+  if (onlineRoom!==session || session.state.phase!=='race' || !(packet instanceof ArrayBuffer) ||
+      (packet.byteLength!==ONLINE_POSE_BYTES && packet.byteLength!==ONLINE_PROGRESS_POSE_BYTES)) return;
   const view = new DataView(packet);
   const poseNumber = view.getUint16(0), sequence = view.getUint16(2), epoch = view.getUint16(4);
   const active = session.state.round;
@@ -218,7 +224,10 @@ function receiveOnlinePose(session,peer,packet) {
       Math.abs(pose[3])>Math.PI+.01 || Math.abs(pose[4])>30 || Math.abs(pose[5])>50_000) return;
   if (last?.round!==round || last.epoch!==epoch) peer.samples.length = 0;
   const [x,y,z,heading,speed,travel] = pose;
-  peer.samples.push({round,sequence,epoch,at:performance.now(),position:[x,y,z],heading,speed,travel,steering:view.getInt16(6)/32767});
+  const distance = packet.byteLength===ONLINE_PROGRESS_POSE_BYTES ? view.getFloat32(ONLINE_POSE_BYTES) : NaN;
+  const length = session.course?.length;
+  const progress = distance>=0 && distance<=Math.fround(length) ? Math.min(distance,length) : null;
+  peer.samples.push({round,sequence,epoch,at:performance.now(),position:[x,y,z],heading,speed,travel,progress,steering:view.getInt16(6)/32767});
   if (peer.samples.length>12) peer.samples.shift();
   return true;
 }
@@ -242,7 +251,8 @@ function onlineRiderPoses(now) {
       const fraction = (target-a.at)/(b.at-a.at);
       const turn = Math.atan2(Math.sin(b.heading-a.heading),Math.cos(b.heading-a.heading));
       pose = {position:a.position.map((value,i)=>mix(value,b.position[i],fraction)),heading:a.heading+turn*fraction,
-        speed:mix(a.speed,b.speed,fraction),travel:mix(a.travel,b.travel,fraction),steering:mix(a.steering,b.steering,fraction)};
+        speed:mix(a.speed,b.speed,fraction),travel:mix(a.travel,b.travel,fraction),steering:mix(a.steering,b.steering,fraction),
+        progress:Number.isFinite(a.progress) && Number.isFinite(b.progress) ? mix(a.progress,b.progress,fraction) : a.progress};
     }
     const info = session.state.players.find(player=>player.id===id);
     const rule = session.state.vehicleRule ?? 'bike';
@@ -262,21 +272,26 @@ function onlineRaceRank(now) {
   if (!session || session.state.phase!=='race' || !session.course || isOnlineChaseRoom(session)) return null;
   const finished = new Map((session.state.round?.results ?? []).map(r=>[r.id,r.ms]));
   const total = session.state.players.length;
-  const progressOf = (id,pos) => {
+  const multiLap = session.course.variant?.laps > 1;
+  const progressOf = (id,pose) => {
     const ms = finished.get(id);
     if (ms !== undefined && ms !== null) return 1e9 - ms;
     if (ms === null) return -1e6;
     if (id===session.id) return worldState.race.progressEstimate;
+    if (Number.isFinite(pose?.progress)) return pose.progress;
+    if (multiLap) return null;
+    const pos = pose?.position;
     return pos ? pointDistance(session.course.path, [pos[0],pos[2]]) : -1;
   };
   const selfProg = progressOf(session.id);
   const rows = [{id:session.id, name:worldState.driverProfile.name, prog:selfProg}];
   for (const remote of onlineRiderPoses(now)) {
-    rows.push({id:remote.id, name:remote.name, prog:progressOf(remote.id, remote.position)});
+    rows.push({id:remote.id, name:remote.name, prog:progressOf(remote.id, remote)});
   }
   for (const player of session.state.players) {
     if (!rows.some(r=>r.id===player.id)) rows.push({id:player.id, name:player.name, prog:progressOf(player.id)});
   }
+  if (rows.some(row=>row.prog===null)) return null;
   rows.sort((a,b)=>b.prog-a.prog);
   const rank = rows.findIndex(r=>r.id===session.id) + 1;
   const leader = rows[0];
@@ -414,8 +429,12 @@ function roomBudgetLabel(state) {
 }
 
 function onlineRouteKey(route) {
-  return route ? (route.code ?? `${route.campus}:${route.id}:${route.seed??''}:${route.layout}`) : '';
+  if (!route) return '';
+  const identity = route.code ?? `${route.campus}:${route.id}:${route.seed??''}:${route.variant?.direction??'forward'}:${route.variant?.laps??1}`;
+  return `${identity}:${route.layout??''}`;
 }
+
+const hasOnlineCourse = session => Boolean(session.course && session.routeKey===onlineRouteKey(session.state.route));
 
 function onlineRoutePayload(event) {
   const ref = routeRefForCourse(event, {
@@ -739,12 +758,13 @@ function renderOnline() {
   worldState.ui.onlinePlayers.replaceChildren(...roster);
   updateOnlineLatency(session,performance.now());
   worldState.ui.onlineReady.hidden = !(waiting||tuning);
-  worldState.ui.onlineReady.disabled = onlineBusy||!session.course||!session.clockReady||
+  worldState.ui.onlineReady.disabled = onlineBusy||!hasOnlineCourse(session)||!session.clockReady||
     (waiting && !self?.ready && (state.players.length<2||linked!==state.players.length-1));
   app.setText(worldState.ui.onlineReady,tuning?(self?.ready?'继续改装':'完成改装'):(self?.ready?'取消准备':'准备'));
   worldState.ui.onlineStart.hidden = !(waiting||tuning)||!isHost;
   app.setText(worldState.ui.onlineStart,tuning?'立即发车':'发车');
-  worldState.ui.onlineStart.disabled = onlineBusy||(waiting&&(state.players.length<2||!state.players.every(player=>player.online&&player.ready)||linked!==state.players.length-1));
+  worldState.ui.onlineStart.disabled = onlineBusy||!hasOnlineCourse(session)||
+    (waiting&&(state.players.length<2||!state.players.every(player=>player.online&&player.ready)||linked!==state.players.length-1));
   worldState.ui.onlineGarage.hidden = state.phase==='race';
   worldState.ui.onlineGarage.disabled = onlineBusy || (waiting && Boolean(self?.ready));
   worldState.ui.onlineInvite.hidden = state.phase!=='lobby';
@@ -792,25 +812,45 @@ function findOnlineCourse(route) {
   return resolved.event;
 }
 
-async function setOnlineCourse(session) {
-  const route = session.state.route;
-  const routeKey = onlineRouteKey(route);
-  const event = route.campus===getActiveCampus() ? findOnlineCourse(route) : await new Promise((resolve,reject)=>{
-    worldState.hooks.setPendingCampus?.({destination:route.campus,at:performance.now()+30,online:{route,resolve,reject}});
-  });
-  if (onlineRoom!==session) return;
-  session.course = event;
-  session.routeKey = routeKey;
-  worldState.race.online = true;
-  worldState.race.practice = null;
-  worldState.race.bike = session.originalBike;
-  worldState.race.opponent = null;
-  worldState.race.setVehicle(onlineVehicleForSession(session));
-  setActiveWeather(session.state.weather ?? 'day');
-  if (event.seed) worldState.seedCourses[event.campus] = event;
-  app.populateCoursePicker();
-  app.selectCourse(event);
-  renderOnline();
+function setOnlineCourse(session) {
+  if (session.routeLoad) return session.routeLoad;
+  if (hasOnlineCourse(session)) return Promise.resolve();
+  session.course = null;
+  session.startedRound = null;
+  session.routeLoad = loadOnlineCourse(session).finally(()=>{ session.routeLoad = null; });
+  return session.routeLoad;
+}
+
+async function loadOnlineCourse(session) {
+  while (onlineRoom===session) {
+    const route = session.state.route;
+    const routeKey = onlineRouteKey(route);
+    let event;
+    try {
+      event = route.campus===getActiveCampus() ? findOnlineCourse(route) : await new Promise((resolve,reject)=>{
+        worldState.hooks.setPendingCampus({destination:route.campus,at:performance.now()+30,online:{route,resolve,reject}});
+      });
+    } catch (error) {
+      if (onlineRoom!==session) return;
+      if (routeKey!==onlineRouteKey(session.state.route)) continue;
+      throw error;
+    }
+    if (onlineRoom!==session) return;
+    if (routeKey!==onlineRouteKey(session.state.route)) continue;
+    session.course = event;
+    session.routeKey = routeKey;
+    worldState.race.online = true;
+    worldState.race.practice = null;
+    worldState.race.bike = session.originalBike;
+    worldState.race.opponent = null;
+    worldState.race.setVehicle(onlineVehicleForSession(session));
+    setActiveWeather(session.state.weather ?? 'day');
+    if (event.seed) worldState.seedCourses[event.campus] = event;
+    app.populateCoursePicker();
+    app.selectCourse(event);
+    renderOnline();
+    return;
+  }
 }
 
 async function syncOnlineClock(session) {
@@ -852,11 +892,8 @@ function receiveOnlineRoom(session,state) {
     if (worldState.race.rider.vehicle!==targetVeh) worldState.race.setVehicle(targetVeh);
   }
   worldState.hooks.refreshBicycleModels?.();
-  const nextRouteKey = onlineRouteKey(state.route);
-  if (session.course && nextRouteKey && nextRouteKey !== session.routeKey) {
-    session.course = null;
-    session.startedRound = null;
-    void setOnlineCourse(session).catch(error=>showOnlineMessage(error.message));
+  if (state.route && !hasOnlineCourse(session) && !session.routeLoad) {
+    void setOnlineCourse(session).catch(error=>{ if (onlineRoom===session) showOnlineMessage(error.message); });
   }
   if (state.phase==='tuning' && previous.phase!=='tuning') {
     showOnlineMessage('');
@@ -937,7 +974,7 @@ async function joinOnline(code) {
       initialAddresses = Array.isArray(started.addresses) ? started.addresses : [];
     }
     const event = worldState.race.event;
-    const entry = {...onlineProfilePayload(),protocol:tuning190.protocol,roundIdentity:true};
+    const entry = {...onlineProfilePayload(),protocol:tuning190.protocol,roundIdentity:true,raceProgress:true};
     let routeEvent = event;
     if (!code && worldState.ui.onlineFormat.value==='random') {
       if (event.campus==='shunde') {
@@ -962,7 +999,7 @@ async function joinOnline(code) {
     };
     const {id,token,room,iceServers} = await onlineRequest(origin+ONLINE_API,{...entry,...details});
     onlineRoom = worldState.onlineRoom = session = {id,token,origin,ownedHost,state:room,iceServers,url:origin+ONLINE_API+'/'+room.code,peers:new Map(),
-      hostAddresses:initialAddresses,originalVehicle:worldState.race.vehicle,originalBike:worldState.race.bike,routeKey:onlineRouteKey(room.route)};
+      hostAddresses:initialAddresses,originalVehicle:worldState.race.vehicle,originalBike:worldState.race.bike};
     subscribeOnline(session);
     if (!ownedHost) void loadOnlineHostInfo(session);
     await Promise.all([setOnlineCourse(session),syncOnlineClock(session)]);
@@ -1005,12 +1042,19 @@ function leaveOnline(notify=true) {
 
 async function onlineLobbyCommand(body) {
   if (!onlineRoom||onlineBusy) return;
-  onlineBusy = true;
   const session = onlineRoom;
+  const checksRoute = (body.action==='ready' && body.ready) || body.action==='start' || body.action==='skipTuning';
+  if (checksRoute && !hasOnlineCourse(session)) return;
+  const route = session.state.route;
+  onlineBusy = true;
   showOnlineMessage('');
   renderOnline();
   try {
     if (body.ready) await syncOnlineClock(session);
+    if (checksRoute) {
+      if (onlineRoom!==session || !hasOnlineCourse(session) || onlineRouteKey(route)!==session.routeKey) return;
+      body = { ...body, routeCode:route.code, routeLayout:route.layout };
+    }
     await onlineCommand(session,body);
   } catch (error) { showOnlineMessage(error.message); }
   finally { onlineBusy = false; renderOnline(); }
@@ -1063,7 +1107,8 @@ function tickOnline(now) {
     updateOnlineLatency(session,now);
   }
   if (session?.state.phase==='tuning') updateOnlineTuningBanner(session,now);
-  if (!session?.course||!session.clockReady||session.state.phase!=='race') return;
+  if (!session||!hasOnlineCourse(session)||!session.clockReady||session.state.phase!=='race' ||
+      worldState.race.event!==session.course) return;
   const {round} = session.state;
   const identity = roundIdentity(round);
   const roundCommand = { round:round.number, roundId:round.id };

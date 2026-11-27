@@ -96,9 +96,9 @@ try {
   const independent = snapshot('Independent');
   const archive = [{score:{name:'Friend'},replay:'existing archive entry'}];
   await Promise.all([
-    seedSave(join(temp,'forzero-budget-windows-x64-2.5.4'),oldPortable),
-    seedSave(join(temp,'forzero-budget-2.5.4'),oldLight),
-    seedSave(join(temp,'forzero-budget-windows-x64-2.5.3'),snapshot('Older Windows')),
+    seedSave(join(temp,'forzero-budget-windows-x64-2.5.6'),oldPortable),
+    seedSave(join(temp,'forzero-budget-2.5.6'),oldLight),
+    seedSave(join(temp,'forzero-budget-windows-x64-2.5.4'),snapshot('Older Windows')),
     seedSave(second,{...independent,friends:archive}),
   ]);
   const base = await reserveConsecutivePorts();

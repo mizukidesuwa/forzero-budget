@@ -229,7 +229,19 @@ setStorage({
 
     // The next runner in the rotation leaves between rounds.
     fakeNow = state.round.goAt + onlineChaseRules.headStartMs + 2000;
-    await cmd(players[1], 'tag', { round: 2, targetId: p1.id, ms: 15_000 });
+    await cmd(players[0], 'retire', { round: 2 });
+    state = players[2].stream.state();
+    assert.equal(state.phase, 'race');
+    assert.equal(state.players.length, 3, 'Retiring leaves the runner connected to the room');
+    const runnerSnap = onlineChaseSnapshot({ ...session, id: p3.id, state }, fakeNow);
+    assert.equal(runnerSnap.totalRunners, 2);
+    assert.equal(runnerSnap.remainingRunners, 1);
+    const hunterView = evaluateOnlineChasePeers({ ...session, id: p2.id, state }, [0, 0, 0], [
+      { id: p1.id, name: '追击甲', position: [1, 0, 0], heading: 0 },
+      { id: p3.id, name: '逃跑丙', position: [3, 0, 0], heading: 0 },
+    ], fakeNow);
+    assert.deepEqual(hunterView.visibleRiders.map(rider => rider.id), [p3.id]);
+    assert.equal(hunterView.catchCandidate?.id, p3.id);
     await cmd(players[1], 'tag', { round: 2, targetId: p3.id, ms: 20_000 });
     assert.equal(onlineChaseNextHunterId(players[0].stream.state()), p3.id);
     await cmd(players[2], 'leave');

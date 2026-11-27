@@ -26,6 +26,8 @@ import { onlineChaseRules } from '../data/modes.js';
  *   selfCaughtAt: number | null,
  *   totalRunners: number,
  *   caughtCount: number,
+ *   remainingRunners: number,
+ *   retiredIds: ReadonlySet<string>,
  *   countdownMs: number,
  *   elapsedMs: number,
  *   remainingMs: number,
@@ -102,7 +104,11 @@ export function onlineChaseSnapshot(session, now = performance.now()) {
   const isCaught = role === 'runner' && caughtMap[session.id] !== undefined;
   /** @type {string[]} */
   const rosterIds = state.roster?.length ? state.roster.map((/** @type {any} */ p) => p.id) : state.players.map((/** @type {any} */ p) => p.id);
-  const totalRunners = Math.max(1, rosterIds.filter(id => id !== chase.hunterId).length);
+  const runners = rosterIds.filter(id => id !== chase.hunterId);
+  /** @type {{ id: string, retired?: boolean, ms: number | null }[]} */
+  const results = round.results ?? [];
+  const retiredIds = new Set(results.filter(result => result.retired || result.ms === null).map(result => result.id));
+  const remainingRunners = runners.filter(id => !retiredIds.has(id) && caughtMap[id] === undefined).length;
   const caughtCount = Object.keys(caughtMap).length;
   return {
     active: true,
@@ -112,8 +118,10 @@ export function onlineChaseSnapshot(session, now = performance.now()) {
     caughtMap,
     isCaught,
     selfCaughtAt: isCaught ? caughtMap[session.id] : null,
-    totalRunners,
+    totalRunners: Math.max(1, runners.length),
     caughtCount,
+    remainingRunners,
+    retiredIds,
     countdownMs,
     elapsedMs,
     remainingMs,
@@ -165,6 +173,7 @@ export function evaluateOnlineChasePeers(session, selfPos, remoteRiders, now, {
   }
 
   for (const remote of remoteRiders ?? []) {
+    if (snap.retiredIds.has(remote.id)) continue;
     const dx = remote.position[0] - selfPos[0];
     const dy = Math.abs(remote.position[1] - selfPos[1]);
     const dz = remote.position[2] - selfPos[2];

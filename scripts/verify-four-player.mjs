@@ -101,6 +101,7 @@ try {
   console.log('[5/7] Waiting for 12 WebRTC channels (up to two minutes)...');
   for (const page of pages) {
     await wait(page, `(()=>{const r=__FORZERO__.onlineRoom;return r.state.protocol===3 && r.state.players.length===4 && r.peers.size===3 &&
+      r.state.players.every(player=>player.raceProgress===true) &&
       [...r.peers.values()].every(p=>p.pc.connectionState==='connected' && p.channel?.readyState==='open' && p.channel.label==='ride-v3')})()`, 'WebRTC peers', 120_000);
   }
   assert.equal(await pages[0].evalPage('document.documentElement.lang'), 'zh-CN');
@@ -118,6 +119,47 @@ try {
   await wait(pages[3], `__FORZERO__.onlineRoom.id===${JSON.stringify(reconnectId)} && __FORZERO__.onlineRoom.events?.readyState===1`, 'participant event stream reconnect', 30_000);
   await wait(pages[0], `__FORZERO__.onlineRoom.state.players.find(p=>p.id===${JSON.stringify(reconnectId)})?.online===true`, 'participant online', 30_000);
   console.log('PASS: interrupted event stream reconnected under the same player identity');
+  const [host, guest] = pages;
+  const originalRoute = await host.evalPage('__FORZERO__.onlineRoom.state.route');
+  const roomCommand = (page, body) => page.evalPage(`(()=>{
+    const s=__FORZERO__.onlineRoom;
+    return fetch(s.url+'/command?id='+s.id,{method:'POST',headers:{'content-type':'application/json',
+      authorization:'Bearer '+s.token},body:${JSON.stringify(JSON.stringify(body))}}).then(r=>r.status);
+  })()`);
+  await guest.evalPage(`(()=>{
+    const requestFrame=window.requestAnimationFrame;
+    let latestFrame;
+    window.qaFramePaused=false;
+    window.requestAnimationFrame=callback=>{latestFrame=callback;window.qaFramePaused=true;return 0};
+    window.qaResumeFrame=()=>{window.requestAnimationFrame=requestFrame;if(latestFrame) requestFrame(latestFrame)};
+  })()`);
+  try {
+    await wait(guest,'globalThis.qaFramePaused===true','participant frame paused before changing course');
+    await host.evalPage(`(()=>{
+      const selector=__FORZERO__.ui.onlineLobbyCampus;
+      selector.value='ucl';selector.dispatchEvent(new Event('change'));
+    })()`);
+    await wait(guest,"__FORZERO__.pendingCampus?.online?.route.id==='quad-sprint'",'first cross-campus course pending');
+    await wait(host,"__FORZERO__.onlineRoom.course?.id==='quad-sprint' && !__FORZERO__.ui.onlineLobbyCourse.disabled",'host loaded first course');
+    await host.evalPage(`(()=>{
+      const selector=__FORZERO__.ui.onlineLobbyCourse;
+      selector.value='square-circuit';selector.dispatchEvent(new Event('change'));
+    })()`);
+    await wait(guest,"__FORZERO__.onlineRoom.state.route.id==='square-circuit'",'newer course arrived during first load');
+    assert.equal(await guest.evalPage('__FORZERO__.ui.onlineReady.disabled'),true);
+    assert.equal(await roomCommand(guest,{action:'ready',ready:true,routeCode:originalRoute.code,routeLayout:originalRoute.layout}),409,
+      'A stale ready request must not ready the player for a different route');
+  } finally {
+    await guest.evalPage('qaResumeFrame()');
+  }
+  await wait(guest,"__FORZERO__.onlineRoom.course?.id==='square-circuit' && __FORZERO__.race.event.id==='square-circuit'",'latest route applied without another config update');
+  assert.equal(await roomCommand(host,{action:'config',route:originalRoute}),200);
+  for (const page of pages) {
+    await wait(page, `__FORZERO__.onlineRoom.state.route.code===${JSON.stringify(originalRoute.code)} &&
+      __FORZERO__.onlineRoom.course?.campus===${JSON.stringify(originalRoute.campus)} &&
+      __FORZERO__.race.event.id===${JSON.stringify(originalRoute.id)}`, 'restore the original course');
+  }
+  console.log('PASS: overlapping cross-campus course changes converge and stale readiness is rejected');
   console.log('[6/7] Readying players and starting the race...');
   for (const page of pages) {
     await wait(page, '!__FORZERO__.ui.onlineReady.disabled', 'ready button');
@@ -131,12 +173,23 @@ try {
   const original = await pages[0].evalPage('(()=>{const s=__FORZERO__.onlineRoom.state;return {route:s.route.code,weather:s.weather,matchId:s.matchId,roundId:s.round.id,poseNumber:s.round.poseNumber}})()');
   await delay(Math.max(0, goAt - Date.now() + 250));
   for (const page of pages) {
-    await wait(page, "__FORZERO__.onlineRoom.startedRound===__FORZERO__.onlineRoom.state.round.id && [...__FORZERO__.onlineRoom.peers.values()].every(p=>p.samples.length>0)", 'receive race positions', 60_000);
+    await wait(page, "__FORZERO__.onlineRoom.startedRound===__FORZERO__.onlineRoom.state.round.id && [...__FORZERO__.onlineRoom.peers.values()].every(p=>Number.isFinite(p.samples.at(-1)?.progress))", 'receive race positions and progress', 60_000);
     await wait(page, "__FORZERO__.race.phase==='race' && __FORZERO__.race.elapsed>0", 'local BO1 timing, including the participant who selected Shadow Chase');
     const elapsed = await page.evalPage('__FORZERO__.race.elapsed');
     await wait(page, `__FORZERO__.race.elapsed>${elapsed}`, 'local BO1 timer advances');
   }
-  console.log('PASS: all four players received position packets from all three opponents');
+  console.log('PASS: all four players received position and progress from all three opponents');
+  const hostId = await host.evalPage('__FORZERO__.onlineRoom.id');
+  const guestId = await guest.evalPage('__FORZERO__.onlineRoom.id');
+  const setGuestProgress = enabled => host.evalPage(`__FORZERO__.onlineRoom.state.players.find(p=>p.id===${JSON.stringify(guestId)}).raceProgress=${enabled}`);
+  const guestSample = `__FORZERO__.onlineRoom.peers.get(${JSON.stringify(hostId)}).samples.at(-1)`;
+  await setGuestProgress(false);
+  try {
+    await wait(guest,`${guestSample}?.progress===null`,'legacy peer still receives compatible poses');
+  } finally {
+    await setGuestProgress(true);
+  }
+  await wait(guest,`Number.isFinite(${guestSample}?.progress)`,'extended poses resume for supported peers');
   const rank = await pages[0].evalPage(`(()=>{
     const f=__FORZERO__, s=f.onlineRoom, course=s.course, anchor=f.race.routeAnchor;
     const peers=[...s.peers.values()], saved=peers.map(peer=>peer.samples);
@@ -144,7 +197,7 @@ try {
       s.course={...course,path:{rows:[{p:[0,0,0],distance:0},{p:[0,0,100],distance:100}]}};
       f.race.routeAnchor=0;
       for (const [i,peer] of peers.entries()) {
-        peer.samples=[{...saved[i].at(-1),position:[0,0,i===0?100:0],speed:0,at:performance.now()}];
+        peer.samples=[{...saved[i].at(-1),position:[0,0,i===0?100:0],speed:0,progress:null,at:performance.now()}];
       }
       f.updateHud();
       return f.ui.onlineRank.textContent;
@@ -155,6 +208,33 @@ try {
     }
   })()`);
   assert.match(rank,/第 2 \/ 4 名.*落后 100 米/,'The HUD projects remote world X/Z onto the course');
+  const multiLapRank = await pages[0].evalPage(`(()=>{
+    const f=__FORZERO__, s=f.onlineRoom, course=s.course, anchor=f.race.routeAnchor;
+    const peers=[...s.peers.values()], saved=peers.map(peer=>peer.samples);
+    try {
+      const rows=Array.from({length:7},(_,i)=>({p:[0,0,(i%2)*100],distance:i*100}));
+      s.course={...course,length:600,variant:{direction:'reverse',laps:3},path:{rows}};
+      f.race.routeAnchor=10;
+      for (const [i,peer] of peers.entries()) {
+        peer.samples=[{...saved[i].at(-1),position:[0,0,10],speed:0,progress:i===0?210:0,at:performance.now()}];
+      }
+      f.updateHud();
+      const shown=f.ui.onlineRank.textContent;
+      f.race.routeAnchor=410;
+      f.updateHud();
+      const ahead=f.ui.onlineRank.textContent;
+      peers[0].samples[0].progress=null;
+      f.updateHud();
+      return {shown,ahead,hidden:f.ui.onlineRank.hidden};
+    } finally {
+      s.course=course;
+      f.race.routeAnchor=anchor;
+      peers.forEach((peer,i)=>{peer.samples=saved[i]});
+    }
+  })()`);
+  assert.match(multiLapRank.shown,/第 2 \/ 4 名.*落后 200 米/,'Identical positions on different laps must use validated progress');
+  assert.match(multiLapRank.ahead,/第 1 \/ 4 名/);
+  assert.equal(multiLapRank.hidden,true,'A legacy pose cannot determine a rank on overlapping laps');
   if (drive) {
     console.log('[7/7] Auto-driving four laps with accelerated fixed physics steps...');
     for (const page of pages) {

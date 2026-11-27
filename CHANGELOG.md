@@ -1,5 +1,13 @@
 # 更新日志（CHANGELOG）
 
+## 2.5.7 — 桌面存档恢复与联机比赛修复
+
+- 同一桌面安装写盘失败后，重开会保留有效的更快个人最佳，以及尚待写盘的手动导入成绩。临时写入失败会在设置中提示并重试。采集存档时一次枚举安装内的存储键。关联 `src/ui/save-sync.js`、`src/core/browser-storage.js` 和 `scripts/verify-browser.mjs`。
+- 普通联机赛通过姿态包同步有效赛程，可区分同一位置的不同圈次。旧客户端继续使用原姿态包，多圈进度不足时暂缓显示实时名次。房间连续换线时只采用最新路线，服务端拒绝针对过期路线发出的准备和发车请求。关联 `src/online/client.js`、`server/server.mjs` 和 `scripts/verify-four-player.mjs`。
+- 联机捉人按本轮退赛记录计算存活人数，退赛骑手从雷达和拦截候选中移除。关联 `src/race/online-chase.js`、`src/ui/mode-hud.js` 和 `scripts/verify-route-builder-chase.mjs`。
+- 桌面版优先从同级 2.5.6 轻量版或 Windows 免安装版迁移存档，同版本优先匹配当前包型。关联 `server/server.mjs`、`scripts/verify-save.mjs` 和 `scripts/verify-desktop-start.mjs`。
+- 通过 `npm run lint`、`npm run typecheck`、`npm run build`、`npm run build:release -- --bundle-node`、`npm run verify:all -- --skip-build` 的 17 项检查及 `node scripts/verify-four-player.mjs --network-only --drive`。便携 ZIP 解压后用 `node scripts/verify-desktop-start.mjs --portable` 验证了包内 Node.js 启动、2.5.6 存档迁移与建房。地图、资产、物理和性能沿用现有基线。旧版 1.9.1.1 对拍因本地无旧包跳过。
+
 ## 2.5.6 — 桌面存档隔离、玩法成绩与联机修复
 
 - 桌面版按安装实例隔离浏览器缓存和友人档案，读取该安装的磁盘快照后才开启自动保存。服务端校验写入请求的安装身份，防止旧标签页在端口复用后覆盖另一份存档。旧的无实例标记浏览器缓存原样保留，桌面恢复沿用磁盘存档和同级版本迁移。关联 `src/core/browser-storage.js`、`src/ui/save-sync.js`、`src/replay/ghost.js` 和 `server/server.mjs`。

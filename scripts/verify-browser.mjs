@@ -411,7 +411,16 @@ try {
       await mkdir(saveDir);
       await writeFile(file,JSON.stringify(snapshot));
       const shell = createAppShell({assets,saveDir,instanceId,bootTimeoutMs:0,idleMs:0});
-      return {file,instanceId,shell};
+      const install = {file,instanceId,shell,blockWrites:false};
+      const [handleRequest] = shell.server.listeners('request');
+      shell.server.off('request',handleRequest);
+      shell.server.on('request',(req,res)=>{
+        if (install.blockWrites && req.method==='POST' && req.url==='/app/save') {
+          req.resume();
+          res.writeHead(500,{'content-type':'application/json'}).end('{"error":"QA disk write failed"}');
+        } else handleRequest(req,res);
+      });
+      return install;
     };
     const loadSave = async install => JSON.parse(await readFile(install.file,'utf8'));
     async function waitForAutosave(install, name) {
@@ -439,6 +448,21 @@ try {
       await wait(`performance.timeOrigin!==${oldTime} && globalThis.__FORZERO__?.ready===true && __FORZERO__.ui.driverName.value===${JSON.stringify(name)}`,
         'Desktop did not restore its own driver: '+name);
     }
+    async function waitForDiskBest(install, key, time) {
+      const deadline = Date.now()+15_000;
+      while (JSON.parse((await loadSave(install)).storage[key] ?? 'null')?.time !== time) {
+        if (Date.now() >= deadline) throw Error(`Desktop save did not write personal best ${time}`);
+        await delay(100);
+      }
+    }
+    const finishTrial = time => evaluate(`(()=>{
+      const f=__FORZERO__, r=f.race;
+      r.start();
+      r.splits=r.event.gates.map((_,i)=>${time}*i/(r.event.gates.length-1));
+      r.finishAt(${time});
+      return f.checkpointRecordKey(r.event,r.entryVehicle);
+    })()`);
+    const retrying = "__FORZERO__.ui.saveStatus.textContent==='桌面存档写入失败，正在重试。'";
     let first, second;
     try {
       first = await makeInstall('Driver A');
@@ -447,6 +471,40 @@ try {
       const url = `http://127.0.0.1:${port}/`;
       await openInstall(url,'Driver A');
       await waitForAutosave(first,'Driver A');
+      const recordKey = await finishTrial(100000);
+      await waitForDiskBest(first,recordKey,100000);
+      first.blockWrites = true;
+      assert.equal(await finishTrial(90000),recordKey);
+      await wait(retrying,'Failed desktop autosave did not show its retry status');
+      await openInstall(url,'Driver A');
+      await wait(retrying,'Reload did not finish hydration and attempt an autosave');
+      assert.equal(await evaluate('__FORZERO__.race.best'),90000,'Same-install reload lost the faster personal best');
+      assert.equal(JSON.parse((await loadSave(first)).storage[recordKey]).time,100000);
+      first.blockWrites = false;
+      await waitForDiskBest(first,recordKey,90000);
+
+      first.blockWrites = true;
+      await evaluate(`(async()=>{
+        const f=__FORZERO__, backup=await f.buildSaveSnapshot(), key=${JSON.stringify(recordKey)};
+        const record=JSON.parse(backup.storage[key]);
+        const scale=110000/record.time;
+        record.time=110000;
+        record.splits=record.splits.map(t=>Math.min(record.time,t*scale));
+        record.samples=record.samples.map(([t,...pose])=>[Math.min(record.time,t*scale),...pose]);
+        backup.storage[key]=JSON.stringify(record);
+        const upload=new DataTransfer();
+        upload.items.add(new File([JSON.stringify(backup)],'desktop-save.json',{type:'application/json'}));
+        f.ui.saveFile.files=upload.files;
+        f.ui.saveFile.dispatchEvent(new Event('change'));
+      })()`);
+      await wait('__FORZERO__.race.best===110000','Explicit desktop import did not overwrite the best');
+      await wait(retrying,'The imported desktop save did not attempt a disk write');
+      await openInstall(url,'Driver A');
+      await wait(retrying,'Reload did not reattempt the imported desktop save');
+      assert.equal(await evaluate('__FORZERO__.race.best'),110000,'Reload lost the deliberate slower import');
+      assert.equal(JSON.parse((await loadSave(first)).storage[recordKey]).time,90000);
+      first.blockWrites = false;
+      await waitForDiskBest(first,recordKey,110000);
       const savedA = await loadSave(first);
       await first.shell.shutdown();
       await start(second.shell,port);
@@ -454,6 +512,7 @@ try {
         'x-forzero-installation':${JSON.stringify(first.instanceId)}},body:${JSON.stringify(JSON.stringify(savedA))}}).then(r=>r.status)`),409);
       await openInstall(url,'Driver B');
       await waitForAutosave(second,'Driver B');
+      assert.equal((await loadSave(second)).storage[recordKey],undefined,'Desktop installs must keep their personal bests separate');
       assert.deepEqual(await loadSave(first),savedA);
       const savedB = await loadSave(second);
       await assert.rejects(evaluate(`(async()=>{

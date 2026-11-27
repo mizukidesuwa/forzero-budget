@@ -390,6 +390,7 @@ function addPlayer(room,name,profile={}) {
     .slice(0,12).join('') || 'player';
   const clean = sanitizeProfile(profile,room.vehicleRule);
   const player = {id:identifier(),name:nickname,token:randomBytes(24).toString('base64url'),ready:false,roundIdentity:profile.roundIdentity===true,
+    raceProgress:profile.raceProgress===true,
     paint:clean.paint,skinId:clean.skinId,skinVersion:clean.skinVersion,skinSpec:clean.skinSpec,skinSpecHash:clean.skinSpecHash,vehicle:clean.vehicle,look:clean.look,bike:clean.bike,tunings:clean.tunings,
     stream:null,expires:Date.now()+RECONNECT,signals:[],signalWindow:0,signalCount:0};
   room.players.set(player.id,player);
@@ -411,8 +412,8 @@ function roomState(room) {
     budget:room.budget,blind:room.blind,budgetProblems:roomBudgetProblems(room),
     tuningSeconds:room.tuningSeconds??0,collision:Boolean(room.collision),traffic:room.traffic??'sparse',tuning:room.tuning??null,
     players:Array.from(room.players.values(),player=>{
-      const {id,name,ready,stream,paint,skinId,skinVersion,skinSpec,skinSpecHash,vehicle,look,bike}=player;
-      return {id,name,ready,online:Boolean(stream),paint,skinId,skinVersion,skinSpec,skinSpecHash,vehicle,look,bike,
+      const {id,name,ready,stream,raceProgress,paint,skinId,skinVersion,skinSpec,skinSpecHash,vehicle,look,bike}=player;
+      return {id,name,ready,online:Boolean(stream),raceProgress,paint,skinId,skinVersion,skinSpec,skinSpecHash,vehicle,look,bike,
         tuning:roomVehicle(room,player)==='bike'?{}:roomParts(room,player)};
     }),
     roundsTotal:ROOM_ROUNDS[room.format],
@@ -445,6 +446,11 @@ function isCurrentRound(room,player,body) {
 }
 
 function applyCommand(room,player,body) {
+  if (((body?.action==='ready' && body.ready===true) || body?.action==='start' || body?.action==='skipTuning') &&
+      ((body.routeCode!==undefined && body.routeCode!==room.route.code) ||
+       (body.routeLayout!==undefined && body.routeLayout!==room.route.layout))) {
+    throw new RoomError('房间赛道已更换，请载入新赛道后重试。');
+  }
   switch (body?.action) {
     case 'ready':
       if (room.phase!=='lobby' && room.phase!=='between' && room.phase!=='tuning') throw new RoomError('当前无法准备。');
@@ -781,7 +787,7 @@ async function listenWithFallback(server,host,requestedPort,allowFallback) {
 
 const gameVersion = (page,assets) => /(?:FORZERO:\s*BUDGET[^<]*?|荔园环骑)\s+([0-9.]+)<\/title>/.exec(String(assets?.['/index.html']?.body??page))?.[1]??null;
 
-const desktopSaveVersions = ['2.5.5','2.5.4','2.5.3','2.5.2','2.5.1.1','2.5.1','2.5.0','2.4.0','2.3.4','2.3.3.1','2.3.3','2.3.2','2.3.1',
+const desktopSaveVersions = ['2.5.6','2.5.5','2.5.4','2.5.3','2.5.2','2.5.1.1','2.5.1','2.5.0','2.4.0','2.3.4','2.3.3.1','2.3.3','2.3.2','2.3.1',
   '2.1.0','2.0.0','1.9.1.1','1.9.1','1.9.0','1.8.8','1.8.7','1.8.6','1.8.5','1.8.1'];
 const legacySaveVersions = ['1.8.0','1.7.0','1.6.6','1.6.5','1.6.4','1.6.3','1.6.2','1.6.1','1.6.0','1.5.0'];
 

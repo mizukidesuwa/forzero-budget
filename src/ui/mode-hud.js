@@ -152,14 +152,13 @@ export function updateOnlineChaseHud(ui, view, timeLabel, mapOpen = false) {
       setTextLabel(ui.courierTitle, view.visibleRiders?.length ? '联机捉人 · 目标现形' : '联机捉人 · 捉人者');
       setLabel(ui.courierDetail, `${rem} · ${message`已抓 ${snap.caughtCount}/${snap.totalRunners}`} · ${approx}`);
     } else {
-      const alive = Math.max(0, snap.totalRunners - snap.caughtCount);
       const alertText = view.proximity === 'locked'
         ? translate('危险逼近！')
         : view.proximity === 'near'
           ? message`捉人者接近 · 约 ${Math.max(10, Math.round(view.nearestDistance / 10) * 10)}m`
           : translate('保持隐蔽转移');
       setTextLabel(ui.courierTitle, '联机捉人 · 逃跑者');
-      setLabel(ui.courierDetail, `${rem} · ${message`存活 ${alive}/${snap.totalRunners}`} · ${alertText}`);
+      setLabel(ui.courierDetail, `${rem} · ${message`存活 ${snap.remainingRunners}/${snap.totalRunners}`} · ${alertText}`);
     }
   }
 

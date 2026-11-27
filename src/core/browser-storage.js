@@ -3,7 +3,7 @@
 const installId = globalThis.document?.querySelector('meta[name="forzero-installation"]')?.getAttribute('content');
 export const desktopInstallId = installId && /^[a-f0-9]{64}$/.test(installId) ? installId : null;
 
-/** @typedef {Pick<Storage, 'length' | 'key' | 'getItem' | 'setItem' | 'removeItem'>} PlayerStorage */
+/** @typedef {Pick<Storage, 'length' | 'key' | 'getItem' | 'setItem' | 'removeItem'> & { keys?: () => string[] }} PlayerStorage */
 
 /** @returns {PlayerStorage | null} */
 export function browserPlayerStorage() {
@@ -20,6 +20,7 @@ export function browserPlayerStorage() {
     return own;
   };
   return {
+    keys,
     get length() { return keys().length; },
     key: index => keys()[index] ?? null,
     getItem: key => storage.getItem(prefix + key),

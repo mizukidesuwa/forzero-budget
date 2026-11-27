@@ -1,22 +1,27 @@
 import { desktopInstallId } from '../core/browser-storage.js';
 import { getPreferences, getStorage, worldState } from '../core/state.js';
+import { desktopSaveTiming } from '../data/interface.js';
 import { blindNavRules, chaseRules } from '../data/modes.js';
+import { recordRules } from '../data/race.js';
 import { BlindNav } from '../race/blind-nav.js';
 import { ShadowChase } from '../race/chase.js';
 import { CampusCourier, readExplorerProgress } from '../race/courier.js';
 import saveRules from '../data/shared-rules.cjs';
-import { friendArchiveTransaction, friendScoreKey, readFriendScores, readSavedFriendGhost } from '../replay/ghost.js';
+import { friendArchiveTransaction, friendScoreKey, readFriendScores, readSavedFriendGhost, recordingRules, validReplay } from '../replay/ghost.js';
 import { setActiveWeather } from '../render/atmosphere.js';
 import { CUSTOM_SKIN_KEY, refreshRiderSkinRegistry, restoredRiderSkinLibrary } from '../ride/rider-skin.js';
-import { DRIVER_KEY, readDriverProfile, savedBike, savedVehicleTunings } from '../ride/vehicles.js';
+import { DRIVER_KEY, knownVehicle, readDriverProfile, savedBike, savedVehicleTunings } from '../ride/vehicles.js';
 
 export const SAVE_FORMAT = 'litchi-save';
 export const SAVE_VERSION = 1;
 const { MAX_SAVE_BYTES } = saveRules;
 const saveEncoder = new TextEncoder();
+const pendingRecordImportKey = 'forzero-pending-record-import';
+const retrySaveMessage = '桌面存档写入失败，正在重试。';
 let saveSyncTimer = null;
 let saveSyncBusy = false;
 let saveHydrated = false;
+let retryStatusText = null;
 let restoreVehiclePending = false;
 let pendingRestores = 0;
 let restoreQueue = Promise.resolve();
@@ -66,14 +71,35 @@ export function applyPendingSaveVehicle({ restarting = false } = {}) {
 const standaloneSaveKeys = new Set([CUSTOM_SKIN_KEY, blindNavRules.storageKey, chaseRules.storageKey]);
 const isSaveKey = key => standaloneSaveKeys.has(key) || key.startsWith('szu-litchi-') || key.startsWith('checkpoints:');
 
+function pendingRecordImports(raw) {
+  try {
+    const keys = JSON.parse(raw)?.keys;
+    return new Set(Array.isArray(keys) ? keys : []);
+  } catch { return new Set(); }
+}
+
+function savedRecord(raw, gateCount) {
+  if (!raw || raw.length > recordRules.maxBytes) return null;
+  try {
+    const record = JSON.parse(raw);
+    return validReplay(record, gateCount ?? record?.splits?.length) && !record.unranked && !record.blind &&
+      record.time > recordRules.minTime && record.time <= recordingRules(knownVehicle(record.vehicle)).limit ? record : null;
+  } catch { return null; }
+}
+
+function keepBrowserRecord(existing, incoming, imported) {
+  const diskRecord = savedRecord(incoming);
+  const localRecord = savedRecord(existing, diskRecord?.splits.length);
+  return Boolean(localRecord && (imported || !diskRecord || localRecord.time < diskRecord.time));
+}
+
 export function collectLocalStorageSave() {
   const storage = {};
   try {
     const browserStorage = getStorage();
     if (!browserStorage) throw new Error();
-    const count = browserStorage.length;
-    for (let i = 0; i < count; i++) {
-      const key = browserStorage.key(i);
+    const keys = browserStorage.keys?.() ?? Array.from({ length: browserStorage.length }, (_, i) => browserStorage.key(i));
+    for (const key of keys) {
       if (key && isSaveKey(key)) {
         const value = browserStorage.getItem(key);
         if (value !== null) storage[key] = value;
@@ -121,7 +147,7 @@ export function applySaveSnapshot(snapshot, options) {
   return result;
 }
 
-async function restoreSaveSnapshot(snapshot, { preferIncoming = false } = {}) {
+async function restoreSaveSnapshot(snapshot, { preferIncoming = false, fromDisk = false, rememberImport = false } = {}) {
   if (!snapshot || snapshot.format !== SAVE_FORMAT || snapshot.version !== SAVE_VERSION ||
       !snapshot.storage || typeof snapshot.storage !== 'object' || Array.isArray(snapshot.storage)) {
     throw new Error('请选择有效的 FORZERO: BUDGET（或荔园环骑）存档文件。');
@@ -131,14 +157,23 @@ async function restoreSaveSnapshot(snapshot, { preferIncoming = false } = {}) {
   const updatedRecords = new Set();
   const changes = [];
   const applied = [];
+  let imported;
   const stage = (key, value, previous) => {
     if (value !== previous) changes.push({ key, value, previous });
   };
   const write = () => {
     try {
       for (const change of changes) {
-        storage.setItem(change.key, change.value);
-        applied.push(change);
+        const { key, value } = change;
+        const previous = storage.getItem(key);
+        const checkpoint = key.startsWith('checkpoints:');
+        if (fromDisk && checkpoint && previous !== value && previous !== change.previous &&
+            keepBrowserRecord(previous, value, imported.has(key))) continue;
+        if (previous !== value) {
+          storage.setItem(key, value);
+          applied.push({ key, value, previous });
+        }
+        if (checkpoint) updatedRecords.add(key);
       }
     } catch { throw new Error('无法写入浏览器存档。'); }
   };
@@ -155,10 +190,14 @@ async function restoreSaveSnapshot(snapshot, { preferIncoming = false } = {}) {
     throw new Error('存档包含无效的玩家资料。');
   }
   try {
+    const previousImport = fromDisk || rememberImport ? storage.getItem(pendingRecordImportKey) : null;
+    imported = pendingRecordImports(previousImport);
     for (const [key, value] of entries) {
       if (key===CUSTOM_SKIN_KEY) continue;
       const existing = storage.getItem(key);
-      if (key.startsWith('checkpoints:') && existing && !preferIncoming) {
+      if (key.startsWith('checkpoints:') && existing && fromDisk && existing !== value) {
+        if (keepBrowserRecord(existing, value, imported.has(key))) continue;
+      } else if (key.startsWith('checkpoints:') && existing && !preferIncoming) {
         try {
           const cur = JSON.parse(existing), inc = JSON.parse(value);
           if (typeof cur?.time === 'number' && typeof inc?.time === 'number' && cur.time <= inc.time) continue;
@@ -166,7 +205,6 @@ async function restoreSaveSnapshot(snapshot, { preferIncoming = false } = {}) {
       }
       if (existing === null || preferIncoming || key.startsWith('checkpoints:')) {
         stage(key, value, existing);
-        if (key.startsWith('checkpoints:') && value !== existing) updatedRecords.add(key);
       }
     }
     let profile = null;
@@ -175,6 +213,14 @@ async function restoreSaveSnapshot(snapshot, { preferIncoming = false } = {}) {
     const previousLibrary = storage.getItem(CUSTOM_SKIN_KEY);
     const library = restoredRiderSkinLibrary(raw, previousLibrary, profile, preferIncoming);
     if (library !== null) stage(CUSTOM_SKIN_KEY, library, previousLibrary);
+    if (rememberImport) {
+      const recordKeys = entries.filter(([key]) => key.startsWith('checkpoints:')).map(([key]) => key);
+      if (recordKeys.length) {
+        // Keep a deliberate overwrite across a shutdown before the disk acknowledges it.
+        for (const key of recordKeys) imported.add(key);
+        stage(pendingRecordImportKey, JSON.stringify({ token: crypto.randomUUID(), keys: [...imported] }), previousImport);
+      }
+    }
   } catch { throw new Error('无法写入浏览器存档。'); }
 
   try {
@@ -237,7 +283,10 @@ export async function flushLocalSave(keepalive = false) {
   }
   saveSyncBusy = true;
   const ui = worldState.ui;
+  let retry = false;
   try {
+    const storage = getStorage();
+    const pendingImport = storage?.getItem(pendingRecordImportKey);
     const snapshot = keepalive
       ? { format: SAVE_FORMAT, version: SAVE_VERSION, updatedAt: new Date().toISOString(), storage: collectLocalStorageSave(), friends: null }
       : await buildSaveSnapshot();
@@ -246,6 +295,7 @@ export async function flushLocalSave(keepalive = false) {
       method: 'POST',
       keepalive,
       cache: 'no-store',
+      signal: keepalive ? undefined : AbortSignal.timeout(desktopSaveTiming.timeoutMs),
       headers: { 'Content-Type': 'application/json', 'X-Forzero-Installation': desktopInstallId },
       body,
     });
@@ -255,29 +305,50 @@ export async function flushLocalSave(keepalive = false) {
       archiveTooLarge = true;
       response = await post(body);
     }
-    if (response.status === 409 || response.status === 413) {
-      const data = await response.json();
-      if (ui?.saveStatus) saveCallbacks.setText(ui.saveStatus, data.error);
-    } else if (response.ok && archiveTooLarge && ui?.saveStatus) {
-      saveCallbacks.setText(ui.saveStatus, '友人对战档案过大，已自动保存个人成绩、车库和皮肤库。');
+    if (response.ok) {
+      if (pendingImport && storage.getItem(pendingRecordImportKey) === pendingImport) storage.removeItem(pendingRecordImportKey);
+      if (ui?.saveStatus) {
+        if (archiveTooLarge) saveCallbacks.setText(ui.saveStatus, '友人对战档案过大，已自动保存个人成绩、车库和皮肤库。');
+        else if (retryStatusText && ui.saveStatus.textContent === retryStatusText) saveCallbacks.setText(ui.saveStatus, '桌面存档已保存。');
+      }
+      retryStatusText = null;
+    } else if (response.status === 409 || response.status === 413) {
+      const data = await response.json().catch(() => null);
+      if (ui?.saveStatus) saveCallbacks.setText(ui.saveStatus, data?.error ?? '桌面存档写入失败。');
+    } else {
+      retry = response.status >= 500 || response.status === 408 || response.status === 429;
+      if (!retry && ui?.saveStatus) saveCallbacks.setText(ui.saveStatus, '桌面存档写入失败。');
     }
   } catch (error) {
-    if (error?.message==='个人存档过大。' && ui?.saveStatus) saveCallbacks.setText(ui.saveStatus,error.message);
+    if (error?.message==='个人存档过大。') {
+      if (ui?.saveStatus) saveCallbacks.setText(ui.saveStatus,error.message);
+    } else retry = true;
+  } finally {
+    saveSyncBusy = false;
+    if (retry && !keepalive && saveHydrated) {
+      if (ui?.saveStatus) {
+        saveCallbacks.setText(ui.saveStatus, retrySaveMessage);
+        retryStatusText = ui.saveStatus.textContent;
+      }
+      if (saveSyncTimer === null) scheduleLocalSave(desktopSaveTiming.retryMs);
+    }
   }
-  finally { saveSyncBusy = false; }
 }
 
-export function scheduleLocalSave() {
+export function scheduleLocalSave(delay = desktopSaveTiming.debounceMs) {
   if (!saveCallbacks.isOnlineAppMode()) return;
   clearTimeout(saveSyncTimer);
-  saveSyncTimer = setTimeout(() => { void flushLocalSave(false); }, 400);
+  saveSyncTimer = setTimeout(() => {
+    saveSyncTimer = null;
+    void flushLocalSave(false);
+  }, delay);
 }
 
 export async function hydrateLocalSave() {
   if (!desktopInstallId || !saveCallbacks.isOnlineAppMode()) return;
   const ui = worldState.ui;
   try {
-    const response = await fetch('/app/save', { cache: 'no-store', signal: AbortSignal.timeout(8000) });
+    const response = await fetch('/app/save', { cache: 'no-store', signal: AbortSignal.timeout(desktopSaveTiming.timeoutMs) });
     if (!response.ok) {
       if (response.status === 409) {
         const data = await response.json();
@@ -288,7 +359,7 @@ export async function hydrateLocalSave() {
     const payload = await response.json().catch(() => null);
     if (payload?.instanceId !== desktopInstallId || typeof payload.exists !== 'boolean') return;
     if (payload?.exists && payload.data) {
-      await applySaveSnapshot(payload.data, { preferIncoming: true });
+      await applySaveSnapshot(payload.data, { preferIncoming: true, fromDisk: true });
     } else if (payload.exists) return;
     saveHydrated = true;
     scheduleLocalSave();
@@ -325,7 +396,7 @@ export async function importSaveFile(file) {
   try {
     if (file.size > MAX_SAVE_BYTES) throw new Error('存档文件过大。');
     const parsed = JSON.parse(await file.text());
-    await applySaveSnapshot(parsed, { preferIncoming: true });
+    await applySaveSnapshot(parsed, { preferIncoming: true, rememberImport: Boolean(desktopInstallId && saveCallbacks.isOnlineAppMode()) });
     scheduleLocalSave();
     if (ui?.saveStatus) saveCallbacks.setText(ui.saveStatus, restoreVehiclePending
       ? '存档已导入。车辆配置将在返回自由骑行或重新发车时生效。'
