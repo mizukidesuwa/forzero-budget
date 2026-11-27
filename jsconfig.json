@@ -9,8 +9,8 @@
   },
   "include": [
     "src/**/*.js",
-    "scripts/**/*.mjs",
-    "szu-litchi-dev/online/**/*.mjs"
+    "server/**/*.mjs",
+    "scripts/**/*.mjs"
   ],
   "exclude": [
     "node_modules",

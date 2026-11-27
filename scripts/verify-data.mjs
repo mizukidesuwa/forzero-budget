@@ -3,8 +3,8 @@ import { createRequire } from 'node:module';
 import * as game from '../src/test-exports.js';
 
 const require = createRequire(import.meta.url);
-const shared = require('../szu-litchi-dev/online/tuning-190.cjs');
-const { roomBuildProblem } = require('../szu-litchi-dev/online/room-rules.cjs');
+const shared = require('../server/tuning-190.cjs');
+const { roomBuildProblem } = require('../server/room-rules.cjs');
 assert.equal(game.tuning190, shared);
 
 for (const [vehicle, prices] of Object.entries(shared.prices)) {

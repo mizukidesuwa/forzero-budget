@@ -17,7 +17,7 @@ const FAST_CHECKS = [
   ['chase-blind', ['scripts/verify-chase-blind.mjs']],
   ['route-builder-chase', ['scripts/verify-route-builder-chase.mjs']],
   ['save', ['scripts/verify-save.mjs']],
-  ['online', ['szu-litchi-dev/online/verify.mjs']],
+  ['online', ['server/verify.mjs']],
   ['esm-parity', ['scripts/verify-esm-parity.mjs']],
   ...(hasLegacyRuntime ? [['runtime-parity', ['scripts/verify-runtime-parity.mjs']]] : []),
 ];

@@ -19,7 +19,7 @@ import {
   makeNetworkCourse,
   makeSeedCourse,
 } from '../src/test-exports.js';
-import { createRideServer } from '../szu-litchi-dev/online/server.mjs';
+import { createRideServer } from '../server/server.mjs';
 
 const backing = new Map();
 setStorage({

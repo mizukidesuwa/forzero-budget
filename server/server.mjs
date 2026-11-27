@@ -984,6 +984,7 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href===import.meta.url) {
       soundDir = fileURLToPath(new URL('./sound',import.meta.url));
       saveDir = fileURLToPath(new URL('./save',import.meta.url));
       previousSaveFile = [
+        new URL('../forzero-budget-2.5.0/save/player-data.json',import.meta.url),
         new URL('../forzero-budget-2.4.0/save/player-data.json',import.meta.url),
         new URL('../forzero-budget-2.3.4/save/player-data.json',import.meta.url),
         new URL('../forzero-budget-2.3.3.1/save/player-data.json',import.meta.url),

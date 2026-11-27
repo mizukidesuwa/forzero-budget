@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -157,8 +157,9 @@ try {
   assert.deepEqual(await evaluate('__FORZERO__.race.event.variant'), { direction: 'reverse', laps: 3 });
   assert.deepEqual(await evaluate('qaErrors'), [], 'desktop errors');
 
+  const pkgVersion = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
   const mobile = resolve(process.env.FORZERO_MOBILE_HTML ??
-    (existsSync('dist-v2/forzero-budget-mobile-2.5.0.html') ? 'dist-v2/forzero-budget-mobile-2.5.0.html' : 'dist-v2/forzero-budget-mobile.html'));
+    (existsSync(`dist-v2/forzero-budget-mobile-${pkgVersion}.html`) ? `dist-v2/forzero-budget-mobile-${pkgVersion}.html` : 'dist-v2/forzero-budget-mobile.html'));
   if (existsSync(mobile)) {
     await rpc('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true }, sessionId);
     await rpc('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 }, sessionId);

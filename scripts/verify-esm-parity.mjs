@@ -197,7 +197,7 @@ assert.deepEqual(normalizeJson(collisionProbes), expectedProbes, 'collisionProbe
 console.log('2. All 3 campus batchStats, treeSummary, collisionProbes, Qingyun LoS: EXACT MATCH');
 
 // 3. Fixed-route laps via test-exports + rounds/drive-path.js
-const driveSrc = readFileSync(resolve('szu-litchi-dev/rounds/drive-path.js'), 'utf8');
+const driveSrc = readFileSync(resolve('scripts/lib/drive-path.js'), 'utf8');
 const rideTest = vm.runInNewContext(driveSrc + '\nrideTest;', {
   TimeTrial: game.TimeTrial,
   along: game.along,

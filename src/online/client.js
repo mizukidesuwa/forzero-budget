@@ -7,7 +7,7 @@ import { ghostCourseKey } from '../replay/ghost.js';
 import { workshopBudget } from '../ride/budget.js';
 import { tuning190 } from '../ride/tuning-rules.js';
 import {
-  bicycleStyle, brakeChoices, buildBike, frameChoices, gearChoices, knownPaint, knownVehicle, sprintChoices,
+  bicycleStyle, brakeChoices, buildBike, buildVehicleTuning, frameChoices, gearChoices, knownPaint, knownVehicle, sprintChoices,
   tyreChoices, vehicleChoices, vehicleTuningChoices,
 } from '../ride/vehicles.js';
 import { knownSkinId, skinForProfile, skinSpecHash } from '../ride/rider-skin.js';

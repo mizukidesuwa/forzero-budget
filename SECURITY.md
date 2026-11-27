@@ -10,7 +10,7 @@
 ## Scope & Design Notes
 
 - 浏览器游玩端为纯前端静态页面（WebGL 2 / IndexedDB / `localStorage`），不主动上传任何玩家存档或遥测数据。
-- 桌面联机与本地存档服务（`szu-litchi-dev/online/server.mjs`）默认监听本地环回地址 `127.0.0.1`（局域网联机时按需开启并由房主控制房间码与配置校验）。
+- 桌面联机与本地存档服务（`server/server.mjs`）默认监听本地环回地址 `127.0.0.1`（局域网联机时按需开启并由房主控制房间码与配置校验）。
 
 ## Reporting a Vulnerability
 

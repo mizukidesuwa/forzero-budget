@@ -5,12 +5,12 @@ import { fileURLToPath } from 'node:url';
 import esbuild from 'esbuild';
 import { writeDeterministicZip } from './deterministic-zip.mjs';
 
-export const VERSION = '2.5.0';
+export const VERSION = '2.5.1';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
 const srcDir = join(root, 'src');
-const onlineDir = join(root, 'szu-litchi-dev', 'online');
+const onlineDir = join(root, 'server');
 
 const args = new Set(process.argv.slice(2));
 const release = args.has('--release');

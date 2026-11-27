@@ -33,7 +33,7 @@ function createVmRunner() {
   });
   const gameCode = readFileSync(resolve('szu-litchi-dev/ride-update/game.js'), 'utf8')
     .split(/const mapCache\s*=\s*(?:\/\*[\s\S]*?\*\/\s*)?new WeakMap\(\);/)[0];
-  const drivePathCode = readFileSync(resolve('szu-litchi-dev/rounds/drive-path.js'), 'utf8');
+  const drivePathCode = readFileSync(resolve('scripts/lib/drive-path.js'), 'utf8');
   vm.runInContext(gameCode + '\n' + drivePathCode, ctx);
   return {
     store: vmSaves,

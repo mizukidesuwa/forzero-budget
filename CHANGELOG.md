@@ -1,5 +1,12 @@
 # 更新日志（CHANGELOG）
 
+## 2.5.1 — AST 静态检查、`server/` 目录迁移与工程治理
+
+- **AST 级静态分析与依赖修复**：新增 `eslint.config.mjs`（开发期 `devDependencies` 引入 `eslint` + `globals`，浏览器与联机服务端继续保持零第三方运行时依赖），`npm run lint` 在仓库卫生检查前强制运行 `no-undef`、`no-unreachable` 等语法级检查；收口 `src/debug-bridge.js` 为单一 `globalThis.__FORZERO__` 命名空间并显式补齐 `src/online/client.js` 中 `buildBike` 导入。
+- **彻底剥离公开仓库遗留目录**：将活跃的联机服务端与规则模板从 `szu-litchi-dev/online/` 迁移至顶层 `server/`，将 `szu-litchi-dev/rounds/drive-path.js` 迁至 `scripts/lib/drive-path.js`；公开仓库彻底移除 `szu-litchi-dev/`（本地 `szu-litchi-dev/` 保留作离线 `1.9.1.1` 对拍）。
+- **版本与存档迁移**：按规范升级至 `2.5.1`（`package.json`、`package-lock.json`、`scripts/build.mjs`、`src/index.html`、`server/README.md`、`README.md`），`server/server.mjs` 优先发现并迁移同级 `2.5.0` 与 `2.4.0` 存档（同步扩展 `scripts/verify-save.mjs`、`scripts/verify-browser.mjs` 动态读取 `package.json` 版本号）。
+- 通过 `npm run lint`、`npm run build:release`、`npm run verify:all`（含桌面/手机浏览器 E2E、4 人 WebRTC 联机、GPU 性能与内存基准以及 `1.9.1.1` 对拍）、`npm run release:stage -- --skip-build`、`npm run release:github -- --skip-build` 及导出仓库独立 `npm test` / ESLint 校验；玩法、地图、资产与物理基线保持不变。
+
 ## 2.5.0 — 联机捉人、可视化路线工坊与工程健康重构
 
 - 新增 **「联机捉人 · 1 追 N（三轮轮换）」** 联机赛制（`src/data/modes.js`、`szu-litchi-dev/online/room-rules.cjs`、`szu-litchi-dev/online/server.mjs`、`src/race/online-chase.js`、`src/online/client.js`、`src/ui/mode-hud.js`）：2–4 人房间轮流担任捉人者（3 轮），开局统一倒计时后逃跑者先发 6 秒；支持非对称视野显形（55m/85m）、每 4 秒周期雷达多目标扫描与逼近感知、8.5m/3.5m 服务端 `tag` 拦截判定、全抓即时结算或 120 秒超时脱逃计分，并将 `chase` 角色、抓获耗时与总分完整接入房间列表与战绩统计。

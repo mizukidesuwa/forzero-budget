@@ -171,6 +171,7 @@ const rootFiles = [
   'LICENSE',
   'README.md',
   'SECURITY.md',
+  'eslint.config.mjs',
   'jsconfig.json',
   'package.json',
   'package-lock.json',
@@ -190,21 +191,14 @@ for (const file of rootFiles) {
   repoStats.files += 1;
   repoStats.bytes += fs.statSync(dstPath).size;
 }
-for (const dir of ['src', 'scripts', '.github']) {
+for (const dir of ['src', 'server', 'scripts', '.github']) {
   const dirPath = path.join(ROOT, dir);
   if (fs.existsSync(dirPath)) copyFilteredTree(dirPath, path.join(repoDir, dir), repoStats);
 }
-copyFilteredTree(path.join(ROOT, 'szu-litchi-dev', 'online'), path.join(repoDir, 'szu-litchi-dev', 'online'), repoStats);
-const drivePathSrc = path.join(ROOT, 'szu-litchi-dev', 'rounds', 'drive-path.js');
-const drivePathDst = path.join(repoDir, 'szu-litchi-dev', 'rounds', 'drive-path.js');
-fs.mkdirSync(path.dirname(drivePathDst), { recursive: true });
-fs.copyFileSync(drivePathSrc, drivePathDst);
-repoStats.files += 1;
-repoStats.bytes += fs.statSync(drivePathDst).size;
 
 walkCheck(repoDir, (entry, full) => {
   const rel = path.relative(repoDir, full);
-  assert(!/^(?:save|node_modules|dist-v2|legacy|szu-litchi-loop|\.openai)(?:[\\/]|$)/.test(rel), `Forbidden entry in repo/: ${rel}`);
+  assert(!/^(?:save|node_modules|dist-v2|legacy|szu-litchi-dev|szu-litchi-loop|\.openai)(?:[\\/]|$)/.test(rel), `Forbidden entry in repo/: ${rel}`);
   if (!entry.isDirectory()) {
     assert(!entry.name.endsWith('.zip') && !/^forzero-budget-mobile-.*\.html$/.test(entry.name), `Built archive unexpectedly inside repo/: ${rel}`);
     assert(entry.name !== 'player-data.json' && entry.name !== 'forzero-shunde2-fork.zip', `Excluded file in repo/: ${rel}`);

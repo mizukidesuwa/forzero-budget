@@ -25,25 +25,30 @@ assert(buildVersionMatch && buildVersionMatch[1] === version, `scripts/build.mjs
 const indexHtml = fs.readFileSync(path.join(ROOT, 'src', 'index.html'), 'utf8');
 assert(indexHtml.split(version).length >= 3, `src/index.html missing ${version} version markers`);
 
-const onlineReadme = fs.readFileSync(path.join(ROOT, 'szu-litchi-dev', 'online', 'README.md'), 'utf8');
-assert(onlineReadme.split(version).length >= 3, `szu-litchi-dev/online/README.md missing ${version} version markers`);
+const onlineReadme = fs.readFileSync(path.join(ROOT, 'server', 'README.md'), 'utf8');
+assert(onlineReadme.split(version).length >= 3, `server/README.md missing ${version} version markers`);
 
 const srcShared = require(path.join(ROOT, 'src', 'data', 'shared-rules.cjs'));
-const onlineShared = require(path.join(ROOT, 'szu-litchi-dev', 'online', 'shared-rules.cjs'));
-assert.deepEqual(onlineShared, srcShared, 'online/shared-rules.cjs must match src/data/shared-rules.cjs');
+const onlineShared = require(path.join(ROOT, 'server', 'shared-rules.cjs'));
+assert.deepEqual(onlineShared, srcShared, 'server/shared-rules.cjs must match src/data/shared-rules.cjs');
 
 const srcTuning = require(path.join(ROOT, 'src', 'data', 'tuning-190.cjs'));
-const onlineTuning = require(path.join(ROOT, 'szu-litchi-dev', 'online', 'tuning-190.cjs'));
-assert.deepEqual(onlineTuning, srcTuning, 'online/tuning-190.cjs must match src/data/tuning-190.cjs');
+const onlineTuning = require(path.join(ROOT, 'server', 'tuning-190.cjs'));
+assert.deepEqual(onlineTuning, srcTuning, 'server/tuning-190.cjs must match src/data/tuning-190.cjs');
 
 for (const rel of ['src/data/modes.js', 'src/data/routes.js', 'src/data/rider-skins.js']) {
   const source = fs.readFileSync(path.join(ROOT, rel), 'utf8');
   assert(source.includes('./shared-rules.cjs'), `${rel} must import ./shared-rules.cjs`);
 }
-for (const rel of ['szu-litchi-dev/online/room-rules.cjs', 'szu-litchi-dev/online/route-rules.cjs', 'szu-litchi-dev/online/server.mjs']) {
+for (const rel of ['server/room-rules.cjs', 'server/route-rules.cjs', 'server/server.mjs']) {
   const source = fs.readFileSync(path.join(ROOT, rel), 'utf8');
   assert(source.includes('./shared-rules.cjs'), `${rel} must require ./shared-rules.cjs`);
 }
+
+const eslintConfigPath = path.join(ROOT, 'eslint.config.mjs');
+assert(fs.existsSync(eslintConfigPath), 'Missing eslint.config.mjs');
+const eslintConfig = fs.readFileSync(eslintConfigPath, 'utf8');
+assert(eslintConfig.includes("'no-undef'"), 'eslint.config.mjs must enforce no-undef');
 
 const appSource = fs.readFileSync(path.join(ROOT, 'src', 'ui', 'app.js'), 'utf8');
 const appLineCount = appSource.split(/\r?\n/).length;
@@ -64,7 +69,7 @@ for (const file of assetFiles) {
 
 const runtimeFiles = [
   ...walkFiles(path.join(ROOT, 'src'), ['.js']),
-  ...walkFiles(path.join(ROOT, 'szu-litchi-dev', 'online'), ['.mjs', '.cjs']),
+  ...walkFiles(path.join(ROOT, 'server'), ['.mjs', '.cjs']),
 ];
 for (const file of runtimeFiles) {
   const source = fs.readFileSync(file, 'utf8');
