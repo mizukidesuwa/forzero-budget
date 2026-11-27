@@ -12,11 +12,12 @@ if not defined NODE_EXE (
 )
 
 if not defined NODE_EXE (
-  echo 未检测到 Node.js（需要 22 或更新版本），无法在游戏内自动建房。
-  echo 可安装 Node.js，或将便携版 node.exe 放到 runtime\node.exe。
-  echo 正在直接打开游戏网页（可单人骑行或填房主 IP 加入）…
+  echo 未检测到 Node.js（需要 22 或更新版本），当前无法本机自动建房。
+  echo 推荐直接下载免安装完整版 forzero-budget-windows-x64-*.zip（已内置 runtime\node.exe），
+  echo 或安装 Node.js 22+ / 将便携版 node.exe 放到 runtime\node.exe。
+  echo 正在直接打开单机/加房网页（可在设置导出存档或填入好友 IP 加入房间）…
   start "" "%~dp0index.html"
-  timeout /t 4 >nul
+  timeout /t 8 >nul
   exit /b 0
 )
 

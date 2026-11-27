@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import esbuild from 'esbuild';
 import { writeDeterministicZip } from './deterministic-zip.mjs';
 
-export const VERSION = '2.5.1.1';
+export const VERSION = '2.5.2';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
@@ -94,6 +94,23 @@ if (release) {
     'sound/README.txt', ...serverCopies.map(([, dstName]) => dstName)];
   writeDeterministicZip(zipFile, desktopDir, entries);
   console.log(`  desktop ZIP:        ${readFileSync(zipFile).length} bytes`);
+  if (args.has('--bundle-node')) {
+    const nodeExe = process.env.FORZERO_NODE_EXE || (process.platform === 'win32' && process.arch === 'x64' ? process.execPath : '');
+    if (!nodeExe || !existsSync(nodeExe)) {
+      throw new Error('Cannot bundle Windows x64 Node.js runtime: run on win32 x64 or set FORZERO_NODE_EXE');
+    }
+    const licenseCandidate = join(dirname(nodeExe), 'LICENSE');
+    const nodeLicense = existsSync(licenseCandidate)
+      ? readFileSync(licenseCandidate)
+      : Buffer.from(`Node.js runtime (${process.version}, win32-x64) bundled under the MIT License.\nFull license text: https://github.com/nodejs/node/blob/main/LICENSE\n`, 'utf8');
+    const winZipFile = join(outBase, `forzero-budget-windows-x64-${VERSION}.zip`);
+    writeDeterministicZip(winZipFile, desktopDir, [
+      ...entries,
+      { name: 'runtime/node.exe', source: nodeExe },
+      { name: 'runtime/NODE-LICENSE.txt', data: nodeLicense },
+    ]);
+    console.log(`  windows portable:   ${readFileSync(winZipFile).length} bytes (Node ${process.version})`);
+  }
 }
 
 const elapsedMs = Math.round(performance.now() - t0);

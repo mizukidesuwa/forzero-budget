@@ -29,13 +29,13 @@
 
 > 历史交付与早期架构见 [HISTORY.md](HISTORY.md)；版本流水见 [CHANGELOG.md](CHANGELOG.md)；1.8.6 车流见本地归档 `szu-litchi-dev/ride-update/1.8.6-traffic.md`。巨型 `perf-*.json`、截图与旧包已归档至 `D:\szubikeGPT-archive\`。
 
-## 1. 2.5.1.1 构建产物与本地版
+## 1. 2.5.2 构建产物与本地版
 
-- `npm run build:release` 生成 `dist-v2/desktop/`、`dist-v2/forzero-budget-2.5.1.1.zip` 和 `dist-v2/forzero-budget-mobile-2.5.1.1.html`。
-- `npm run release:stage` 将可分发归档、校验清单（`SHA256SUMS.txt`、`MANIFEST.json`、`RELEASE-NOTES.md`）暂存到 `dist-v2/release/v2.5.1.1/`；`npm run release:github` 按 `AGENTS.md` 规范生成拆分式 GitHub 上传目录 `github-upload-2.5.1.1/repo/`（纯净源码树，含 `src/`、`server/`、`scripts/`、`.github/` 且不含 `szu-litchi-dev/`）与 `github-upload-2.5.1.1/release-assets/`（Releases 附件与 `RELEASE-NOTES.md`）。
-- `.github/workflows/ci.yml`（推送/PR 到 `main` 时自动在 Ubuntu 与 Windows 双平台运行 `verify` 节点检查，并在 `ubuntu-latest` 运行 `browser-e2e` 无头 Chrome 桌面/手机 E2E 验收；`scripts/browser-runner.mjs` 支持 Windows/Linux/macOS）、`.github/workflows/pages.yml`（校验并发布静态网页到 GitHub Pages）与 `.github/workflows/release.yml`（推送 `v*` tag 后自动执行 `build:release`、`verify:fast`、`release:stage` 并发布 GitHub Release 附件）。
+- `npm run build:release` 生成轻量 `dist-v2/desktop/`、`dist-v2/forzero-budget-2.5.2.zip` 和 `dist-v2/forzero-budget-mobile-2.5.2.html`；执行 `npm run build:release:win`（或 `-- --bundle-node`）额外生成内置便携 `runtime/node.exe` 的 Windows 免安装版 **`dist-v2/forzero-budget-windows-x64-2.5.2.zip`**。
+- `npm run release:stage` 将可分发归档、校验清单（`SHA256SUMS.txt`、`MANIFEST.json`、`RELEASE-NOTES.md`）暂存到 `dist-v2/release/v2.5.2/`；`npm run release:github` 按 `AGENTS.md` 规范生成拆分式 GitHub 上传目录 `github-upload-2.5.2/repo/`（纯净源码树，含 `src/`、`server/`、`scripts/`、`.github/` 且不含 `szu-litchi-dev/` 或任何 `.exe`/`.zip` 二进制）与 `github-upload-2.5.2/release-assets/`（Releases 附件与 `RELEASE-NOTES.md`）。
+- `.github/workflows/ci.yml`（推送/PR 到 `main` 时自动在 Ubuntu 与 Windows 双平台运行 `verify` 节点检查，并在 `ubuntu-latest` 运行 `browser-e2e` 无头 Chrome 桌面/手机 E2E 验收；`scripts/browser-runner.mjs` 支持 Windows/Linux/macOS）、`.github/workflows/pages.yml`（校验并发布静态网页到 GitHub Pages）与 `.github/workflows/release.yml`（在 `windows-latest` 上执行 `npm run build:release -- --bundle-node`、`npm run verify:fast -- --skip-build`、`npm run release:stage` 并同时发布含内置 Node.js 的 Windows 便携 ZIP 与轻量 ZIP / 手机单文件到 GitHub Release）。
 - 本地 `szu-litchi-dev/` 已移除；公开 GitHub 仓库与发行产物不再携带历史 1.x 构建链。
-- 2.5.1.1 桌面版优先读取同级 `forzero-budget-2.5.1/save/player-data.json` 与 `2.5.0`，并向下兼容 `2.4.0`、`2.3.4` 及前序存档。手机单文件可通过游戏设置导出和导入备份。
+- 2.5.2 桌面版优先读取同级 `forzero-budget-2.5.1.1/save/player-data.json` 与 `2.5.1`、`2.5.0`，并向下兼容 `2.4.0`、`2.3.4` 及前序存档。手机单文件可通过游戏设置导出和导入备份。
 
 ### 2.3.1 本地路径
 

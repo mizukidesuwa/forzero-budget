@@ -10,7 +10,10 @@ permissions:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -20,14 +23,14 @@ jobs:
       - name: Check version & tag match
         id: meta
         run: |
-          VERSION=$(node -e "console.log(require('./package.json').version)")
+          VERSION=$(node -e "console.log(require('./package.json').version)" | tr -d '\r')
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           if [ "${{ github.ref_type }}" = "tag" ] && [ "${{ github.ref_name }}" != "v$VERSION" ]; then
             echo "Tag ${{ github.ref_name }} does not match package.json version v$VERSION" >&2
             exit 1
           fi
       - run: npm ci
-      - run: npm run build:release
+      - run: npm run build:release -- --bundle-node
       - run: npm run verify:fast -- --skip-build
       - run: npm run release:stage -- --skip-build
       - name: Create or update GitHub Release
@@ -39,6 +42,7 @@ jobs:
           STAGE_DIR="dist-v2/release/v$VERSION"
           TAG="v$VERSION"
           FILES=(
+            "$STAGE_DIR/forzero-budget-windows-x64-$VERSION.zip"
             "$STAGE_DIR/forzero-budget-$VERSION.zip"
             "$STAGE_DIR/forzero-budget-mobile-$VERSION.html"
             "$STAGE_DIR/SHA256SUMS.txt"

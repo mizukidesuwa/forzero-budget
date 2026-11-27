@@ -1,5 +1,12 @@
 # 更新日志（CHANGELOG）
 
+## 2.5.2 — Windows 免安装便携 Node.js 运行时发行包
+
+- **新增内置 Node.js 的 Windows 免安装完整版**：[scripts/deterministic-zip.mjs](scripts/deterministic-zip.mjs) 支持 `zlib.crc32` 与按大文件自动切换压缩级别及外部文件条目映射；[scripts/build.mjs](scripts/build.mjs) 新增 `--bundle-node`（对应 [package.json](package.json) 的 `npm run build:release:win`），生成额外包含 `runtime/node.exe`（Node.js 22 win-x64 便携运行时）与 `runtime/NODE-LICENSE.txt` 的 **`forzero-budget-windows-x64-2.5.2.zip`**，玩家解压后直接双击 `启动游戏.bat` 即可开启应用壳自动存档与房主建房，无需电脑提前安装 Node.js。
+- **保持 GitHub 主干轻量无二进制**：[scripts/stage-release.mjs](scripts/stage-release.mjs) 自动识别并暂存 `forzero-budget-windows-x64-2.5.2.zip` 至 Release 附件目录，同时显式阻止 `.exe`/`.zip` 进入 `repo/` 源码树；[.github/workflows/release.yml](.github/workflows/release.yml) 切换至 `windows-latest` 执行 `npm run build:release -- --bundle-node`，在推送 `v*` 标签后自动同时上传 Windows 免安装完整版、轻量版与手机离线单文件至 GitHub Releases。
+- **启动器缺失提示与离线建房防误触**：[server/start-game.bat](server/start-game.bat) 在轻量版未检测到 `node.exe` 时明确提示可改用 `forzero-budget-windows-x64-*.zip` 免装版或安装 Node.js 22+（停留 8 秒便于阅读）；[src/online/client.js](src/online/client.js) 在 `file://` 离线网页或 `*.github.io` 静态站点模式下禁用「创建房间」按钮并展示双语引导（填入 IP 仅解锁「加入房间」不再误导本地建房），同步在 [src/data/english-text.js](src/data/english-text.js) 与 [scripts/verify-data.mjs](scripts/verify-data.mjs) 补齐双语校验；版本同步升级至 `2.5.2`，`server/server.mjs` 与 `scripts/verify-save.mjs` 新增同级 `2.5.1.1` 存档优先迁移。
+- 通过 `npm run typecheck`、`npm run lint`、`npm run build:release:win`、无系统 Node 环境（清空 `PATH` 仅运行解压包内 `runtime\node.exe`）建房实测、`npm run verify:fast -- --skip-build`、`node scripts/verify-browser.mjs`、`node scripts/verify-four-player.mjs` 与导出仓库独立校验。
+
 ## 2.5.1.1 — 联机错误双语诊断与源码直启路径修复
 
 - **修复源码目录直接启动 `server/server.mjs` 的遗留路径报错**：[server/server.mjs](server/server.mjs) 找不到同级 `index.html` 时的回退构建路径由已移除的 `../ride-update/release/` 修正为 `../dist-v2/desktop/`，并在缺失构建产物时给出明确的中英文 `npm run build` 提示；`previousSaveFile` 新增同级 `forzero-budget-2.5.1/save/player-data.json` 优先迁移并向后兼容 `2.5.0` 及前序版本。

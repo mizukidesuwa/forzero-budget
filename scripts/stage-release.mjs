@@ -45,6 +45,10 @@ const releaseFiles = [
   `forzero-budget-${version}.zip`,
   `forzero-budget-mobile-${version}.html`,
 ];
+const winZipFile = `forzero-budget-windows-x64-${version}.zip`;
+if (fs.existsSync(path.join(ROOT, 'dist-v2', winZipFile))) {
+  releaseFiles.unshift(winZipFile);
+}
 for (const file of releaseFiles) {
   const fullPath = path.join(ROOT, 'dist-v2', file);
   assert(fs.existsSync(fullPath) && fs.statSync(fullPath).size > 0, `Missing release archive: dist-v2/${file}`);
@@ -116,7 +120,10 @@ function buildReleaseNotes(checksumLines) {
     '',
     '## 玩家下载说明',
     '',
-    `- **电脑完整版**：下载 \`forzero-budget-${version}.zip\`，解压后双击 **\`启动游戏.bat\`**（支持本地自动存档与局域网 P2P 好友联机；也可直接用浏览器打开 \`index.html\`）。`,
+    ...(releaseFiles.includes(winZipFile)
+      ? [`- **Windows 免安装完整版（推荐，内置 Node.js，无需另装运行环境）**：下载 \`${winZipFile}\`，完整解压后双击 **\`启动游戏.bat\`** 即可本地自动存档与建房联机。`]
+      : []),
+    `- **桌面轻量版（需自备 Node.js 22+）**：下载 \`forzero-budget-${version}.zip\`，解压后双击 **\`启动游戏.bat\`**（支持本地自动存档与局域网 P2P 好友联机；也可直接用浏览器打开 \`index.html\`）。`,
     `- **手机离线单文件版**：下载 \`forzero-budget-mobile-${version}.html\`，直接用手机浏览器打开即可离线游玩。`,
     '',
     `## v${version} 主要更新`,
@@ -198,9 +205,9 @@ for (const dir of ['src', 'server', 'scripts', '.github']) {
 
 walkCheck(repoDir, (entry, full) => {
   const rel = path.relative(repoDir, full);
-  assert(!/^(?:save|node_modules|dist-v2|legacy|szu-litchi-dev|szu-litchi-loop|\.openai)(?:[\\/]|$)/.test(rel), `Forbidden entry in repo/: ${rel}`);
+  assert(!/^(?:save|node_modules|dist-v2|legacy|szu-litchi-dev|szu-litchi-loop|runtime|\.openai)(?:[\\/]|$)/.test(rel), `Forbidden entry in repo/: ${rel}`);
   if (!entry.isDirectory()) {
-    assert(!entry.name.endsWith('.zip') && !/^forzero-budget-mobile-.*\.html$/.test(entry.name), `Built archive unexpectedly inside repo/: ${rel}`);
+    assert(!/\.(?:zip|exe)$/i.test(entry.name) && !/^forzero-budget-mobile-.*\.html$/.test(entry.name), `Built archive or binary unexpectedly inside repo/: ${rel}`);
     assert(entry.name !== 'player-data.json' && entry.name !== 'forzero-shunde2-fork.zip', `Excluded file in repo/: ${rel}`);
   }
 });
@@ -221,5 +228,6 @@ console.log(`Staged v${version} split GitHub upload package to ${path.relative(R
 console.log(`  - repo/: ${repoStats.files} files (${(repoStats.bytes / 1048576).toFixed(2)} MB)`);
 console.log(`  - release-assets/: ${assetStats.files} files (${(assetStats.bytes / 1048576).toFixed(2)} MB)`);
 for (const item of artifacts) {
-  console.log(`    * ${item.file} (${(item.bytes / 1024).toFixed(1)} KB) sha256:${item.sha256.slice(0, 12)}...`);
+  const sizeLabel = item.bytes >= 1048576 ? `${(item.bytes / 1048576).toFixed(2)} MB` : `${(item.bytes / 1024).toFixed(1)} KB`;
+  console.log(`    * ${item.file} (${sizeLabel}) sha256:${item.sha256.slice(0, 12)}...`);
 }

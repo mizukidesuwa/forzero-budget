@@ -45,7 +45,8 @@ try {
   const latestDir = join(temp, 'forzero-budget-2.4.0', 'save');
   const v250Dir = join(temp, 'forzero-budget-2.5.0', 'save');
   const v251Dir = join(temp, 'forzero-budget-2.5.1', 'save');
-  const newDir = join(temp, 'forzero-budget-2.5.1.1');
+  const v2511Dir = join(temp, 'forzero-budget-2.5.1.1', 'save');
+  const newDir = join(temp, 'forzero-budget-2.5.2');
   await mkdir(previousDir, { recursive: true });
   await mkdir(v232Dir, { recursive: true });
   await mkdir(v233Dir, { recursive: true });
@@ -54,6 +55,7 @@ try {
   await mkdir(latestDir, { recursive: true });
   await mkdir(v250Dir, { recursive: true });
   await mkdir(v251Dir, { recursive: true });
+  await mkdir(v2511Dir, { recursive: true });
   await mkdir(oldDir, { recursive: true });
   await mkdir(v200Dir, { recursive: true });
   await mkdir(legacyDir, { recursive: true });
@@ -116,10 +118,15 @@ try {
   const v251File = join(v251Dir, 'player-data.json');
   await writeFile(v251File, JSON.stringify(v251));
   assert.deepEqual((await requestSave(createAppShell, saveDir, previous)).data, v251);
-  assert.equal((await requestSave(createAppShell, saveDir, previous, 'POST', v251)).status, 200);
+  const v2511 = fixture('2.5.1.1 QA', '2026-11-27T15:00:00.000Z');
+  const v2511File = join(v2511Dir, 'player-data.json');
+  await writeFile(v2511File, JSON.stringify(v2511));
+  assert.deepEqual((await requestSave(createAppShell, saveDir, previous)).data, v2511);
+  assert.equal((await requestSave(createAppShell, saveDir, previous, 'POST', v2511)).status, 200);
   const migrated = (await requestSave(createAppShell, saveDir, [])).data;
-  assert.deepEqual(migrated.storage, v251.storage);
-  assert.deepEqual(migrated.friends, v251.friends ?? []);
+  assert.deepEqual(migrated.storage, v2511.storage);
+  assert.deepEqual(migrated.friends, v2511.friends ?? []);
+  assert.deepEqual(JSON.parse(await readFile(v2511File, 'utf8')), v2511);
   assert.deepEqual(JSON.parse(await readFile(v251File, 'utf8')), v251);
   assert.deepEqual(JSON.parse(await readFile(v250File, 'utf8')), v250);
   assert.deepEqual(JSON.parse(await readFile(latestFile, 'utf8')), latest);
@@ -128,6 +135,7 @@ try {
   assert.deepEqual(JSON.parse(await readFile(v233File, 'utf8')), v233);
   assert.deepEqual(JSON.parse(await readFile(v232File, 'utf8')), v232);
   assert.deepEqual(JSON.parse(await readFile(priorFile, 'utf8')), prior);
+  await rm(v2511File);
   await rm(v251File);
   await rm(v250File);
   await rm(latestFile);

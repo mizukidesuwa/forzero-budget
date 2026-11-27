@@ -172,6 +172,8 @@ for (const key of [
   '无法连接本机联机服务。请通过「启动游戏.bat」重启游戏，并检查代理是否绕过 127.0.0.1 或防火墙是否放行。',
   '无法连接房主地址，请确认房主已开房、IP/端口正确，且未被防火墙或代理拦截。',
   '当前在线网页为静态站点，无法直接开房。请下载桌面版并通过「启动游戏.bat」建房，或填入 HTTPS 房主地址加入。',
+  '离线网页模式无法在本机建房。请下载内置 Node.js 的 Windows 完整版并通过「启动游戏.bat」打开（或安装 Node.js 22+）。',
+  '当前为离线网页模式，无法在本机建房。请通过「启动游戏.bat」打开游戏（Windows 完整版已内置 Node.js，或自备 Node.js 22+）；若要加入好友，请填入房主 IP 和房间码。',
 ]) {
   assert.equal(typeof englishText[key], 'string', `Missing English translation: ${key}`);
   assert.ok(englishText[key].trim().length > 0, `Empty English translation: ${key}`);

@@ -617,9 +617,15 @@ function renderOnline() {
   worldState.ui.onlineLobby.hidden = !session;
   worldState.ui.onlineSetup.hidden = Boolean(session);
   const hasHost = Boolean(worldState.ui.onlineHostInput.value.trim());
-  const canCreate = onlineAppMode || onlineSite() || hasHost;
-  const canJoin = hasHost || (onlineSite() && !onlineAppMode);
+  const isStaticPages = location.hostname.endsWith('.github.io');
+  const canCreate = onlineAppMode || (onlineSite() && !isStaticPages);
+  const canJoin = hasHost || (onlineSite() && !onlineAppMode && !isStaticPages);
   worldState.ui.onlineCreate.disabled = onlineBusy||!canCreate||!window.RTCPeerConnection;
+  worldState.ui.onlineCreate.title = !canCreate
+    ? translate(isStaticPages
+      ? '当前在线网页为静态站点，无法直接开房。请下载桌面版并通过「启动游戏.bat」建房，或填入 HTTPS 房主地址加入。'
+      : '离线网页模式无法在本机建房。请下载内置 Node.js 的 Windows 完整版并通过「启动游戏.bat」打开（或安装 Node.js 22+）。')
+    : '';
   worldState.ui.onlineJoin.disabled = onlineBusy||!canJoin||!window.RTCPeerConnection;
   worldState.ui.onlineHostInput.disabled = onlineBusy;
   worldState.ui.onlineLeave.disabled = onlineBusy;
@@ -760,9 +766,9 @@ function showOnlineDialog() {
   }
   showOnlineMessage('');
   if (!window.RTCPeerConnection) showOnlineMessage('这个浏览器无法建立 WebRTC 连接。');
-  else if (!onlineRoom&&!onlineAppMode&&!onlineSite()&&!worldState.ui.onlineHostInput.value.trim()) {
-    showOnlineMessage('输入房主 IP 加入房间；如需自己建房，请通过「启动游戏.bat」打开。');
-  } else if (!onlineRoom&&!onlineAppMode&&location.hostname.endsWith('.github.io')&&!worldState.ui.onlineHostInput.value.trim()) {
+  else if (!onlineRoom&&!onlineAppMode&&!onlineSite()) {
+    showOnlineMessage('当前为离线网页模式，无法在本机建房。请通过「启动游戏.bat」打开游戏（Windows 完整版已内置 Node.js，或自备 Node.js 22+）；若要加入好友，请填入房主 IP 和房间码。');
+  } else if (!onlineRoom&&!onlineAppMode&&location.hostname.endsWith('.github.io')) {
     showOnlineMessage('当前在线网页为静态站点，无法直接开房。请下载桌面版并通过「启动游戏.bat」建房，或填入 HTTPS 房主地址加入。');
   }
   renderOnline();

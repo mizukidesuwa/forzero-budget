@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { deflateRawSync } from 'node:zlib';
+import { crc32 as nativeCrc32, deflateRawSync } from 'node:zlib';
 
 // ZIP32, UTF-8 filenames, fixed DOS date (1980-01-01), no variable metadata.
 const crcTable = Array.from({ length: 256 }, (_, n) => {
@@ -9,18 +9,24 @@ const crcTable = Array.from({ length: 256 }, (_, n) => {
   return c >>> 0;
 });
 function crc32(data) {
+  if (typeof nativeCrc32 === 'function') return nativeCrc32(data) >>> 0;
   let c = 0xffffffff;
   for (const b of data) c = crcTable[(c ^ b) & 255] ^ (c >>> 8);
   return (c ^ 0xffffffff) >>> 0;
 }
 
-export function writeDeterministicZip(path, base, names) {
+export function writeDeterministicZip(path, base, specs) {
   const local = [], central = [];
   let offset = 0;
-  for (const name of [...names].sort()) {
-    const filename = Buffer.from(name, 'utf8');
-    const data = readFileSync(join(base, ...name.split('/')));
-    const compressed = deflateRawSync(data, { level: 9 });
+  const normalized = specs.map(spec => typeof spec === 'string'
+    ? { name: spec, data: null, source: join(base, ...spec.split('/')) }
+    : spec);
+  normalized.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  for (const entry of normalized) {
+    const filename = Buffer.from(entry.name, 'utf8');
+    const data = entry.data ? (Buffer.isBuffer(entry.data) ? entry.data : Buffer.from(entry.data)) : readFileSync(entry.source);
+    const level = data.length >= 2 * 1024 * 1024 ? 6 : 9;
+    const compressed = deflateRawSync(data, { level });
     const crc = crc32(data);
     const l = Buffer.alloc(30);
     l.writeUInt32LE(0x04034b50, 0); l.writeUInt16LE(20, 4);
@@ -42,7 +48,7 @@ export function writeDeterministicZip(path, base, names) {
   const directory = Buffer.concat(central);
   const end = Buffer.alloc(22);
   end.writeUInt32LE(0x06054b50, 0);
-  end.writeUInt16LE(names.length, 8); end.writeUInt16LE(names.length, 10);
+  end.writeUInt16LE(normalized.length, 8); end.writeUInt16LE(normalized.length, 10);
   end.writeUInt32LE(directory.length, 12); end.writeUInt32LE(offset, 16);
   writeFileSync(path, Buffer.concat([...local, directory, end]));
 }
