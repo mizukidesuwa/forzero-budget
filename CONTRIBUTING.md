@@ -28,5 +28,5 @@ npm run verify:all
 ## Pull Request 规范
 
 1. 从 `main` 拉取功能分支完成修改，保持 `CHANGELOG.md` 顶部同步更新。
-2. 确保 `.github/workflows/ci.yml` 中的静态门禁、构建与测试全部通过，不得通过弱化断言绕过验证。
+2. 确保 `.github/workflows/ci.yml` 中的静态门禁、构建与测试全部通过，不得通过弱化断言绕过验证。改动涉及 `src/ui/app.js` 时，按职责边界复核本次变更。 [开发指导](AGENTS.md#修改原则)
 3. 请勿提交 `save/`、`player-data.json`、`dist-v2/`、构建归档 ZIP 或调试截图。

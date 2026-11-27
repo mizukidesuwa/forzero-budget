@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | `src/entry.js`、`src/debug-bridge.js`、`src/test-exports.js` | `src/ride/`、`src/world/`、`src/data/`、`scripts/lib/drive-path.js` | `npm test`、`node scripts/verify-esm-parity.mjs`、`node scripts/verify-runtime-parity.mjs` |
 | `src/ui/language.js`、`src/ui/presentation-text.js`、`src/data/english-text.js` | 设置语言选择、界面词条和动态文案。翻译应用于界面与俯视地图文字。路线身份、记录键及场景招牌沿用原数据 | `npm run verify:hygiene`、`node scripts/verify-browser.mjs`、`node scripts/verify-four-player.mjs --drive` |
-| `src/ui/app.js`、`friend-duel.js`、`medal-travel.js`、`workshop-ui.js`、`settings-dialog.js` | 主舞台/循环胶水、友人对战弹窗、勋章/三站旅行与海拔图、车库/预算/皮肤导入 UI、二级设置面板 | `npm run build`、`npm run verify:hygiene`、`node scripts/verify-browser.mjs` |
+| `src/ui/app.js`、`friend-duel.js`、`medal-travel.js`、`workshop-ui.js`、`settings-dialog.js` | 主舞台、模块装配与帧循环调度、友人对战弹窗、勋章/三站旅行与海拔图、车库/预算/皮肤导入 UI、二级设置面板 | `npm run build`、`npm run verify:hygiene`、`node scripts/verify-browser.mjs` |
 | `src/data/interface.js`、`src/ui/hud-controls.js`、`src/render/ride-camera.js` | HUD / 触屏按钮缩放和视角偏好、全屏视角控制、三档镜头 | `node scripts/verify-browser.mjs`、`node scripts/verify-save.mjs` |
 | `src/data/vehicles.js`、`parts.js`、`surfaces.js` | `src/ride/vehicles.js`、`physics.js` | `node scripts/verify-data.mjs` |
 | `src/data/shared-rules.cjs`、`server/shared-rules.cjs` | 联机捉人、路线规则/路网快照与皮肤限制单源真源（双端复用） | `npm run lint`、`node scripts/verify-data.mjs`、`node server/verify.mjs` |

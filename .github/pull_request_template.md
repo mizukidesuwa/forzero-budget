@@ -1,5 +1,7 @@
 ## 改动说明
 
+<!-- 涉及 src/ui/app.js 时，请按 AGENTS.md 说明本次改动的职责，以及相关逻辑在哪个模块维护。 -->
+
 ## 自检清单
 - [ ] 已运行 `npm run lint`（`verify-hygiene.mjs`）
 - [ ] 已运行 `npm run build`

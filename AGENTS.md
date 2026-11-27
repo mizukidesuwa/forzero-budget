@@ -36,7 +36,7 @@
 
 - 新增参数和规则放在 src/data/，不要把魔法数字散落在物理、地图或 UI 中。
 - 新增可复用的围挡、栏杆、树、街具、路灯、车辆或场景网格时，在 src/world/assets/ 对应分类模块（`trees.js`、`rail-fence.js`、`street-furniture.js`、`lamps.js`、`barriers.js`、`traffic-vehicles.js`、`campus-v220.js`）创建或扩展 emitXxx(spec, dependencies) 形式的纯函数，并在 `src/world/assets/index.js` 统一重导出，不要把同类小件建模再内联堆入地图主文件。资产模块不得读取全局 worldState、消费全局随机流或操作 DOM。
-- 地图特有逻辑通过地图注册和查询接口接入。不要继续向 src/world/maps/szu.js、src/world/maps/ucl.js、src/ui/app.js 等聚合文件直接堆叠独立子系统。修改 app.js 时按修改区块增量拆分并运行浏览器验收。
+- 地图特有逻辑通过地图注册和查询接口接入。独立子系统放在对应模块，由地图主文件或 `src/ui/app.js` 等入口装配。`app.js` 还负责帧循环调度。修改 `app.js` 时，随相关改动增量抽取能通过清晰接口独立维护的逻辑，并运行浏览器验收。
 - 已稳定的地图主文件和 src/online/client.js 不做没有收益的强行拆分。
 - 客户端与服务端共用的配件、价格、预算和协议规则必须同时检查两侧。违禁配件成绩不得进入正式存档、勋章或官方影子。
 - 浏览器端和联机服务端保持零第三方运行时依赖。非用户明确要求，不在一级菜单或顶栏新增按钮，新开关放在发车区或二级设置。
@@ -49,6 +49,7 @@
 
 - 修改 2.x 源码后运行 npm run build，再按改动面选择定向验证。
 - 静态检查与类型门禁运行 `npm run lint` 与 `npm run typecheck`（`tsc -p jsconfig.json --noEmit`）。
+- `npm run verify:hygiene` 报告 `src/ui/app.js` 的行数。超过 1700 行时提示复核改动的职责边界，校验继续执行。
 - 数据、资产和地图改动优先运行 node scripts/verify-data.mjs、node scripts/verify-assets.mjs 和 node scripts/verify-maps.mjs [szu|ucl|shunde]。
 - 物理、竞速、确定性和对拍改动按需运行 node scripts/verify-drafting-ai.mjs、node scripts/verify-deterministic-race.mjs、node scripts/verify-esm-parity.mjs 和 node scripts/verify-runtime-parity.mjs。
 - 浏览器、存档、联机和性能改动按需运行 node scripts/verify-browser.mjs、node scripts/verify-save.mjs、node server/verify.mjs、node scripts/verify-four-player.mjs 和 node scripts/verify-performance.mjs。

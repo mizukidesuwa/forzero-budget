@@ -3,6 +3,7 @@
 ## Unreleased
 
 - 手机 HUD 布局验收通过游戏的固定物理步进完成发车倒计时，覆盖原有的引导、触控和相机布局断言。通过 `node scripts/verify-browser.mjs`、`npm run lint` 和 `npm run typecheck`。地图、资产和物理基线沿用原有数据。
+- `scripts/verify-hygiene.mjs` 报告 `src/ui/app.js` 行数，超过 1700 行时给出职责边界审阅提示并继续执行校验。同步开发指导、工作指南、贡献说明和 PR 模板。通过 `npm run lint`、`npm run typecheck` 和 `npm test`，并验证 1700 行、1701 行及提示后触发其他校验错误的行为。沿用现有基线。
 
 ## 2.5.3 — 存档、工坊影子、联机轮换与发行修复
 
