@@ -1,10 +1,30 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
+
+async function closeTestBrowser(child, profile, requestClose) {
+  if (child.pid && child.exitCode === null && child.signalCode === null) {
+    const exited = once(child, 'exit').catch(() => {});
+    // A DevTools close lets Chrome stop its subprocesses and flush the profile.
+    void Promise.resolve().then(requestClose).catch(() => {});
+    await Promise.race([exited, delay(4000, undefined, { ref: false })]);
+    if (child.exitCode === null && child.signalCode === null) {
+      child.kill();
+      await Promise.race([exited, delay(4000, undefined, { ref: false })]);
+    }
+  }
+  try {
+    await rm(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
+  } catch (error) {
+    if (!['EBUSY', 'ENOTEMPTY', 'EPERM'].includes(error.code)) throw error;
+    console.warn('Temporary Chrome profile is still in use:', profile, error.code);
+  }
+}
 
 async function openBrowserTcp(path, launchArgs, timeoutMs) {
   const profile = mkdtempSync(join(tmpdir(), 'forzero-cdp-'));
@@ -18,16 +38,11 @@ async function openBrowserTcp(path, launchArgs, timeoutMs) {
   child.stderr.on('data', chunk => { stderr = (stderr + chunk.toString()).slice(-6000); });
   const pending = new Map();
   const close = async () => {
-    if (socket?.readyState === WebSocket.OPEN && rpc) {
-      await Promise.race([rpc('Browser.close').catch(() => {}), delay(2000)]);
-      socket.close();
+    try {
+      await closeTestBrowser(child, profile, () => socket?.readyState === WebSocket.OPEN && rpc?.('Browser.close'));
+    } finally {
+      socket?.close();
     }
-    if (child.pid && child.exitCode === null && child.signalCode === null) {
-      const exited = once(child, 'exit').catch(() => {});
-      child.kill(); await Promise.race([exited, delay(3000)]);
-    }
-    try { rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); }
-    catch (error) { console.log('Temporary browser profile could not be removed:', error.code); }
   };
   try {
     await once(child, 'spawn');
@@ -122,14 +137,7 @@ export async function openTestBrowser({ hardwarePreferred = false, launchArgs = 
         if (error && pending.has(id)) { pending.delete(id); clearTimeout(timer); fail(error); }
       });
     });
-    const close = async () => {
-      if (child.pid && child.exitCode === null && child.signalCode === null) {
-        const exited = once(child, 'exit').catch(() => {});
-        child.kill();
-        await Promise.race([exited, delay(3000)]);
-      }
-      rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
-    };
+    const close = () => closeTestBrowser(child, profile, () => rpc('Browser.close'));
     try {
       await once(child, 'spawn');
       const version = await rpc('Browser.getVersion');

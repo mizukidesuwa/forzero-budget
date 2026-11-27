@@ -3,6 +3,7 @@
 ## 2.5.4 — 联机复赛、存档兼容与发布验收
 
 - CI 的四客户端联机验收完成场景初始化后暂停持续绘制，覆盖实际 WebRTC、骑行状态、重连和 BO1 复赛。桌面与手机浏览器验收继续覆盖完整渲染。关联 `scripts/verify-four-player.mjs` 和 `.github/workflows/ci.yml`。
+- 验收结束时通过 DevTools 关闭 Chrome，等待进程退出后再清理临时配置目录。关联 `scripts/browser-runner.mjs`。
 
 - 联机比赛和轮次分别使用服务端身份。BO1 结算后，同一房间可以连续开跑同一赛道，旧轮次的完赛请求会被拒绝。浏览器联机验收覆盖只改天气的复赛。关联 `server/room-rules.cjs`、`server/server.mjs`、`src/online/client.js` 和 `scripts/verify-four-player.mjs`。
 - 桌面端按版本查找轻量版和 Windows 便携版的解压目录，同版本优先匹配当前包型。实例按规范化后的存档位置识别。关联 `server/server.mjs`、`scripts/verify-save.mjs` 和 `scripts/verify-desktop-start.mjs`。
