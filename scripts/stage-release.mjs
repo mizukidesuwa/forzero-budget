@@ -229,6 +229,26 @@ if (!githubMode) {
   process.exit(0);
 }
 
+function verifyExportedRepo(repoDir, validationDir) {
+  const hygiene = spawnSync(process.execPath, ['scripts/verify-hygiene.mjs'], { cwd: repoDir, stdio: 'inherit' });
+  assert(hygiene.status === 0, 'Exported repository failed the hygiene check');
+
+  // Build and test an exact copy. Installed dependencies and test outputs stay in the temporary export area.
+  const testRepo = path.join(validationDir, 'repo');
+  fs.mkdirSync(validationDir);
+  fs.cpSync(repoDir, testRepo, { recursive: true });
+  const env = { ...process.env, FORZERO_RELEASE_DIR:path.join(testRepo, 'dist-v2', 'desktop') };
+  const npmCli = process.env.npm_execpath;
+  const runNpm = args => npmCli
+    ? spawnSync(process.execPath, [npmCli, ...args], { cwd: testRepo, env, stdio: 'inherit' })
+    : spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', args, {
+      cwd: testRepo, env, stdio: 'inherit', shell: process.platform === 'win32',
+    });
+  assert(runNpm(['ci', '--include=dev', '--no-audit', '--no-fund']).status === 0,
+    'Could not install dependencies in the exported repository');
+  assert(runNpm(['test']).status === 0, 'Exported repository failed npm test');
+}
+
 function buildGitHubExport(candidate) {
   const repoDir = path.join(candidate, 'repo');
   const releaseAssetsDir = path.join(candidate, 'release-assets');
@@ -281,11 +301,7 @@ function buildGitHubExport(candidate) {
     }
   });
 
-  const hygiene = spawnSync(process.execPath, ['scripts/verify-hygiene.mjs'], {
-    cwd: repoDir,
-    stdio: 'inherit',
-  });
-  assert(hygiene.status === 0, 'Exported repository failed the hygiene check');
+  verifyExportedRepo(repoDir, path.join(path.dirname(candidate), 'validation'));
 
   const { artifacts } = stageReleaseArtifacts(releaseAssetsDir);
   const file = path.join(candidate, manifestPath);

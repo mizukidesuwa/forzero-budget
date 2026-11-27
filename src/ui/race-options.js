@@ -2,7 +2,6 @@ import { knownLaunchMode } from '../data/modes.js';
 import { aiWins } from '../race/ai-results.js';
 import { ShadowChase } from '../race/chase.js';
 import { courseIsLoop, getCourseVariant } from '../race/course-variants.js';
-import { knownAiDifficulty, knownRaceMode } from '../race/rivals.js';
 import { getLanguage, message } from './language.js';
 
 let winsShown = null;
@@ -38,9 +37,4 @@ export function installRaceOptions(ui, race, selectCourse, refresh) {
   ui.courseLaps.addEventListener('change', selectVariant);
   ui.raceMode.addEventListener('change', refresh);
   ui.aiDifficulty.addEventListener('change', refresh);
-}
-
-export function applyRaceOptions(ui, race) {
-  race.raceMode = knownRaceMode(ui.raceMode.value);
-  race.aiDifficulty = knownAiDifficulty(ui.aiDifficulty.value);
 }

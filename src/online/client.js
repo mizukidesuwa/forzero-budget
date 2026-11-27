@@ -1,6 +1,7 @@
 import { COUNTDOWN_TICKS, STEP_MS } from '../core/clock.js';
 import { add, clamp, mix } from '../core/math.js';
-import { getActiveCampus, getPreferences, worldState } from '../core/state.js';
+import { desktopInstallId } from '../core/browser-storage.js';
+import { getActiveCampus, getPreferences, getStorage, worldState } from '../core/state.js';
 import { seedVersion } from '../race/seed-code.js';
 import { knownWeather, setActiveWeather, weatherChoices } from '../render/atmosphere.js';
 import { ghostCourseKey } from '../replay/ghost.js';
@@ -261,20 +262,20 @@ function onlineRaceRank(now) {
   if (!session || session.state.phase!=='race' || !session.course || isOnlineChaseRoom(session)) return null;
   const finished = new Map((session.state.round?.results ?? []).map(r=>[r.id,r.ms]));
   const total = session.state.players.length;
-  const progressOf = (id,pos,travel,isSelf) => {
+  const progressOf = (id,pos) => {
     const ms = finished.get(id);
     if (ms !== undefined && ms !== null) return 1e9 - ms;
     if (ms === null) return -1e6;
-    if (isSelf) return worldState.race.progressEstimate;
-    return pointDistance(session.course.path, pos);
+    if (id===session.id) return worldState.race.progressEstimate;
+    return pos ? pointDistance(session.course.path, [pos[0],pos[2]]) : -1;
   };
-  const selfProg = progressOf(session.id, worldState.race.rider.position, worldState.race.rider.travel, true);
+  const selfProg = progressOf(session.id);
   const rows = [{id:session.id, name:worldState.driverProfile.name, prog:selfProg}];
   for (const remote of onlineRiderPoses(now)) {
-    rows.push({id:remote.id, name:remote.name, prog:progressOf(remote.id, remote.position, remote.travel, false)});
+    rows.push({id:remote.id, name:remote.name, prog:progressOf(remote.id, remote.position)});
   }
   for (const player of session.state.players) {
-    if (!rows.some(r=>r.id===player.id)) rows.push({id:player.id, name:player.name, prog:finished.has(player.id)?progressOf(player.id,[0,0,0],0,false):-1});
+    if (!rows.some(r=>r.id===player.id)) rows.push({id:player.id, name:player.name, prog:progressOf(player.id)});
   }
   rows.sort((a,b)=>b.prog-a.prog);
   const rank = rows.findIndex(r=>r.id===session.id) + 1;
@@ -304,25 +305,25 @@ async function initOnlineApp() {
     const response = await fetch('/app/status',{cache:'no-store',signal:AbortSignal.timeout(6000)});
     if (!response.ok) return;
     const data = await response.json().catch(()=>null);
-    if (data?.app!=='szu-litchi-loop') return;
+    if (data?.app!=='szu-litchi-loop' || data.instanceId!==desktopInstallId) return;
     onlineAppMode = true;
     onlineKeepalive = new EventSource('/app/keepalive');
-    if (!worldState.ui.onlineHostInput.value.trim()) worldState.ui.onlineHostInput.value = loadOnlineHost();
-    void hydrateLocalSave();
     renderOnline();
+    await hydrateLocalSave();
+    if (!worldState.ui.onlineHostInput.value.trim()) worldState.ui.onlineHostInput.value = loadOnlineHost();
   } catch {}
 }
 
 function loadOnlineHost() {
-  try { return localStorage.getItem(ONLINE_HOST_KEY) ?? ''; }
+  try { return getStorage()?.getItem(ONLINE_HOST_KEY) ?? ''; }
   catch { return ''; }
 }
 
 function saveOnlineHost(value) {
   try {
     const trimmed = value.trim();
-    if (trimmed) localStorage.setItem(ONLINE_HOST_KEY,trimmed);
-    else localStorage.removeItem(ONLINE_HOST_KEY);
+    if (trimmed) getStorage()?.setItem(ONLINE_HOST_KEY,trimmed);
+    else getStorage()?.removeItem(ONLINE_HOST_KEY);
   } catch {}
 }
 
@@ -1080,7 +1081,7 @@ function tickOnline(now) {
     session.tagSent = new Set();
     session.chasePingCache = { lastAt: -Infinity, byId: new Map() };
     if (isOnlineChaseRoom(session)) app.beginOnlineChaseRound();
-    else app.beginTrial();
+    else app.beginTrial({ online:true });
     app.setPriorTimestamp(countdownAt);
   }
   if (session.retired) return;

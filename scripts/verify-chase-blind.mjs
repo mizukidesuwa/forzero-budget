@@ -1,4 +1,8 @@
 import assert from 'node:assert/strict';
+import { getCourseVariant } from '../src/race/course-variants.js';
+import { BlindNav } from '../src/race/blind-nav.js';
+import { ShadowChase } from '../src/race/chase.js';
+import { applySaveSnapshot, buildSaveSnapshot } from '../src/ui/save-sync.js';
 import {
   TimeTrial,
   blindCourseKey,
@@ -26,6 +30,8 @@ import {
 
 const backing = new Map();
 setStorage({
+  get length() { return backing.size; },
+  key: index => [...backing.keys()][index] ?? null,
   getItem: key => (backing.has(key) ? backing.get(key) : null),
   setItem: (key, value) => backing.set(key, String(value)),
   removeItem: key => backing.delete(key),
@@ -339,4 +345,31 @@ assert.ok(loopBenchmark?.samples?.length > 2, 'Loop benchmark should have sample
   assert.equal(getActiveWeatherId(), 'sunset');
 }
 
-console.log('verify-240 passed: ShadowChase, BlindNav, weather restore, and storage isolation.');
+// The real record writers keep course variants separate and round-trip through a backup.
+{
+  backing.clear();
+  const twoLaps = getCourseVariant(loopCourse,{direction:'forward',laps:2});
+  const reverse = getCourseVariant(loopCourse,{direction:'reverse',laps:1});
+  ShadowChase.refreshProgress();
+  BlindNav.refreshProgress();
+  for (const [event,time] of [[loopCourse,94_894],[twoLaps,188_164],[reverse,104_650]]) {
+    Object.assign(ShadowChase,{phase:'active',event,vehicle:'bike',elapsedMs:time,unranked:false});
+    ShadowChase.finishCaught();
+    assert.equal(ShadowChase.bestMs,time);
+    assert.equal(BlindNav.recordClear(event,'bike',time).bestMs,time);
+  }
+  const backup = await buildSaveSnapshot();
+  assert.equal(JSON.parse(backup.storage[chaseRules.storageKey]).wins,3);
+  assert.equal(JSON.parse(backup.storage[blindNavRules.storageKey]).clears,3);
+  backing.clear();
+  ShadowChase.refreshProgress();
+  BlindNav.refreshProgress();
+  await applySaveSnapshot(backup,{preferIncoming:true});
+  assert.equal(ShadowChase.progress.wins,3);
+  assert.equal(ShadowChase.progress.attempts,3);
+  assert.equal(BlindNav.progress.clears,3);
+  assert.deepEqual(Object.values(ShadowChase.progress.bestByKey),[94_894,188_164,104_650]);
+  assert.deepEqual(Object.values(BlindNav.progress.bestByKey),[94_894,188_164,104_650]);
+}
+
+console.log('Shadow Chase and Blind Nav passed, including per-variant records and backup restoration.');

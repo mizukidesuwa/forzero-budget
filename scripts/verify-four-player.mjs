@@ -88,6 +88,11 @@ try {
   await wait(pages[0], '__FORZERO__.onlineRoom&&__FORZERO__.onlineRoom.course&&__FORZERO__.onlineRoom.clockReady', 'create room');
   const code = await pages[0].evalPage('__FORZERO__.onlineRoom.state.code');
   assert.match(code, /^[A-Z0-9]{8}$/);
+  await pages[1].evalPage(`(()=>{
+    const mode=__FORZERO__.ui.raceMode;
+    mode.value='chase'; mode.dispatchEvent(new Event('change'));
+    if(mode.value!=='chase') throw Error('Failed to preselect Shadow Chase for participant 2');
+  })()`);
   for (const page of pages.slice(1)) {
     console.log(`[4/7] Joining participant ${pages.indexOf(page) + 1}/4...`);
     await page.evalPage(`(()=>{const u=__FORZERO__.ui;u.onlineButton.click();u.onlineCodeInput.value=${JSON.stringify(code)};u.onlineJoinForm.requestSubmit()})()`);
@@ -127,8 +132,29 @@ try {
   await delay(Math.max(0, goAt - Date.now() + 250));
   for (const page of pages) {
     await wait(page, "__FORZERO__.onlineRoom.startedRound===__FORZERO__.onlineRoom.state.round.id && [...__FORZERO__.onlineRoom.peers.values()].every(p=>p.samples.length>0)", 'receive race positions', 60_000);
+    await wait(page, "__FORZERO__.race.phase==='race' && __FORZERO__.race.elapsed>0", 'local BO1 timing, including the participant who selected Shadow Chase');
+    const elapsed = await page.evalPage('__FORZERO__.race.elapsed');
+    await wait(page, `__FORZERO__.race.elapsed>${elapsed}`, 'local BO1 timer advances');
   }
   console.log('PASS: all four players received position packets from all three opponents');
+  const rank = await pages[0].evalPage(`(()=>{
+    const f=__FORZERO__, s=f.onlineRoom, course=s.course, anchor=f.race.routeAnchor;
+    const peers=[...s.peers.values()], saved=peers.map(peer=>peer.samples);
+    try {
+      s.course={...course,path:{rows:[{p:[0,0,0],distance:0},{p:[0,0,100],distance:100}]}};
+      f.race.routeAnchor=0;
+      for (const [i,peer] of peers.entries()) {
+        peer.samples=[{...saved[i].at(-1),position:[0,0,i===0?100:0],speed:0,at:performance.now()}];
+      }
+      f.updateHud();
+      return f.ui.onlineRank.textContent;
+    } finally {
+      s.course=course;
+      f.race.routeAnchor=anchor;
+      peers.forEach((peer,i)=>{peer.samples=saved[i]});
+    }
+  })()`);
+  assert.match(rank,/第 2 \/ 4 名.*落后 100 米/,'The HUD projects remote world X/Z onto the course');
   if (drive) {
     console.log('[7/7] Auto-driving four laps with accelerated fixed physics steps...');
     for (const page of pages) {

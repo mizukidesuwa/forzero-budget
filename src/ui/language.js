@@ -1,3 +1,4 @@
+import { getStorage } from '../core/state.js';
 import { englishText } from '../data/english-text.js';
 
 const storageKey = 'forzero-language';
@@ -109,12 +110,12 @@ function applyLanguage(next) {
 export function initLanguage(select, refresh) {
   capture(document.documentElement);
   let saved;
-  try { saved = localStorage.getItem(storageKey); } catch {}
+  try { saved = getStorage()?.getItem(storageKey); } catch {}
   applyLanguage(saved);
   select.value = language;
   select.addEventListener('change', () => {
     applyLanguage(select.value);
-    try { localStorage.setItem(storageKey, language); } catch {}
+    try { getStorage()?.setItem(storageKey, language); } catch {}
     refresh();
   });
 }

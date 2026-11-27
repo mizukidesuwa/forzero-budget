@@ -1,4 +1,5 @@
 import { clamp } from '../core/math.js';
+import { getStorage } from '../core/state.js';
 import { getOnlineRoom, syncOnlineProfile } from '../online/client.js';
 import { courseMedalSummary, isPaintUnlocked } from '../race/records.js';
 import { workshopBudget } from '../ride/budget.js';
@@ -183,7 +184,7 @@ export function createWorkshopController({
   function installBikeParts() {
     if (race.rider.vehicle !== 'bike' || !race.setBike(buildBike(ui.bikeTyres.value, ui.bikeGears.value, ui.bikeBrakes.value, ui.bikeFrame.value, ui.bikeSprint.value))) return;
     const { tyres, gears, brakes, frame, sprint } = race.bike;
-    try { localStorage.setItem(bikeKey, JSON.stringify({ tyres, gears, brakes, frame, sprint })); } catch {}
+    try { getStorage()?.setItem(bikeKey, JSON.stringify({ tyres, gears, brakes, frame, sprint })); } catch {}
     if (typeof scheduleLocalSave === 'function') scheduleLocalSave();
     showBikeSetup();
     if (typeof getOnlineRoom() !== 'undefined' && getOnlineRoom()?.state.phase === 'tuning') syncOnlineProfile();

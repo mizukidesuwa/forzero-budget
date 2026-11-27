@@ -1,3 +1,4 @@
+import { desktopInstallId } from '../core/browser-storage.js';
 import { MAX_RUN_MS, REJOIN_MS, SAMPLE_MS } from '../core/clock.js';
 import { clamp, dot, lerpPoint, mix, subtract } from '../core/math.js';
 import { getActiveCampus, worldState } from '../core/state.js';
@@ -245,7 +246,8 @@ let friendArchive;
 export function openFriendArchive() {
   if (!friendArchive) {
     friendArchive = new Promise((resolve, reject) => {
-      const request = indexedDB.open('szu-litchi-friends', 1);
+      const archiveName = desktopInstallId ? `szu-litchi-friends-${desktopInstallId}` : 'szu-litchi-friends';
+      const request = indexedDB.open(archiveName, 1);
       request.onupgradeneeded = () => {
         const db = request.result;
         db.createObjectStore('scores', { keyPath: 'id', autoIncrement: true }).createIndex('result', friendScoreKey);

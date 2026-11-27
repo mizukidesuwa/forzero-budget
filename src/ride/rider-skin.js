@@ -1,4 +1,5 @@
 // @ts-check
+import { getStorage } from '../core/state.js';
 import {
   defaultRiderSkin, riderSkinRules, skinAccessories, skinAnimationProfiles,
   skinBoundsRules, skinClasses, skinHeadModes, skinLimbModes, skinProportionRules,
@@ -66,13 +67,9 @@ export const CUSTOM_SKIN_KEY = 'forzero-rider-skins-v1';
 /** @type {Readonly<Record<string, Readonly<SkinSpec>>>} */
 let riderSkinRegistry = BUILTIN_SKINS;
 
-function skinStorage() {
-  try { return typeof localStorage === 'undefined' ? null : localStorage; } catch { return null; }
-}
-
 /** @returns {Readonly<SkinSpec>[]} */
 function readCustomSkinSpecs() {
-  try { return parseCustomSkinSpecs(skinStorage()?.getItem(CUSTOM_SKIN_KEY)); } catch { return []; }
+  try { return parseCustomSkinSpecs(getStorage()?.getItem(CUSTOM_SKIN_KEY)); } catch { return []; }
 }
 
 /**
@@ -170,19 +167,19 @@ export function refreshRiderSkinRegistry() {
 /**
  * Merge a backed-up library and recover a selected model embedded in older saves.
  * @param {string | null | undefined} raw
+ * @param {string | null | undefined} existing
  * @param {{skinId?: unknown, skinSpec?: unknown} | null} profile
  * @param {boolean} preferIncoming
  */
-export function restoreRiderSkinLibrary(raw, profile, preferIncoming) {
+export function restoredRiderSkinLibrary(raw, existing, profile, preferIncoming) {
   const incoming = parseCustomSkinSpecs(raw);
   const embedded = skinForProfile(profile);
-  const custom = new Map(readCustomSkinSpecs().map(spec => [spec.id, spec]));
+  const custom = new Map(parseCustomSkinSpecs(existing).map(spec => [spec.id, spec]));
   for (const spec of incoming) if (preferIncoming || !custom.has(spec.id)) custom.set(spec.id, spec);
   if (embedded.class === 'model' && embedded.id === profile?.skinId && !custom.has(embedded.id) && !Object.hasOwn(BUILTIN_SKINS, embedded.id)) {
     custom.set(embedded.id, embedded);
   }
-  if (incoming.length || custom.size) skinStorage()?.setItem(CUSTOM_SKIN_KEY, JSON.stringify([...custom.values()]));
-  rebuildRegistry([...custom.values()]);
+  return custom.size ? JSON.stringify([...custom.values()]) : null;
 }
 
 /**
@@ -195,7 +192,7 @@ export function registerSkinSpec(input) {
   if (!spec || spec.class !== 'model' || REMOVED_SKIN_IDS.has(spec.id) || Object.hasOwn(BUILTIN_SKINS, spec.id)) return null;
   const custom = readCustomSkinSpecs().filter(item => item.id !== spec.id);
   custom.push(spec);
-  const storage = skinStorage();
+  const storage = getStorage();
   if (storage) {
     try { storage.setItem(CUSTOM_SKIN_KEY, JSON.stringify(custom)); } catch { return null; }
   }
@@ -211,7 +208,7 @@ export function registerSkinSpec(input) {
 export function removeSkinSpec(id) {
   if (typeof id !== 'string' || Object.hasOwn(BUILTIN_SKINS, id)) return false;
   const custom = readCustomSkinSpecs().filter(spec => spec.id !== id);
-  const storage = skinStorage();
+  const storage = getStorage();
   try { storage?.setItem(CUSTOM_SKIN_KEY, JSON.stringify(custom)); } catch { return false; }
   rebuildRegistry(custom);
   return true;

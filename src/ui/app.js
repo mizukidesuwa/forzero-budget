@@ -1,11 +1,13 @@
 import { neutralDrive } from '../core/clock.js';
 import { add, clamp, length, multiply, normalize, placement, scale, subtract, transform } from '../core/math.js';
 import { Shape } from '../core/shape.js';
-import { getActiveCampus, setActiveCampus, setPreferences, worldState } from '../core/state.js';
+import { getActiveCampus, getStorage, setActiveCampus, setPreferences, worldState } from '../core/state.js';
 import { CampusCourier, makeCourierBeaconShape, nearestCourierLandmark } from '../race/courier.js';
 import { ShadowChase } from '../race/chase.js';
 import { BlindNav } from '../race/blind-nav.js';
 import { knownLaunchMode } from '../data/modes.js';
+import { raceLaunchOptions } from '../race/launch-options.js';
+import { raceReviewRows } from '../race/race-review.js';
 import { liveDeltaMs, trialMedal, vehicleBenchmark } from '../race/records.js';
 import { aiRank } from '../race/rivals.js';
 import { TimeTrial } from '../race/time-trial.js';
@@ -46,7 +48,7 @@ import {
 import { draftRenderSpan } from '../ride/drafting.js';
 import { interfaceScale, knownCameraView, knownHudScale, knownTouchSize } from '../data/interface.js';
 import { skinForProfile, skinAllowedOnVehicle } from '../ride/rider-skin.js';
-import { applyRaceOptions, installRaceOptions, updateRaceOptions } from './race-options.js';
+import { installRaceOptions, updateRaceOptions } from './race-options.js';
 import { updateBlindHud, updateChaseHud, updateOnlineChaseHud } from './mode-hud.js';
 import { createSeedDialogController } from './seed-dialog.js';
 import { createMapControls } from './map-controls.js';
@@ -81,7 +83,7 @@ const defaultPreferences={resolution:'auto',aa:'auto',ghost:true,brakeLine:true,
 
 function readPreferences() {
   try {
-    const saved=JSON.parse(localStorage.getItem(PREF_KEY));
+    const saved=JSON.parse(getStorage()?.getItem(PREF_KEY));
     if(!saved||typeof saved!=='object') return {...defaultPreferences};
     return {
       resolution:['auto','sharp','fast'].includes(saved.resolution)?saved.resolution:'auto',
@@ -299,10 +301,8 @@ function updateCoach() {
 }
 
 function populateRaceReview() {
-  const sectors=race.event.stages ? race.event.stages.map(stage=>race.stageSector(stage)) :
-    race.splits.map((_split,i)=>race.sector(i));
   setRawText(ui.reviewReference, message`对比${ghostLabel(race.reference)}`);
-  const rows = sectors.map((sector, idx) => {
+  const rows = raceReviewRows(race).map(({ sector, fromGate, toGate }) => {
     const row = document.createElement('tr');
     const name = document.createElement('th');
     const time = document.createElement('td');
@@ -313,17 +313,13 @@ function populateRaceReview() {
     time.textContent = (sector.duration / 1000).toFixed(2);
     gap.textContent = signedSeconds(sector.delta);
     gap.dataset.gap = gapTone(sector.delta);
-    if (!getOnlineRoom() && !race.practice) {
-      const fromG = race.event.stages ? race.event.stages[idx].startGate : idx;
-      const toG = race.event.stages ? race.event.stages[idx].finishGate : idx + 1;
-      if (toG < race.event.gates.length) {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'practice-btn';
-        btn.textContent = translate('单练');
-        btn.addEventListener('click', () => startSectorPractice(fromG, toG));
-        act.append(btn);
-      }
+    if (!getOnlineRoom() && toGate < race.event.gates.length) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'practice-btn';
+      btn.textContent = translate('单练');
+      btn.addEventListener('click', () => startSectorPractice(fromGate, toGate));
+      act.append(btn);
     }
     row.append(name, time, gap, act);
     return row;
@@ -440,9 +436,10 @@ export function updateHud() {
 
     updateMapZoom();
     ui.freeRide.setAttribute('aria-pressed', String(!trial));
-    ui.raceReview.hidden = chasing || race.phase !== 'done' || Boolean(race.practice);
-    ui.callout.classList.toggle('has-review', !chasing && race.phase === 'done');
-    if (!chasing && race.phase === 'done' && previousPhase !== 'done') populateRaceReview();
+    const hasReview = !chasing && race.phase === 'done' && !race.practice;
+    ui.raceReview.hidden = !hasReview;
+    ui.callout.classList.toggle('has-review', hasReview);
+    if (hasReview && previousPhase !== 'done') populateRaceReview();
 
     setText(ui.startTrial,chasing?(ShadowChase.isRunning()?'重新追捕':'再追一次'):race.phase==='done'?'再跑一次':trial?'重新开始':launchMode==='chase'?'开始追捕':launchMode==='blind'?'开始夜骑盲区':opponent?'开始对战':event.stages?'开始耐力赛':'开始计时赛');
     setText(ui.pause,race.paused ? '继续' : '暂停');
@@ -707,18 +704,19 @@ function beginOnlineChaseRound() {
 function startTrial() {
   if (!ready||getOnlineRoom()||pendingCampus||race.event.campus!==getActiveCampus()) return;
   if (race.practice) { startSectorPractice(race.practice.fromGate, race.practice.toGate); return; }
-  beginTrial();
+  beginTrial({ mode: ui.raceMode?.value, difficulty: ui.aiDifficulty?.value });
 }
 
-export function beginTrial() {
+export function beginTrial(selection = { mode: ui.raceMode?.value, difficulty: ui.aiDifficulty?.value }) {
   if (typeof CampusCourier !== 'undefined') CampusCourier.stop(false);
   ShadowChase.stop();
   BlindNav.leave(setActiveWeather);
   BlindNav.setEnabled(false);
   applyPendingSaveVehicle({ restarting: true });
   clearInput();
-  const launchMode = knownLaunchMode(ui.raceMode?.value);
-  applyRaceOptions(ui, race);
+  const { launchMode, raceMode, aiDifficulty } = raceLaunchOptions(selection);
+  race.raceMode = raceMode;
+  race.aiDifficulty = aiDifficulty;
   if(race.start()===false) {
     openSettings('bike');
     workshop.highlightBudgetParts();
@@ -736,7 +734,7 @@ export function beginTrial() {
     ShadowChase.start({
       event: race.event,
       vehicle: targetVehicle,
-      difficulty: ui.aiDifficulty?.value ?? race.aiDifficulty,
+      difficulty: aiDifficulty,
       reference,
       runnerProfile,
       unranked: illegal,

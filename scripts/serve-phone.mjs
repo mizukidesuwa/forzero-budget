@@ -1,10 +1,20 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { networkInterfaces } from 'node:os';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
+import { checkBuildFile, readBuildManifest } from './build-manifest.mjs';
 
 // Temporary mobile-only test server; it does not expose the workspace or saves.
-const file = resolve(process.env.FORZERO_MOBILE_HTML ?? 'dist-v2/forzero-budget-mobile-2.4.0.html');
+const buildDir = resolve(process.env.FORZERO_BUILD_DIR ?? 'dist-v2');
+const override = process.env.FORZERO_MOBILE_HTML;
+let file;
+if (override) file = resolve(override);
+else {
+  const { version } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+  const { mobile } = readBuildManifest(buildDir, version);
+  checkBuildFile(buildDir, mobile);
+  file = join(buildDir, mobile.file);
+}
 const html = await readFile(file);
 const port = Number(process.env.FORZERO_PHONE_PORT ?? 8799);
 const server = createServer((req, res) => {

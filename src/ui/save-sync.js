@@ -1,9 +1,13 @@
-import { getPreferences, worldState } from '../core/state.js';
+import { desktopInstallId } from '../core/browser-storage.js';
+import { getPreferences, getStorage, worldState } from '../core/state.js';
+import { blindNavRules, chaseRules } from '../data/modes.js';
+import { BlindNav } from '../race/blind-nav.js';
+import { ShadowChase } from '../race/chase.js';
 import { CampusCourier, readExplorerProgress } from '../race/courier.js';
 import saveRules from '../data/shared-rules.cjs';
 import { friendArchiveTransaction, friendScoreKey, readFriendScores, readSavedFriendGhost } from '../replay/ghost.js';
 import { setActiveWeather } from '../render/atmosphere.js';
-import { CUSTOM_SKIN_KEY, restoreRiderSkinLibrary } from '../ride/rider-skin.js';
+import { CUSTOM_SKIN_KEY, refreshRiderSkinRegistry, restoredRiderSkinLibrary } from '../ride/rider-skin.js';
 import { DRIVER_KEY, readDriverProfile, savedBike, savedVehicleTunings } from '../ride/vehicles.js';
 
 export const SAVE_FORMAT = 'litchi-save';
@@ -14,6 +18,8 @@ let saveSyncTimer = null;
 let saveSyncBusy = false;
 let saveHydrated = false;
 let restoreVehiclePending = false;
+let pendingRestores = 0;
+let restoreQueue = Promise.resolve();
 
 let saveCallbacks = {
   getOnlineRoom: () => worldState.onlineRoom,
@@ -57,15 +63,20 @@ export function applyPendingSaveVehicle({ restarting = false } = {}) {
   saveCallbacks.showBikeSetup();
 }
 
-const isSaveKey = key => key === CUSTOM_SKIN_KEY || key.startsWith('szu-litchi-') || key.startsWith('checkpoints:');
+const standaloneSaveKeys = new Set([CUSTOM_SKIN_KEY, blindNavRules.storageKey, chaseRules.storageKey]);
+const isSaveKey = key => standaloneSaveKeys.has(key) || key.startsWith('szu-litchi-') || key.startsWith('checkpoints:');
 
 export function collectLocalStorageSave() {
   const storage = {};
   try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
+    const browserStorage = getStorage();
+    if (!browserStorage) throw new Error();
+    const count = browserStorage.length;
+    for (let i = 0; i < count; i++) {
+      const key = browserStorage.key(i);
       if (key && isSaveKey(key)) {
-        storage[key] = localStorage.getItem(key);
+        const value = browserStorage.getItem(key);
+        if (value !== null) storage[key] = value;
       }
     }
   } catch { throw new Error('无法读取浏览器存档。'); }
@@ -103,17 +114,50 @@ export function encodeSaveSnapshot(snapshot) {
   return { body:personal, archiveTooLarge:Array.isArray(snapshot.friends) };
 }
 
-export async function applySaveSnapshot(snapshot, { preferIncoming = false } = {}) {
+export function applySaveSnapshot(snapshot, options) {
+  pendingRestores++;
+  const result = restoreQueue.then(() => restoreSaveSnapshot(snapshot, options)).finally(() => { pendingRestores--; });
+  restoreQueue = result.catch(() => {});
+  return result;
+}
+
+async function restoreSaveSnapshot(snapshot, { preferIncoming = false } = {}) {
   if (!snapshot || snapshot.format !== SAVE_FORMAT || snapshot.version !== SAVE_VERSION ||
       !snapshot.storage || typeof snapshot.storage !== 'object' || Array.isArray(snapshot.storage)) {
     throw new Error('请选择有效的 FORZERO: BUDGET（或荔园环骑）存档文件。');
   }
+  const storage = getStorage();
+  if (!storage) throw new Error('无法写入浏览器存档。');
   const updatedRecords = new Set();
+  const changes = [];
+  const applied = [];
+  const stage = (key, value, previous) => {
+    if (value !== previous) changes.push({ key, value, previous });
+  };
+  const write = () => {
+    try {
+      for (const change of changes) {
+        storage.setItem(change.key, change.value);
+        applied.push(change);
+      }
+    } catch { throw new Error('无法写入浏览器存档。'); }
+  };
+  const rollback = () => {
+    for (const { key, value, previous } of applied.reverse()) {
+      if (storage.getItem(key) !== value) continue;
+      if (previous === null) storage.removeItem(key);
+      else storage.setItem(key, previous);
+    }
+  };
+  const entries = Object.entries(snapshot.storage).filter(([key]) => isSaveKey(key));
+  if (entries.some(([,value]) => typeof value !== 'string') ||
+      (snapshot.friends != null && !Array.isArray(snapshot.friends))) {
+    throw new Error('存档包含无效的玩家资料。');
+  }
   try {
-    for (const [key, value] of Object.entries(snapshot.storage)) {
-      if (typeof value !== 'string') continue;
-      if (!isSaveKey(key) || key===CUSTOM_SKIN_KEY) continue;
-      const existing = localStorage.getItem(key);
+    for (const [key, value] of entries) {
+      if (key===CUSTOM_SKIN_KEY) continue;
+      const existing = storage.getItem(key);
       if (key.startsWith('checkpoints:') && existing && !preferIncoming) {
         try {
           const cur = JSON.parse(existing), inc = JSON.parse(value);
@@ -121,19 +165,20 @@ export async function applySaveSnapshot(snapshot, { preferIncoming = false } = {
         } catch {}
       }
       if (existing === null || preferIncoming || key.startsWith('checkpoints:')) {
-        localStorage.setItem(key, value);
+        stage(key, value, existing);
         if (key.startsWith('checkpoints:') && value !== existing) updatedRecords.add(key);
       }
     }
     let profile = null;
-    try { profile = JSON.parse(snapshot.storage[DRIVER_KEY] ?? localStorage.getItem(DRIVER_KEY)); } catch {}
+    try { profile = JSON.parse(changes.find(change => change.key === DRIVER_KEY)?.value ?? storage.getItem(DRIVER_KEY)); } catch {}
     const raw = snapshot.storage[CUSTOM_SKIN_KEY];
-    restoreRiderSkinLibrary(typeof raw==='string' ? raw : null, profile, preferIncoming);
+    const previousLibrary = storage.getItem(CUSTOM_SKIN_KEY);
+    const library = restoredRiderSkinLibrary(raw, previousLibrary, profile, preferIncoming);
+    if (library !== null) stage(CUSTOM_SKIN_KEY, library, previousLibrary);
   } catch { throw new Error('无法写入浏览器存档。'); }
-  finally { worldState.race?.refreshRestoredRecords(updatedRecords); }
 
-  if (Array.isArray(snapshot.friends) && snapshot.friends.length) {
-    try {
+  try {
+    if (snapshot.friends?.length) {
       await friendArchiveTransaction(['scores', 'replays'], 'readwrite', transaction => {
         const scores = transaction.objectStore('scores'), replays = transaction.objectStore('replays');
         for (const item of snapshot.friends) {
@@ -153,10 +198,23 @@ export async function applySaveSnapshot(snapshot, { preferIncoming = false } = {
             cur.onsuccess = () => { if (cur.result !== item.replay) match.continue(); };
           };
         }
+        write();
       });
-    } catch { throw new Error('无法写入友人对战记录。'); }
+    } else write();
+  } catch (error) {
+    try { rollback(); }
+    catch {
+      saveHydrated = false;
+      throw new Error('浏览器拒绝还原旧存档，请检查可用存储空间。');
+    }
+    if (error.message === '无法写入浏览器存档。') throw error;
+    throw new Error('无法写入友人对战记录。');
   }
 
+  refreshRiderSkinRegistry();
+  worldState.race?.refreshRestoredRecords(updatedRecords);
+  ShadowChase.refreshProgress();
+  BlindNav.refreshProgress();
   const preferences = getPreferences();
   const race = worldState.race;
   const onlineRoom = saveCallbacks.getOnlineRoom?.() ?? worldState.onlineRoom;
@@ -172,8 +230,8 @@ export async function applySaveSnapshot(snapshot, { preferIncoming = false } = {
 }
 
 export async function flushLocalSave(keepalive = false) {
-  if (!saveCallbacks.isOnlineAppMode() || !saveHydrated) return;
-  if (saveSyncBusy) {
+  if (!desktopInstallId || !saveCallbacks.isOnlineAppMode() || !saveHydrated) return;
+  if (saveSyncBusy || pendingRestores) {
     if (!keepalive) scheduleLocalSave();
     return;
   }
@@ -188,7 +246,7 @@ export async function flushLocalSave(keepalive = false) {
       method: 'POST',
       keepalive,
       cache: 'no-store',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Forzero-Installation': desktopInstallId },
       body,
     });
     let response = await post(body);
@@ -216,7 +274,7 @@ export function scheduleLocalSave() {
 }
 
 export async function hydrateLocalSave() {
-  if (!saveCallbacks.isOnlineAppMode()) return;
+  if (!desktopInstallId || !saveCallbacks.isOnlineAppMode()) return;
   const ui = worldState.ui;
   try {
     const response = await fetch('/app/save', { cache: 'no-store', signal: AbortSignal.timeout(8000) });
@@ -228,13 +286,15 @@ export async function hydrateLocalSave() {
       return;
     }
     const payload = await response.json().catch(() => null);
-    if (!payload || typeof payload.exists !== 'boolean') return;
+    if (payload?.instanceId !== desktopInstallId || typeof payload.exists !== 'boolean') return;
     if (payload?.exists && payload.data) {
-      await applySaveSnapshot(payload.data, { preferIncoming: false });
+      await applySaveSnapshot(payload.data, { preferIncoming: true });
     } else if (payload.exists) return;
     saveHydrated = true;
     scheduleLocalSave();
-  } catch {}
+  } catch (error) {
+    if (ui?.saveStatus) saveCallbacks.setText(ui.saveStatus, error.message);
+  }
 }
 
 export async function exportSaveFile() {

@@ -1,3 +1,5 @@
+import { browserPlayerStorage } from './browser-storage.js';
+
 export const worldState = {
   activeCampus: 'szu',
   ridingObstacles: null,
@@ -21,7 +23,7 @@ export const worldState = {
   driverProfile: null,
   onlineRoom: null,
   race: null,
-  storage: typeof globalThis !== 'undefined' && 'localStorage' in globalThis ? globalThis.localStorage : null,
+  storage: browserPlayerStorage(),
   ui: null,
   uclRouteVisible: false,
   hooks: {
@@ -54,12 +56,7 @@ export function setActiveCampus(campus) {
 }
 
 export function getStorage() {
-  if (worldState.storage) return worldState.storage;
-  try {
-    return typeof localStorage !== 'undefined' ? localStorage : null;
-  } catch {
-    return null;
-  }
+  return worldState.storage ?? browserPlayerStorage();
 }
 
 export function setStorage(store) {

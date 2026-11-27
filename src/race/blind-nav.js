@@ -1,6 +1,7 @@
 import { getActiveCampus, getStorage, worldState } from '../core/state.js';
 import { blindNavRules } from '../data/modes.js';
 import { cliffHazardAt, safeToRide, waterHazardAt } from '../world/query.js';
+import { courseVariantSuffix } from './course-variants.js';
 
 const ARROWS = ['↑', '↗', '→', '↘', '↓', '↙', '←', '↖'];
 const DIRECTIONS = ['正前', '右前', '右侧', '右后', '正后', '左后', '左侧', '左前'];
@@ -8,7 +9,7 @@ const DIRECTIONS = ['正前', '右前', '右侧', '右后', '正后', '左后', 
 export function blindCourseKey(event, vehicle = 'bike') {
   const base = event?.baseCourse ?? event;
   const campus = event?.campus ?? getActiveCampus();
-  return `${campus}:${base?.id ?? 'route'}:${vehicle}`;
+  return `${campus}:${base?.id ?? 'route'}:${vehicle}` + courseVariantSuffix(event?.variant);
 }
 
 export function defaultBlindProgress() {

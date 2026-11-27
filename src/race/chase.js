@@ -3,13 +3,13 @@ import { getActiveCampus, getStorage, worldState } from '../core/state.js';
 import { chaseRules } from '../data/modes.js';
 import { replayAt } from '../replay/ghost.js';
 import { nearestSafeRoad, rideElevation } from '../world/query.js';
-import { courseIsLoop } from './course-variants.js';
+import { courseIsLoop, courseVariantSuffix } from './course-variants.js';
 import { knownAiDifficulty } from './rivals.js';
 
 export function chaseCourseKey(event, vehicle = 'bike') {
   const base = event?.baseCourse ?? event;
   const campus = event?.campus ?? getActiveCampus();
-  return `${campus}:${base?.id ?? 'route'}:${vehicle}`;
+  return `${campus}:${base?.id ?? 'route'}:${vehicle}` + courseVariantSuffix(event?.variant);
 }
 
 export function defaultChaseProgress() {

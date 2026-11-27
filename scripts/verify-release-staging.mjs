@@ -26,8 +26,11 @@ try {
   copyFileSync(new URL('./build-manifest.mjs', import.meta.url), join(root,'scripts','build-manifest.mjs'));
   for (const file of ['.editorconfig', '.gitattributes', '.gitignore', 'AGENTS.md', 'CHANGELOG.md', 'CONTRIBUTING.md',
     'FORZERO-ROUTE-SKIN-DESIGN.md', 'FORZERO-WORK-GUIDE.md', 'HISTORY.md', 'LICENSE', 'README.md', 'SECURITY.md',
-    'eslint.config.mjs', 'jsconfig.json', 'package-lock.json']) write(file);
-  write('package.json', JSON.stringify({ name: 'forzero-budget', version }));
+    'eslint.config.mjs', 'jsconfig.json']) write(file);
+  const metadata = { name: 'forzero-budget', version };
+  write('package.json', JSON.stringify({...metadata,scripts:{test:'node scripts/test-export.mjs'}}));
+  write('package-lock.json', JSON.stringify({...metadata,lockfileVersion:3,packages:{'':metadata}}));
+  write('scripts/test-export.mjs',`import { mkdirSync, writeFileSync } from 'node:fs';\nmkdirSync('dist-v2'); writeFileSync('dist-v2/test-marker','tested');\n`);
   write('src/sentinel.js');
   write('scripts/verify-hygiene.mjs', '');
   for (const file of ['index.html', 'style.css', 'game.js', 'server.mjs', 'shared-rules.cjs', 'room-rules.cjs',
@@ -86,10 +89,20 @@ try {
   assert.equal(readFileSync(manifest, 'utf8'), before);
 
   writeFileSync(hygieneScript, '');
+  const exportTest = readFileSync(join(root,'scripts','test-export.mjs'),'utf8');
+  write('scripts/test-export.mjs','process.exit(9)');
+  const failedTest = run(output);
+  assert.notEqual(failedTest.status,0);
+  assert.match(failedTest.stderr,/failed npm test/);
+  assert.equal(readFileSync(manifest,'utf8'),before);
+
+  write('scripts/test-export.mjs',exportTest);
   write('src/sentinel.js', 'updated fixture');
   const replacement = run(output);
   assert.equal(replacement.status, 0, replacement.stderr);
   assert.equal(readFileSync(join(output, 'repo', 'src', 'sentinel.js'), 'utf8'), 'updated fixture');
+  assert.ok(!existsSync(join(output,'repo','dist-v2')));
+  assert.ok(!existsSync(join(output,'repo','node_modules')));
   const unrelated = join(output, 'repo', 'notes.txt');
   writeFileSync(unrelated, 'user notes');
   const modified = run(output);

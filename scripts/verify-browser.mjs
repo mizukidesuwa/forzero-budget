@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { once } from 'node:events';
 import { readFileSync, statSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { openTestBrowser } from './browser-runner.mjs';
 import { checkBuildFile, readBuildManifest } from './build-manifest.mjs';
+import { createAppShell, loadStaticAssets } from '../server/server.mjs';
 import { defaultRiderSkin } from '../src/data/rider-skins.js';
 import saveRules from '../src/data/shared-rules.cjs';
 import { getCourseVariant } from '../src/race/course-variants.js';
@@ -82,6 +86,86 @@ try {
   await wait('globalThis.__FORZERO__?.ready===true', 'Game initialization timed out');
   await wait("__FORZERO__.ui.fpsCounter && !__FORZERO__.ui.fpsCounter.hidden && /^FPS [0-9]+$/.test(__FORZERO__.ui.fpsCounter.textContent)", 'FPS HUD did not update');
   assert.equal(await evaluate('document.documentElement.lang'), 'zh-CN');
+  await evaluate(`(()=>{
+    const f=__FORZERO__, driver='szu-litchi-driver-1', bike='szu-litchi-bike-1';
+    const previous=[localStorage.getItem(driver),localStorage.getItem(bike)];
+    localStorage.setItem(driver,JSON.stringify({name:'Original QA Rider'}));
+    localStorage.setItem(bike,JSON.stringify({tyres:'stock'}));
+    const setItem=Storage.prototype.setItem;
+    Storage.prototype.setItem=function(key,value) {
+      if (key===bike && JSON.parse(value).tyres==='race') throw new DOMException('QA quota','QuotaExceededError');
+      return setItem.call(this,key,value);
+    };
+    const upload=new DataTransfer();
+    upload.items.add(new File([JSON.stringify({format:'litchi-save',version:1,storage:{
+      [driver]:JSON.stringify({name:'Imported QA Rider'}),[bike]:JSON.stringify({tyres:'race'}),
+    }})],'quota-backup.json'));
+    f.openSettings();
+    f.ui.saveFile.files=upload.files;
+    f.ui.saveFile.dispatchEvent(new Event('change'));
+    globalThis.restoreQaStorage=()=>{
+      Storage.prototype.setItem=setItem;
+      [driver,bike].forEach((key,i)=>previous[i]===null?localStorage.removeItem(key):localStorage.setItem(key,previous[i]));
+      f.closeSettings();
+    };
+  })()`);
+  await wait("__FORZERO__.ui.saveStatus.textContent==='无法写入浏览器存档。'", 'Quota error did not surface');
+  assert.deepEqual(await evaluate(`[
+    JSON.parse(localStorage.getItem('szu-litchi-driver-1')).name,
+    JSON.parse(localStorage.getItem('szu-litchi-bike-1')).tyres,
+  ]`), ['Original QA Rider','stock'], 'A quota error rolled back the earlier driver write');
+  await evaluate('restoreQaStorage()');
+
+  await evaluate(`(()=>{
+    const f=__FORZERO__,u=f.ui,r=f.race;
+    const originalCourse=u.coursePicker.value;
+    u.coursePicker.value='endurance';u.coursePicker.dispatchEvent(new Event('change'));
+    u.mapToggle.click();
+    const start=u.stationList.querySelector('.practice-btn');
+    if (!start || r.event.id!=='endurance' || !r.event.stages?.length) throw Error('Endurance map practice is missing');
+    start.click();
+    if (r.phase!=='count' || r.practice?.fromGate!==0 || r.practice?.toGate!==1) throw Error('First segment did not start');
+    const advance=r.advance;
+    let nearest=0,steps=0;
+    globalThis.qaPractice={framesAfterFinish:0,originalCourse};
+    r.advance=function(dt,input) {
+      if (this.phase==='done') {
+        if (++qaPractice.framesAfterFinish===3) delete this.advance;
+        return advance.call(this,dt,input);
+      }
+      if (this.phase!=='race') return advance.call(this,dt,input);
+      for (let j=0;j<40 && this.phase==='race' && steps<4800;j++,steps++) {
+        const rider=this.rider,event=this.event,rows=event.path.rows,p=rider.position;
+        let error=Infinity;
+        for (let k=Math.max(0,nearest-7);k<Math.min(rows.length,nearest+76);k++) {
+          const q=rows[k].p,d=(p[0]-q[0])**2+(p[2]-q[2])**2;
+          if (d<error) { error=d;nearest=k; }
+        }
+        const distance=rows[nearest].distance;
+        const target=f.along(event.path,Math.min(event.length,distance+f.clamp(1.7+rider.speed*.29,1.85,5.8)));
+        const turn=Math.atan2(target[2]-p[2],target[0]-p[0])-rider.heading-rider.yawRate*.085;
+        const angle=Math.atan2(Math.sin(turn),Math.cos(turn));
+        let goal=Math.min(10.8,f.plannedSpeed(event,distance+.65)*1.04);
+        if (Math.abs(angle)>.38) goal=Math.min(goal,7.9);
+        if (Math.abs(angle)>.75) goal=Math.min(goal,5.4);
+        advance.call(this,1/110,{gas:rider.speed<goal-.06,brake:rider.speed>goal+.32,left:angle<-.025,right:angle>.025,sprint:false});
+      }
+      if (steps>=4800 && this.phase!=='done') throw Error('Practice driver missed the finish gate');
+    };
+  })()`);
+  await wait('qaPractice.framesAfterFinish===3', 'Endurance segment did not finish with the frame loop still running');
+  assert.deepEqual(await evaluate(`(()=>{
+    const {race:r,ui:u}=__FORZERO__;
+    return [r.phase,r.practiceBest.get(r.practice.key)>0,u.raceReview.hidden,u.practiceExit.hidden,u.callTitle.textContent];
+  })()`), ['done',true,true,false,'完赛']);
+  assert.deepEqual(await evaluate('qaErrors'), [], 'Endurance segment practice errors');
+  await evaluate(`(()=>{
+    const u=__FORZERO__.ui;
+    u.practiceExit.click();
+    u.coursePicker.value=qaPractice.originalCourse;
+    u.coursePicker.dispatchEvent(new Event('change'));
+  })()`);
+  console.log('Endurance map practice finished through physics and the game continued running.');
   const originalCourse = await evaluate('__FORZERO__.race.event.name');
   const originalKey = await evaluate('__FORZERO__.checkpointRecordKey(__FORZERO__.race.event,__FORZERO__.race.rider.vehicle)');
   await chooseLanguage('en');
@@ -307,6 +391,94 @@ try {
   assert.equal(exported.friends,null);
   assert.equal(exported.status,'友人对战档案过大，已导出个人成绩、车库和皮肤库。');
   assert.deepEqual(await evaluate('qaErrors'), [], 'desktop save export errors');
+
+  {
+    const temp = await mkdtemp(join(tmpdir(),'forzero-install-saves-'));
+    const assets = await loadStaticAssets(new URL('./',pathToFileURL(join(desktop,'index.html'))));
+    const driver = 'szu-litchi-driver-1';
+    const makeInstall = async name => {
+      const saveDir = join(temp,name);
+      const file = join(saveDir,'player-data.json');
+      const instanceId = createHash('sha256').update(saveDir).digest('hex');
+      const snapshot = {
+        format:'litchi-save',version:1,updatedAt:'2000-01-01T00:00:00Z',
+        storage:{[driver]:JSON.stringify({name})},
+        friends:[{score:{campus:archiveCourse.campus,courseId:archiveCourse.id,layout:archiveCourse.layout,
+          name,vehicle:archiveRider.vehicle,time:archiveRun.time},replay:JSON.stringify(fixtures.szu.ghost)}],
+      };
+      await mkdir(saveDir);
+      await writeFile(file,JSON.stringify(snapshot));
+      const shell = createAppShell({assets,saveDir,instanceId,bootTimeoutMs:0,idleMs:0});
+      return {file,instanceId,shell};
+    };
+    const loadSave = async install => JSON.parse(await readFile(install.file,'utf8'));
+    async function waitForAutosave(install, name) {
+      const deadline = Date.now()+12_000;
+      for (;;) {
+        const saved = await loadSave(install);
+        if (saved.updatedAt!=='2000-01-01T00:00:00Z') {
+          assert.equal(JSON.parse(saved.storage[driver]).name,name);
+          assert.deepEqual(saved.friends.map(({score})=>score.name),[name]);
+          return;
+        }
+        if (Date.now()>=deadline) throw Error('Desktop autosave did not run for '+name);
+        await delay(100);
+      }
+    }
+    async function start(shell, port) {
+      shell.server.listen(port,'127.0.0.1');
+      await once(shell.server,'listening');
+      return shell.server.address().port;
+    }
+    async function openInstall(url, name) {
+      const oldTime = await evaluate('performance.timeOrigin');
+      const nav = await rpc('Page.navigate',{url},sessionId);
+      assert.ok(!nav.errorText,nav.errorText);
+      await wait(`performance.timeOrigin!==${oldTime} && globalThis.__FORZERO__?.ready===true && __FORZERO__.ui.driverName.value===${JSON.stringify(name)}`,
+        'Desktop did not restore its own driver: '+name);
+    }
+    let first, second;
+    try {
+      first = await makeInstall('Driver A');
+      second = await makeInstall('Driver B');
+      const port = await start(first.shell,0);
+      const url = `http://127.0.0.1:${port}/`;
+      await openInstall(url,'Driver A');
+      await waitForAutosave(first,'Driver A');
+      const savedA = await loadSave(first);
+      await first.shell.shutdown();
+      await start(second.shell,port);
+      assert.equal(await evaluate(`fetch('/app/save',{method:'POST',headers:{'content-type':'application/json',
+        'x-forzero-installation':${JSON.stringify(first.instanceId)}},body:${JSON.stringify(JSON.stringify(savedA))}}).then(r=>r.status)`),409);
+      await openInstall(url,'Driver B');
+      await waitForAutosave(second,'Driver B');
+      assert.deepEqual(await loadSave(first),savedA);
+      const savedB = await loadSave(second);
+      await assert.rejects(evaluate(`(async()=>{
+        const driver='szu-litchi-driver-1', bike='szu-litchi-bike-1';
+        const setItem=Storage.prototype.setItem;
+        Storage.prototype.setItem=function(key,value) {
+          if (key.endsWith(':'+bike) || (key.endsWith(':'+driver) && JSON.parse(value).name==='Driver B')) {
+            throw new DOMException('QA quota during import and rollback','QuotaExceededError');
+          }
+          return setItem.call(this,key,value);
+        };
+        try {
+          await __FORZERO__.applySaveSnapshot({format:'litchi-save',version:1,storage:{
+            [driver]:JSON.stringify({name:'Failed import'}),[bike]:JSON.stringify({tyres:'race'}),
+          }},{preferIncoming:true});
+        } finally { Storage.prototype.setItem=setItem; }
+      })()`), /浏览器拒绝还原旧存档/);
+      await evaluate("dispatchEvent(new PageTransitionEvent('pagehide'))");
+      await delay(600);
+      assert.deepEqual(await loadSave(second),savedB,'Failed rollback must also stop desktop autosave');
+      assert.deepEqual(await evaluate('qaErrors'), [], 'desktop installation switch errors');
+      console.log('Desktop installs reused the same browser origin and kept their own drivers and friend archives on disk.');
+    } finally {
+      await Promise.all([first?.shell.shutdown(),second?.shell.shutdown()]);
+      await rm(temp,{recursive:true,force:true});
+    }
+  }
 
   {
     await rpc('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true }, sessionId);

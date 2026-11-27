@@ -1,5 +1,5 @@
 import { readSeedCode, seedVersion, weeklySeed } from '../race/seed-code.js';
-import { getActiveCampus, worldState } from '../core/state.js';
+import { getActiveCampus, getStorage, worldState } from '../core/state.js';
 import { coursesByCampus } from '../world/scene-builder.js';
 import { resolveRouteRef } from '../world/route-resolver.js';
 import { makeNetworkCourse, makeSeedCourse, networkForCampus } from '../world/seed-courses.js';
@@ -20,7 +20,7 @@ export function createSeedDialogController({
   function openSeedDialog() {
     if (getActiveCampus() === 'shunde' || !isSeedAvailable() || ui.seedDialog.open || ui.friendDialog.open) return;
     let remembered = '';
-    try { remembered = localStorage.getItem(seedStorageKey(getActiveCampus())) ?? ''; } catch {}
+    try { remembered = getStorage()?.getItem(seedStorageKey(getActiveCampus())) ?? ''; } catch {}
     if (!readSeedCode(remembered, getActiveCampus())) remembered = '';
     const prefix = getActiveCampus() === 'ucl' ? 'U' : 'S';
     setText(ui.seedCampus, getActiveCampus() === 'ucl' ? '伦敦 · Bloomsbury' : '深圳 · 粤海校区');
@@ -67,7 +67,7 @@ export function createSeedDialogController({
       return;
     }
     worldState.seedCourses[getActiveCampus()] = event;
-    try { localStorage.setItem(seedStorageKey(getActiveCampus()), code); } catch {}
+    try { getStorage()?.setItem(seedStorageKey(getActiveCampus()), code); } catch {}
     populateCoursePicker();
     selectCourse(event);
     ui.seedDialog.close();

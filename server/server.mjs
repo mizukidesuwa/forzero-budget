@@ -603,10 +603,14 @@ export async function loadStaticAssets(dirUrl) {
   return assets;
 }
 
-function buildStaticFiles({page,assets}) {
+function buildStaticFiles({page,assets,instanceId}) {
   const staticFiles = new Map();
   const addStatic = (route,contentType,body)=>{
-    const raw = Buffer.isBuffer(body)?body:Buffer.from(body);
+    let raw = Buffer.isBuffer(body)?body:Buffer.from(body);
+    if (route==='/index.html' && instanceId && /^[a-f0-9]{64}$/.test(instanceId)) {
+      const meta = `<meta name="forzero-installation" content="${instanceId}">`;
+      raw = Buffer.from(raw.toString('utf8').replace(/<head\b[^>]*>/i, head => head + meta));
+    }
     staticFiles.set(route,{contentType,raw,gzip:gzipSync(raw)});
   };
   if (assets) {
@@ -803,7 +807,7 @@ async function appInstanceId(saveDir, htmlFile) {
 }
 
 export function createAppShell({page,assets,soundDir,saveDir,instanceId=null,previousSaveFile,iceServers,turn,roomPort=8787,roomHost='0.0.0.0',allowPortFallback=true,idleMs=8000,bootTimeoutMs=60_000,onShutdown}={}) {
-  const staticFiles = buildStaticFiles({page,assets});
+  const staticFiles = buildStaticFiles({page,assets,instanceId});
   const version = gameVersion(page,assets);
   const clients = new Set();
   let hostServer = null, hostPort = null, hostOp = Promise.resolve(), saveOp = Promise.resolve(), closing = false;
@@ -961,11 +965,15 @@ export function createAppShell({page,assets,soundDir,saveDir,instanceId=null,pre
       }
       if (req.method==='GET' && pathname==='/app/save') {
         const data = await readSaveFile();
-        localJson(res,200,{exists:Boolean(data),data});
+        localJson(res,200,{instanceId,exists:Boolean(data),data});
         return;
       }
       if (req.method==='POST' && pathname==='/app/save') {
         if (!sameLocalOrigin(req)) throw new RoomError('仅允许本机游戏页面操作。',403);
+        if (instanceId && req.headers['x-forzero-installation']!==instanceId) {
+          req.resume();
+          throw new RoomError('桌面安装已切换，请重新打开游戏。',409);
+        }
         if (Number(req.headers['content-length'])>sharedRules.MAX_SAVE_BYTES) {
           req.resume();
           throw new RoomError('存档过大。',413);

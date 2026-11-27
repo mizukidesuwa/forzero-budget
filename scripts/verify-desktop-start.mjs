@@ -33,7 +33,7 @@ async function reserveConsecutivePorts() {
       await new Promise(resolve=>second.close(resolve));
       return port;
     } catch (error) {
-      if (error.code!=='EADDRINUSE') throw error;
+      if (!['EADDRINUSE','EACCES'].includes(error.code)) throw error;
     } finally {
       await new Promise(resolve=>first.close(resolve));
     }
@@ -58,9 +58,12 @@ function launch(installation, port) {
   return { child, ended, diagnostics:()=>errorOutput };
 }
 
-async function request(port, path, body) {
+async function request(port, path, body, instanceId) {
   return fetch(`http://127.0.0.1:${port}${path}`, {
-    ...(body===undefined ? {} : {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}),
+    ...(body===undefined ? {} : {method:'POST',headers:{
+      'content-type':'application/json',
+      ...(instanceId ? {'x-forzero-installation':instanceId} : {}),
+    },body:JSON.stringify(body)}),
     signal:AbortSignal.timeout(5000),
   });
 }
@@ -93,9 +96,9 @@ try {
   const independent = snapshot('Independent');
   const archive = [{score:{name:'Friend'},replay:'existing archive entry'}];
   await Promise.all([
-    seedSave(join(temp,'forzero-budget-windows-x64-2.5.3'),oldPortable),
-    seedSave(join(temp,'forzero-budget-2.5.3'),oldLight),
-    seedSave(join(temp,'forzero-budget-windows-x64-2.5.2'),snapshot('Older Windows')),
+    seedSave(join(temp,'forzero-budget-windows-x64-2.5.4'),oldPortable),
+    seedSave(join(temp,'forzero-budget-2.5.4'),oldLight),
+    seedSave(join(temp,'forzero-budget-windows-x64-2.5.3'),snapshot('Older Windows')),
     seedSave(second,{...independent,friends:archive}),
   ]);
   const base = await reserveConsecutivePorts();
@@ -107,10 +110,12 @@ try {
   assert.notEqual(secondStatus.instanceId,firstStatus.instanceId);
   assert.deepEqual((await (await request(base,'/app/save')).json()).data.storage,independent.storage);
 
-  const overflow = await request(base,'/app/save',{...independent,friends:['x'.repeat(saveRules.MAX_SAVE_BYTES)]});
+  assert.equal((await request(base,'/app/save',oldPortable,firstStatus.instanceId)).status,409);
+  assert.equal((await request(base,'/app/save',oldPortable)).status,409);
+  const overflow = await request(base,'/app/save',{...independent,friends:['x'.repeat(saveRules.MAX_SAVE_BYTES)]},secondStatus.instanceId);
   assert.equal(overflow.status,413);
   const saved = snapshot('Personal progress');
-  assert.equal((await request(base,'/app/save',{...saved,friends:null})).status,200);
+  assert.equal((await request(base,'/app/save',{...saved,friends:null},secondStatus.instanceId)).status,200);
   assert.deepEqual((await (await request(base,'/app/save')).json()).data.friends,archive);
   assert.deepEqual((await (await request(base,'/app/save')).json()).data.storage,saved.storage);
   const duplicate = launch(second,base);

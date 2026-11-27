@@ -1,4 +1,5 @@
 import { clamp } from '../core/math.js';
+import { getStorage } from '../core/state.js';
 import { cameraViews } from '../data/interface.js';
 import { riderSkinPromptEn, riderSkinPromptZh } from '../data/rider-skin-prompt.js';
 import { getOnlineRoom, showOnlineDialog, syncOnlineProfile } from '../online/client.js';
@@ -84,7 +85,7 @@ export function createSettingsController({
   }
 
   function savePreferences() {
-    try { localStorage.setItem(prefKey, JSON.stringify(preferences)); } catch {}
+    try { getStorage()?.setItem(prefKey, JSON.stringify(preferences)); } catch {}
     bumpGraphicsRevision();
     if (typeof scheduleLocalSave === 'function') scheduleLocalSave();
   }
