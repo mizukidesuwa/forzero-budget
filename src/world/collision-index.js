@@ -1,8 +1,10 @@
 import { getActiveCampus, worldState } from '../core/state.js';
+import { terrainIndexCellLimit } from '../data/surfaces.js';
 import {
   campusFixtures, citySolid, closeToBlock, indexFootprint, indexStreets,
-  putObstacle, streetCell, streetGapSquared, treeSites, uclFixtures,
+  putObstacle, streetCell, streetGapSquared, terrain, terrainSpans, treeSites, uclFixtures,
 } from './geometry.js';
+import { indexSurfaceTriangles } from './mesh-surface.js';
 import { getCampusProvider } from './registry.js';
 
 export const OBSTACLE_MARGIN = 2;
@@ -29,7 +31,12 @@ export function indexRidingObstacles(region) {
     if (b.depth === undefined) putObstacle(city, b, b.x, b.z, b.w / 2 + .34, b.d / 2 + .34);
     else indexFootprint(city, b, b, .34);
   }
-  return { region, buildings, trees, fixtures, city };
+  const maxCellsPerFace = terrainIndexCellLimit;
+  const ground = indexSurfaceTriangles(terrain, 0, terrain.indices.length, { maxCellsPerFace });
+  for (const { mesh, from, to } of terrainSpans) {
+    indexSurfaceTriangles(mesh, from, to, { index: ground, maxCellsPerFace });
+  }
+  return { region, buildings, trees, fixtures, city, ground };
 }
 
 export function uclFixtureAt(x, z) {

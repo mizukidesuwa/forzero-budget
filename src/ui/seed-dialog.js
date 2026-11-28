@@ -1,5 +1,6 @@
 import { readSeedCode, seedVersion, weeklySeed } from '../race/seed-code.js';
 import { getActiveCampus, getStorage, worldState } from '../core/state.js';
+import { routeRules } from '../data/routes.js';
 import { coursesByCampus } from '../world/scene-builder.js';
 import { resolveRouteRef } from '../world/route-resolver.js';
 import { makeNetworkCourse, makeSeedCourse, networkForCampus } from '../world/seed-courses.js';
@@ -84,6 +85,7 @@ export function createSeedDialogController({
       ui.weeklyCode.value = weeklySeed(getActiveCampus(), now);
       rollover = setTimeout(refreshWeek, Math.max(100, next - now + 30));
     }
+    ui.seedInput.maxLength = routeRules.maxCodeLength;
     ui.seedButton.addEventListener('click', openSeedDialog);
     ui.seedButton.addEventListener('click', refreshWeek);
     window.addEventListener('focus', refreshWeek);

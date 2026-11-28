@@ -11,8 +11,9 @@ import tuning190 from './tuning-190.cjs';
 import routeRules from './route-rules.cjs';
 import sharedRules from './shared-rules.cjs';
 
-const {ROOM_ROUNDS,ALL_ROUND_VEHICLES,lockRoomVehicle,tally,settle,settleChaseRound,tagChaseRunner,retire,beginTuning,beginRoomRound,nextChaseHunterId,
+const {ROOM_ROUNDS,ALL_ROUND_VEHICLES,lockRoomVehicle,tally,settle,settleChaseRound,settleDistrictRound,tagChaseRunner,retire,beginTuning,beginRoomRound,nextChaseHunterId,
   roomVehicle,roomParts,roomBuildProblem,roomBudgetProblems,blindBudget,roomPlayerOnline,roomRosterOnline} = rules;
+const {DISTRICT_CHASE_RULES,districtChaseZoneAt,isChaseFormat} = sharedRules;
 
 const LIMIT = 4;
 const ROOM_LIMIT = 500;
@@ -131,48 +132,7 @@ function sanitizeSkinSpec(value, requestedId) {
     }
   }
   if (!partIds.has('body')||!partIds.has('head')) return null;
-  const modelEnvelope = (() => {
-    const height=proportions.heightScale, width=proportions.bodyWidthScale, depth=proportions.bodyDepthScale;
-    const headHeight=proportions.headHeightScale, headWidth=proportions.headWidthScale;
-    const limbRadius=proportions.limbRadiusScale;
-    const low=[Infinity,Infinity,Infinity], high=[-Infinity,-Infinity,-Infinity];
-    const partBounds=new Map();
-    const point = ([x,y,z]) => [
-      RIDER_HIP[0] + (x - RIDER_HIP[0]) * depth,
-      RIDER_HIP[1] + (y - RIDER_HIP[1]) * height,
-      z * width,
-    ];
-    const include = (id, center, extent) => {
-      const lo=center.map((value,axis)=>value-extent[axis]);
-      const hi=center.map((value,axis)=>value+extent[axis]);
-      for (let axis=0;axis<3;axis++) {
-        low[axis]=Math.min(low[axis],lo[axis]);
-        high[axis]=Math.max(high[axis],hi[axis]);
-      }
-      partBounds.set(id,{low:lo,high:hi});
-    };
-    for (const part of parts) {
-      const isHead=/head|eye/i.test(part.id);
-      const axisScale=[depth,height*(isHead?headHeight:1),width*(isHead?headWidth:1)];
-      if (part.primitive==='tube') {
-        const from=point(part.from), to=point(part.to), radius=Math.max(part.radius,part.radius2??part.radius)*limbRadius;
-        include(part.id,from.map((value,axis)=>(value+to[axis])*.5),[
-          Math.abs(to[0]-from[0])*.5+radius,
-          Math.abs(to[1]-from[1])*.5+radius,
-          Math.abs(to[2]-from[2])*.5+radius,
-        ]);
-        continue;
-      }
-      const center=point(part.center);
-      const scaled=part.size.map((value,axis)=>value*axisScale[axis]);
-      const rotated=Math.abs(part.yaw)>1e-6||Math.abs(part.roll)>1e-6;
-      const extent=part.primitive==='ellipsoid'
-        ? (rotated?[Math.hypot(...scaled),Math.hypot(...scaled),Math.hypot(...scaled)]:scaled)
-        : (rotated?[Math.hypot(...scaled)*.5,Math.hypot(...scaled)*.5,Math.hypot(...scaled)*.5]:scaled.map(value=>value*.5));
-      include(part.id,center,extent);
-    }
-    return {low,high,partBounds};
-  })();
+  const modelEnvelope = sharedRules.skinModelEnvelope(parts, proportions);
   const [minX,minY,minZ]=modelEnvelope.low, [maxX,maxY,maxZ]=modelEnvelope.high;
   const actual={depth:maxX-minX,height:maxY-minY,width:maxZ-minZ};
   for (const key of ['depth','height','width']) {
@@ -384,7 +344,9 @@ function clampWindDir(value,fallback=0) {
 }
 
 function addPlayer(room,name,profile={}) {
-  if (room.players.size>=LIMIT) throw new RoomError('房间已满。');
+  const district = room.format===DISTRICT_CHASE_RULES.format;
+  if (district && profile.districtChase!==true) throw new RoomError('请使用支持街区捉人的版本。',400);
+  if (room.players.size>=(district?DISTRICT_CHASE_RULES.players:LIMIT)) throw new RoomError('房间已满。');
   if (typeof name!=='string' || name.length>48) throw new RoomError('骑手名无效。',400);
   const nickname = Array.from(name.normalize('NFC').replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/gu,'').trim())
     .slice(0,12).join('') || 'player';
@@ -418,7 +380,7 @@ function roomState(room) {
     }),
     roundsTotal:ROOM_ROUNDS[room.format],
     ...(room.format === 'triathlon' && { vehicleRotation: ALL_ROUND_VEHICLES }),
-    ...(room.format === 'chase' && { nextHunterId: nextChaseHunterId(room) }),
+    ...(isChaseFormat(room.format) && { nextHunterId: nextChaseHunterId(room) }),
     round:room.round,history:room.history,standing:room.standing,winners:room.winners};
 }
 
@@ -487,6 +449,13 @@ function applyCommand(room,player,body) {
     }
     case 'config': {
       if (room.host!==player.id || room.phase==='race') throw new RoomError('当前无法修改房间设置。');
+      if (body.format===DISTRICT_CHASE_RULES.format && room.format!==DISTRICT_CHASE_RULES.format) {
+        throw new RoomError('请选择街区捉人并新建房间。');
+      }
+      if (room.format===DISTRICT_CHASE_RULES.format &&
+          (room.phase!=='done' || Object.keys(body).some(key=>key!=='action'))) {
+        throw new RoomError('街区捉人使用固定房规。');
+      }
       if (body.route!==undefined) room.route = assertRoute(body.route);
       if (body.format!==undefined) {
         if (!Object.hasOwn(ROOM_ROUNDS,body.format)) throw new RoomError('赛制无效。',400);
@@ -551,7 +520,7 @@ function applyCommand(room,player,body) {
       break;
     }
     case 'finish':
-      if (room.format==='chase') throw new RoomError('捉人模式无需冲线。',409);
+      if (isChaseFormat(room.format)) throw new RoomError('捉人模式无需冲线。',409);
       if (!isCurrentRound(room,player,body) || !room.roster.some(item=>item.id===player.id)) throw new RoomError('这一轮已结算。');
       if (!Number.isInteger(body.ms)||body.ms<1||body.ms>MATCH_LIMIT+120_000||Date.now()<room.round.goAt) {
         throw new RoomError('完赛时间与本轮时间不符。');
@@ -560,15 +529,41 @@ function applyCommand(room,player,body) {
       settle(room);
       break;
     case 'tag': {
-      if (room.format!=='chase' || !isCurrentRound(room,player,body) || !room.round?.chase) {
+      if (!isChaseFormat(room.format) || !isCurrentRound(room,player,body) || !room.round?.chase) {
         throw new RoomError('这一轮已结算。');
       }
       const chase = room.round.chase;
       if (player.id!==chase.hunterId) throw new RoomError('只有捉人者可以提交拦截。',403);
-      if (Date.now()<room.round.goAt+chase.headStartMs-500) throw new RoomError('逃跑者先行时间尚未结束。');
+      const district = room.format===DISTRICT_CHASE_RULES.format;
+      const now = Date.now();
+      if (district && now>=room.round.deadline) throw new RoomError('这一轮已结算。');
+      if (now<room.round.goAt+chase.headStartMs-(district?0:500)) throw new RoomError('逃跑者先行时间尚未结束。');
       if (typeof body.targetId!=='string') throw new RoomError('拦截目标无效。',400);
-      const ms = Math.max(1,Math.min(chase.durationMs,Math.round(Number(body.ms)||Math.max(1,Date.now()-room.round.goAt))));
+      const elapsed = now-room.round.goAt;
+      const ms = Math.max(1,Math.min(chase.durationMs,district?elapsed:Math.round(Number(body.ms)||elapsed)));
       if (!tagChaseRunner(room,player.id,body.targetId,ms)) throw new RoomError('无法拦截该目标或目标已被抓获。');
+      break;
+    }
+    case 'district-zone': {
+      if (room.format!==DISTRICT_CHASE_RULES.format || !isCurrentRound(room,player,body) || !room.round.chase) {
+        throw new RoomError('这一轮已结算。');
+      }
+      const {chase,goAt,deadline} = room.round;
+      if (player.id===chase.hunterId || !room.roster.some(({id})=>id===player.id)) {
+        throw new RoomError('只有逃跑者可以触发区域或撤离。',403);
+      }
+      const now = Date.now();
+      if (now<goAt || now>=deadline) throw new RoomError('当前不可触发区域或撤离。');
+      const kind = DISTRICT_CHASE_RULES.zones.find(zone=>zone.id===body.zoneId)?.kind;
+      const zone = kind ? districtChaseZoneAt(body.x,body.z,kind) : null;
+      if (!zone || zone.id!==body.zoneId) throw new RoomError('当前位置未进入该区域。',400);
+      const marker = {id:zone.id,ms:now-goAt};
+      if (zone.kind==='trigger') chase.trigger ??= marker;
+      else {
+        if (!chase.trigger) throw new RoomError('先经过任一触发区，再前往出口。');
+        chase.exit = marker;
+        settleDistrictRound(room,'escaped',player.id,marker.ms);
+      }
       break;
     }
     case 'retire':
@@ -657,7 +652,7 @@ export function createRideServer({page,assets,soundDir,iceServers=[{urls:'stun:s
         if (!block || room.tuning?.endsAt!==endsAt) publish(room);
       }
       if (room.phase==='race' && now>=room.round.deadline) {
-        if (room.format==='chase') settleChaseRound(room,true);
+        if (isChaseFormat(room.format)) settleChaseRound(room,true);
         else for (const player of room.roster) retire(room,player.id);
         publish(room);
       }
@@ -697,6 +692,12 @@ export function createRideServer({page,assets,soundDir,iceServers=[{urls:'stun:s
         if (!room) {
           if (rooms.size>=ROOM_LIMIT) throw new RoomError('房间已达上限，请稍后再试。',503);
           if (!Object.hasOwn(ROOM_ROUNDS,body.format)) throw new RoomError('赛制无效。',400);
+          const district = body.format===DISTRICT_CHASE_RULES.format;
+          const route = assertRoute(body.route);
+          if (district && (route.campus!==DISTRICT_CHASE_RULES.campus || route.id!==DISTRICT_CHASE_RULES.courseId ||
+              route.seed!==null || route.networkRevision || route.variant.direction!=='forward' || route.variant.laps!==1)) {
+            throw new RoomError('街区捉人使用固定的 UCL 路网。',400);
+          }
           const vehicleRule = body.format==='triathlon' ? 'bike' : (body.vehicleRule===undefined ? 'bike' : body.vehicleRule);
           const weather = body.weather===undefined ? 'day' : body.weather;
           const windSpeed = clampWindSpeed(body.windSpeed,0);
@@ -708,10 +709,11 @@ export function createRideServer({page,assets,soundDir,iceServers=[{urls:'stun:s
           if (!WEATHERS.has(weather)) throw new RoomError('天气无效。',400);
           let code;
           do { code = Array.from(randomBytes(8),byte=>alphabet[byte%alphabet.length]).join(''); } while (rooms.has(code));
-          room = {code,matchId:identifier(),roundSerial:0,players:new Map(),format:body.format,route:assertRoute(body.route),
+          room = {code,matchId:identifier(),roundSerial:0,players:new Map(),format:body.format,route,
             budget:tuning190.normalizeBudget(body.budget),blind:body.blind===true,
             windMode:normalizeWindMode(body.windMode),windSeed:randomBytes(4).readUInt32LE(),
-            vehicleRule,weather,windSpeed,windDir,tuningSeconds,collision,traffic,tuning:null,phase:'lobby',round:null,history:[],standing:[],winners:[]};
+            vehicleRule,weather,windSpeed,windDir,tuningSeconds,collision,traffic,tuning:null,phase:'lobby',round:null,history:[],standing:[],winners:[],
+            ...(district?DISTRICT_CHASE_RULES.roomSettings:{})};
         }
         if (req.destroyed && !req.complete) return;
         const player = addPlayer(room,body.name,body);
@@ -792,7 +794,7 @@ async function listenWithFallback(server,host,requestedPort,allowFallback) {
 
 const gameVersion = (page,assets) => /(?:FORZERO:\s*BUDGET[^<]*?|荔园环骑)\s+([0-9.]+)<\/title>/.exec(String(assets?.['/index.html']?.body??page))?.[1]??null;
 
-const desktopSaveVersions = ['2.6.4','2.6.3','2.6.2','2.6.1','2.6.0','2.5.7','2.5.6','2.5.5','2.5.4','2.5.3','2.5.2','2.5.1.1','2.5.1','2.5.0','2.4.0','2.3.4','2.3.3.1','2.3.3','2.3.2','2.3.1',
+const desktopSaveVersions = ['2.6.5','2.6.4','2.6.3','2.6.2','2.6.1','2.6.0','2.5.7','2.5.6','2.5.5','2.5.4','2.5.3','2.5.2','2.5.1.1','2.5.1','2.5.0','2.4.0','2.3.4','2.3.3.1','2.3.3','2.3.2','2.3.1',
   '2.1.0','2.0.0','1.9.1.1','1.9.1','1.9.0','1.8.8','1.8.7','1.8.6','1.8.5','1.8.1'];
 const legacySaveVersions = ['1.8.0','1.7.0','1.6.6','1.6.5','1.6.4','1.6.3','1.6.2','1.6.1','1.6.0','1.5.0'];
 

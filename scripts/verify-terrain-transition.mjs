@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import {
-  CITY_ASPHALT, PHYSICS_STEP, ROAD_Y, createWorldQuery, getPreferences,
-  makeCyclist, moveCyclist, registerCampus, setPreferences,
+  CITY_ASPHALT, PHYSICS_STEP, ROAD_Y, buildRidingScene, clearWorldShapes, createWorldQuery, emitTerrain, getPreferences,
+  makeCyclist, moveCyclist, registerCampus, scenery, setActiveCampus, setPreferences, water,
 } from '../src/test-exports.js';
+import { rideCamera } from '../src/render/ride-camera.js';
 
 const roadY = ROAD_Y + .002;
 const drive = { gas: true, brake: false, left: false, right: false, sprint: false };
@@ -54,6 +55,23 @@ step(aboveCliff, markedCliff);
 assert.ok(aboveCliff.position[0] < 0);
 assert.equal(aboveCliff.hazard, 'cliff', 'descending off a marked cliff still triggers recovery');
 
+const slopedCliff = terrain('test-sloped-cliff', x => Math.max(0, x) * .5, {
+  cliffHazardAt: x => x >= 0,
+});
+const belowSlope = riderAt(slopedCliff, { x: -.02 });
+step(belowSlope, slopedCliff);
+assert.equal(belowSlope.position[0], -.02, 'a continuous marked cliff also blocks uphill entry');
+assert.equal(belowSlope.hazard, null, 'an uphill approach cannot trigger recovery onto the cliff');
+
+const angledEdge = terrain('test-angled-edge', () => 0, {
+  safeToRide: (x, z) => x <= 0 || z <= 0,
+  cliffHazardAt: (x, z) => x > 0 && z < 0,
+});
+const slidingToEdge = riderAt(angledEdge, { x: -.019, z: -.019, heading: Math.PI / 6, speed: 8 });
+step(slidingToEdge, angledEdge);
+assert.ok(slidingToEdge.position[0] > 0 && slidingToEdge.position[2] < 0);
+assert.equal(slidingToEdge.hazard, 'cliff', 'an axis slide classifies the position it actually reached');
+
 const curb = terrain('test-curb', x => x >= 0 ? .15 : 0);
 const curbRider = riderAt(curb, { x: -.02 });
 step(curbRider, curb);
@@ -64,10 +82,64 @@ const atStepLimit = riderAt(stepLimit, { x: -.02 });
 step(atStepLimit, stepLimit);
 assert.ok(atStepLimit.position[0] > 0, 'a 0.40 m step remains passable at elevation');
 
+const grassCurb = terrain('test-grass-curb', x => x >= 0 ? .15 : 0, { surfaceAt: () => false });
+const grassRider = riderAt(grassCurb, { x: -.02 });
+step(grassRider, grassCurb);
+assert.ok(grassRider.position[0] > 0, 'a short grass step stays passable');
+
+const steepGrass = terrain('test-steep-grass', x => 4 * Math.max(0, x), { surfaceAt: () => false });
+for (const speed of [1, 12]) {
+  const climbing = riderAt(steepGrass, { x: -.003, speed });
+  step(climbing, steepGrass);
+  assert.equal(climbing.position[0], -.003, 'a steep grass bank cannot be climbed at speed ' + speed);
+}
+
 const ramp = terrain('test-ramp', x => 10 * Math.max(0, x));
 const rampRider = riderAt(ramp, { x: -.02, speed: 12, vehicle: 'trail' });
 step(rampRider, ramp);
 assert.ok(rampRider.position[0] > 0 && rampRider.position[1] > .7, 'a continuous rise is passable even with a large rise per tick');
+
+const visibleBank = terrain('test-mesh-bank', () => 0, {
+  buildScene() {
+    emitTerrain(ground => ground.quad([-1000, -.05, -1000], [0, -.05, -1000], [0, -.05, 1000], [-1000, -.05, 1000], '#80735c'));
+    emitTerrain(ground => ground.quad([-1, 0, -1], [0, 4, -1], [0, 4, 1], [-1, 0, 1], '#80735c'), scenery);
+    scenery.box([-.5, 8, 0], [1, 1, 2], '#9f9f91');
+    water.quad([-1, 6, -1], [0, 6, -1], [0, 6, 1], [-1, 6, 1], '#6caa99');
+  },
+});
+setActiveCampus(visibleBank.campus);
+assert.equal(visibleBank.terrainMeshHeight(-.5, 0), null, 'terrain is available after scene assembly');
+buildRidingScene(visibleBank.campus);
+clearWorldShapes(); // The renderer releases the staging meshes after upload.
+assert.equal(visibleBank.terrainMeshHeight(1, 0), null);
+assert.equal(visibleBank.terrainMeshHeight(-500, 500), -.05, 'a broad base surface is sampled across the map');
+assert.equal(visibleBank.terrainMeshHeight(-.5, 0), 2, 'only declared ground contributes to the shared terrain height');
+const atBank = riderAt(visibleBank, { x: -.94, speed: 8 });
+step(atBank, visibleBank);
+assert.equal(atBank.position[0], -.94, 'the rendered mesh blocks even with flat analytical ground');
+assert.equal(atBank.hazard, null);
+atBank.speed = -2;
+atBank.stationaryBrake = .3;
+step(atBank, visibleBank, { ...drive, gas: false, brake: true });
+assert.ok(atBank.position[0] < -.94, 'the rider can back away from the rendered bank');
+const facingBank = riderAt(visibleBank, { x: -2, speed: 0 });
+const bankCamera = rideCamera({ rider: facingBank, phase: 'free', moved: true }, 16 / 9, null, 1 / 60, 'second', true);
+assert.ok(bankCamera.eye[0] > -1 && bankCamera.eye[0] < -.5, 'the camera stops before the rendered bank');
+
+const meshRamp = terrain('test-mesh-ramp', undefined, {
+  buildScene() {
+    emitTerrain(ground => ground.quad([0, 0, -2], [4, 2, -2], [4, 2, 2], [0, 0, 2], '#80735c'));
+  },
+});
+setActiveCampus(meshRamp.campus);
+buildRidingScene(meshRamp.campus);
+assert.equal(visibleBank.terrainMeshHeight(-.5, 0), null, 'a query can only read its own built scene');
+assert.equal(meshRamp.terrainMeshHeight(-.5, 0), null, 'map travel clears the previous terrain');
+assert.equal(meshRamp.rideElevation(2, 0), 1, 'the mesh supplies height in the absence of an analytical surface');
+const meshRider = riderAt(meshRamp, { x: 2, y: 1 + roadY });
+step(meshRider, meshRamp);
+assert.ok(meshRider.position[0] > 2 && meshRider.position[1] > 1 + roadY, 'riding follows the mesh slope');
+setActiveCampus('szu');
 
 const ridge = terrain('test-ridge', x => x >= 0 && x < .10 ? 2 : 0);
 const ridgeRider = riderAt(ridge, { x: -.025, speed: 18, vehicle: 'trail' });
@@ -121,8 +193,15 @@ try {
   step(pushed, cliff);
   assert.equal(pushed.collisionCount, 1, 'rider contact was applied');
   assert.equal(pushed.position[0], -.20, 'rider contact cannot push the player up a cliff');
+
+  const contactEdge = terrain('test-contact-edge', () => 0, { cliffHazardAt: x => x >= 0 });
+  const pushedToEdge = riderAt(contactEdge, { x: -.20 });
+  pushedToEdge.rivalPoses = pushed.rivalPoses;
+  step(pushedToEdge, contactEdge);
+  assert.equal(pushedToEdge.collisionCount, 1);
+  assert.equal(pushedToEdge.position[0], -.20, 'rider contact cannot push into a cliff hazard');
 } finally {
   setPreferences(preferences);
 }
 
-console.log('Terrain transitions passed: four stock vehicles, reverse, wall sliding, cliff recovery trigger, curb, steep ramp, swept ridge, bridge layers and rider contact.');
+console.log('Terrain transitions passed: four stock vehicles, reverse, wall sliding, cliff recovery, grass and paved ramps, automatic mesh collision and camera clearance, scene changes, curbs, swept ridge, bridge layers and rider contact.');

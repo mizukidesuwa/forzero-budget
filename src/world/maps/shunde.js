@@ -6,9 +6,9 @@ import { Shape } from '../../core/shape.js';
 import { worldState } from '../../core/state.js';
 import { treeBlocks } from '../collision-index.js';
 import {
-  bench, campusFixtures, cityVehicles, closeToBlock, courseFrame, deciduous, foliage,
+  bench, campusFixtures, cityVehicles, closeToBlock, courseFrame, deciduous, emitTerrain, foliage,
   masonry, nearestPathSpot, offsetVertex, palm, pavement, placeTravelSign, plate, road,
-  scenery, signs, street, streetCell, streetGapSquared, terrain, water,
+  scenery, signs, street, streetCell, streetGapSquared, water,
 } from '../geometry.js';
 import { registerCampus } from '../registry.js';
 import { emitShundeGateDetails } from '../assets/campus-v220.js';
@@ -144,6 +144,7 @@ export function parkFirmSurface(x, z) {
 }
 
 registerCampus('shunde', {
+  buildScene: buildParkWorld,
   parkPath,
   timingSpan: (frame) => ({ half: parkWidth(frame.p[0], frame.p[2]) - .24 }),
   safeToRide: (x, z, _exploring, skipHazard) => parkRideable(x, z, skipHazard),
@@ -343,7 +344,9 @@ export const parkReflectionBounds = (() => {
 })();
 
 export function buildParkWorld() {
-  terrain.quad([-850, -.18, -620], [850, -.18, -620], [850, -.18, 900], [-850, -.18, 900], '#96aa73');
+  emitTerrain(terrain => {
+    terrain.quad([-850, -.18, -620], [850, -.18, -620], [850, -.18, 900], [-850, -.18, 900], '#96aa73');
+  });
   const center = [-7, WATER_Y, 168];
   for (let i = 1; i < parkFrames.length; i++) {
     const a = parkEdgesList[i - 1], b = parkEdgesList[i];
@@ -553,12 +556,14 @@ export function buildMountainWorld() {
     for (let x = 30; x <= 542; x += step) row.push([x, mountainHeight(x, z) - .185, z]);
     rows.push(row);
   }
-  for (let j = 1; j < rows.length; j++) for (let i = 1; i < rows[j].length; i++) {
-    const a = rows[j - 1][i - 1], b = rows[j][i - 1], c = rows[j][i], d = rows[j - 1][i];
-    if (Math.max(a[1], b[1], c[1], d[1]) <= -.18) continue;
-    const n = normalize(cross(subtract(b, a), subtract(d, a)));
-    scenery.quad(a, b, c, d, n[1] < .85 ? '#7e865c' : '#82965e', n);
-  }
+  emitTerrain(terrain => {
+    for (let j = 1; j < rows.length; j++) for (let i = 1; i < rows[j].length; i++) {
+      const a = rows[j - 1][i - 1], b = rows[j][i - 1], c = rows[j][i], d = rows[j - 1][i];
+      if (Math.max(a[1], b[1], c[1], d[1]) <= -.18) continue;
+      const n = normalize(cross(subtract(b, a), subtract(d, a)));
+      terrain.quad(a, b, c, d, n[1] < .85 ? '#7e865c' : '#82965e', n);
+    }
+  }, scenery);
 
   const stone = '#c7bd9c', wood = '#7d6850';
   for (const lane of mountainRoads) {

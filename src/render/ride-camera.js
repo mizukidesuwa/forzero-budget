@@ -2,24 +2,32 @@ import { add, clamp, dot, headingVector, lerpPoint, multiply, normalize, perspec
 import { alternateCamera } from '../data/interface.js';
 import { speedFov } from '../ride/physics.js';
 import { along } from '../world/geometry.js';
-import { buildingAt, cityWallAt, rideElevation } from '../world/query.js';
+import { buildingAt, cityWallAt, rideElevation, terrainMeshHeight } from '../world/query.js';
 
 function cameraWallHit(x, z, y) {
   return Boolean(buildingAt(x, z, .3, y)) || cityWallAt(x, z, y);
 }
 
-function avoidWall(origin,eye) {
+function cameraGround(x, z) {
+  return Math.max(rideElevation(x, z), terrainMeshHeight(x, z) ?? -Infinity);
+}
+
+function cameraTerrainHit(x, z, y) {
+  return y < cameraGround(x, z) + alternateCamera.terrainClearance;
+}
+
+function avoidObstacle(origin, eye, hit) {
   const steps = 20;
   let clear = 0;
   for (let i = 1; i <= steps; i++) {
     const part = i / steps;
     const point = lerpPoint(origin, eye, part);
-    if (cameraWallHit(point[0], point[2], point[1])) {
+    if (hit(point[0], point[2], point[1])) {
       let lo = clear, hi = part;
       for (let k = 0; k < 8; k++) {
         const mid = (lo + hi) * .5;
         const probe = lerpPoint(origin, eye, mid);
-        if (cameraWallHit(probe[0], probe[2], probe[1])) hi = mid;
+        if (hit(probe[0], probe[2], probe[1])) hi = mid;
         else lo = mid;
       }
       return lerpPoint(origin, eye, Math.max(0, lo - .006));
@@ -42,7 +50,8 @@ export function rideCamera(race, aspect, prior, dt, mode, reducedMotion) {
   if (mode === 'first') {
     const { eye: heights, forward, look, near } = alternateCamera.first;
     const origin = add(p, [0, heights[rider.vehicle] ?? heights.bike, 0]);
-    const eye = avoidWall(origin, add(origin, scale(f, forward)));
+    const eye = avoidObstacle(origin, add(origin, scale(f, forward)),
+      (x, z, y) => cameraWallHit(x, z, y) || cameraTerrainHit(x, z, y));
     const target = add(eye, scale(f, look));
     target[1] += clamp((rideElevation(target[0],target[2]) - rideElevation(p[0],p[2])) * .5, -2, 2);
     const stretch = reducedMotion ? 0 : speedFov(rider, prior, dt);
@@ -69,14 +78,21 @@ export function rideCamera(race, aspect, prior, dt, mode, reducedMotion) {
   target[1]+=rideElevation(target[0],target[2])-rideElevation(p[0],p[2]);
   let origin = add(p,add(scale(f,-.57),[0,2.7,0]));
   if (cameraWallHit(origin[0],origin[2],origin[1])) origin = [p[0],p[1]+2.15,p[2]];
-  eye[1]=Math.max(eye[1],rideElevation(eye[0],eye[2])+1.45);
-  eye = avoidWall(origin,eye);
+  const riderFocus = add(p, [0, alternateCamera.second.lookHeight, 0]);
+  const placeEye = position => {
+    position[1] = Math.max(position[1], cameraGround(position[0], position[2]) + 1.45);
+    const outsideWall = avoidObstacle(origin, position, cameraWallHit);
+    const aboveTerrain = avoidObstacle(riderFocus, outsideWall, cameraTerrainHit);
+    return aboveTerrain === outsideWall ? outsideWall : avoidObstacle(riderFocus, aboveTerrain, cameraWallHit);
+  };
+  eye = placeEye(eye);
   if (prior && !reducedMotion) {
     const smooth = 1 - Math.exp(-dt * (prior.postcard === postcard ? 7.85 : 4.9));
-    eye = lerpPoint(prior.eye,eye,smooth);
+    eye = placeEye(lerpPoint(prior.eye, eye, smooth));
     target = lerpPoint(prior.target,target,smooth);
-    eye[1]=Math.max(eye[1],rideElevation(eye[0],eye[2])+1.45);
-    eye = avoidWall(origin,eye);
+  }
+  if (eye[0] === target[0] && eye[2] === target[2]) {
+    target = add(target, scale(f, mode === 'second' ? -1 : 1));
   }
   const stretch=reducedMotion||postcard?0:speedFov(rider,prior,dt);
   const fov=(postcard?(portrait?.88:.81):portrait?1.01:.96)+stretch;

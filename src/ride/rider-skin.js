@@ -1,28 +1,19 @@
 // @ts-check
 import { getStorage } from '../core/state.js';
+import sharedRules from '../data/shared-rules.cjs';
 import {
   defaultRiderSkin, riderSkinRules, skinAccessories, skinAnimationProfiles,
   skinBoundsRules, skinClasses, skinHeadModes, skinLimbModes, skinProportionRules,
   skinGeometryRules, skinVehicles,
 } from '../data/rider-skins.js';
 
+const { SKIN_CONSTANTS: { riderHip: RIDER_HIP }, skinModelEnvelope } = sharedRules;
+
 /**
- * @typedef {'ellipsoid' | 'tube' | 'box'} SkinPrimitiveKind
+ * @typedef {import('../data/shared-rules.cjs').SkinPrimitiveKind} SkinPrimitiveKind
  * @typedef {{ width: number, height: number, depth: number }} SkinBounds
  * @typedef {{ type: string, anchor: string, scale: number, color?: string }} SkinAccessory
- * @typedef {object} SkinModelPrimitive
- * @property {string} id
- * @property {SkinPrimitiveKind} primitive
- * @property {string} material
- * @property {string} [anchor]
- * @property {number[]} [center]
- * @property {number[]} [size]
- * @property {number[]} [from]
- * @property {number[]} [to]
- * @property {number} [radius]
- * @property {number} [radius2]
- * @property {number} yaw
- * @property {number} roll
+ * @typedef {import('../data/shared-rules.cjs').SkinModelPrimitive} SkinModelPrimitive
  * @typedef {{ version: number, parts: readonly SkinModelPrimitive[] }} SkinModel
  * @typedef {object} SkinSpec
  * @property {number} schemaVersion
@@ -416,65 +407,6 @@ function normalizeModel(value, errors) {
   return { version, parts };
 }
 
-const RIDER_HIP = [-.222, .990, 0];
-
-/**
- * @param {SkinModel} model
- * @param {Record<string, number>} proportions
- */
-function modelEnvelope(model, proportions) {
-  const height = proportions.heightScale, width = proportions.bodyWidthScale, depth = proportions.bodyDepthScale;
-  const headHeight = proportions.headHeightScale, headWidth = proportions.headWidthScale;
-  const limbRadius = proportions.limbRadiusScale;
-  const low = [Infinity, Infinity, Infinity], high = [-Infinity, -Infinity, -Infinity];
-  /** @type {Map<string, { low: number[], high: number[] }>} */
-  const partBounds = new Map();
-  /** @param {number[]} coords */
-  const point = ([x, y, z]) => [
-    RIDER_HIP[0] + (x - RIDER_HIP[0]) * depth,
-    RIDER_HIP[1] + (y - RIDER_HIP[1]) * height,
-    z * width,
-  ];
-  /**
-   * @param {string} id
-   * @param {number[]} center
-   * @param {number[]} extent
-   */
-  const include = (id, center, extent) => {
-    const lo = center.map((value, axis) => value - extent[axis]);
-    const hi = center.map((value, axis) => value + extent[axis]);
-    for (let axis = 0; axis < 3; axis++) {
-      low[axis] = Math.min(low[axis], lo[axis]);
-      high[axis] = Math.max(high[axis], hi[axis]);
-    }
-    partBounds.set(id, { low: lo, high: hi });
-  };
-  for (const part of model.parts) {
-    const isHead = /head|eye/i.test(part.id);
-    const axisScale = [depth, height * (isHead ? headHeight : 1), width * (isHead ? headWidth : 1)];
-    if (part.primitive === 'tube') {
-      const from = point(part.from ?? [0, 0, 0]);
-      const to = point(part.to ?? [0, 0, 0]);
-      const baseRadius = part.radius ?? 0;
-      const radius = Math.max(baseRadius, part.radius2 ?? baseRadius) * limbRadius;
-      include(part.id, from.map((value, axis) => (value + to[axis]) * .5), [
-        Math.abs(to[0] - from[0]) * .5 + radius,
-        Math.abs(to[1] - from[1]) * .5 + radius,
-        Math.abs(to[2] - from[2]) * .5 + radius,
-      ]);
-      continue;
-    }
-    const center = point(part.center ?? [0, 0, 0]);
-    const scaled = (part.size ?? [0, 0, 0]).map((value, axis) => value * axisScale[axis]);
-    const rotated = Math.abs(part.yaw) > 1e-6 || Math.abs(part.roll) > 1e-6;
-    const extent = part.primitive === 'ellipsoid'
-      ? (rotated ? [Math.hypot(...scaled), Math.hypot(...scaled), Math.hypot(...scaled)] : scaled)
-      : (rotated ? [Math.hypot(...scaled) * .5, Math.hypot(...scaled) * .5, Math.hypot(...scaled) * .5] : scaled.map(value => value * .5));
-    include(part.id, center, extent);
-  }
-  return { low, high, partBounds };
-}
-
 /**
  * @param {SkinModel} model
  * @param {Record<string, number>} proportions
@@ -482,7 +414,7 @@ function modelEnvelope(model, proportions) {
  * @param {string[]} errors
  */
 function validateModelEnvelope(model, proportions, bounds, errors) {
-  const envelope = modelEnvelope(model, proportions);
+  const envelope = skinModelEnvelope(model.parts, proportions);
   const [minX, minY, minZ] = envelope.low, [maxX, maxY, maxZ] = envelope.high;
   /** @type {Record<keyof SkinBounds, number>} */
   const actual = { depth: maxX - minX, height: maxY - minY, width: maxZ - minZ };

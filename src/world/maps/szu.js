@@ -8,12 +8,12 @@ import { getActiveCampus, worldState } from '../../core/state.js';
 import { OBSTACLE_MARGIN, nearestStreet, treeBlocks } from '../collision-index.js';
 import {
   academicBlock, along, bench, buildingNameplate, campusFixtures, campusFootprint,
-  cityJunctions, citySolid, cityVehicles, closeToBlock, courseFrame, deciduous,
+  cityJunctions, citySolid, cityVehicles, closeToBlock, courseFrame, deciduous, emitTerrain,
   facadeName, facadeOf, fitsBetweenBuildings, foliage, glazing,
   inOutline, indexStreets, lamppost, landmark, londonPaving, lotBox, lotPart, lotPoint,
   masonry, namedSign, nearestPathSpot, offsetVertex, palm, pavement,
   placeTravelSign, plate, pointDistance, ribbon, road, scenery, signs,
-  street, streetCell, streetGapSquared, terrain, treeSites, urban,
+  street, streetCell, streetGapSquared, treeSites, urban,
   wallPanel, water,
 } from '../geometry.js';
 import { registerCampus } from '../registry.js';
@@ -342,18 +342,20 @@ function raiseHillMesh(shape) {
 
 function drawHillGround() {
   const {x,z,rx,rz}=dujuanHill,columns=24,rows=36;
-  const start=terrain.vertices.length/11;
-  for(let row=0;row<=rows;row++) for(let col=0;col<=columns;col++) {
-    const xx=x+rx*(2*col/columns-1),zz=z+rz*(2*row/rows-1);
-    const h=hillHeight(xx,zz), normal=hillNormal(xx,zz,0,1,0);
-    const shade=Math.min(1,h/dujuanHill.height);
-    const grass=rgb('#789454').map((value,i)=>mix(value,[.44,.55,.28][i],shade*.74));
-    terrain.vertex([xx,h-.0123,zz],normal,grass);
-    if(!row||!col) continue;
-    const end=start+row*(columns+1)+col,a=end-columns-2;
-    if(h||terrain.vertices[(a+1)*11+1]>-.0123||terrain.vertices[(a+columns+1)*11+1]>-.0123||
-      terrain.vertices[a*11+1]>-.0123) terrain.indices.push(a,a+columns+1,end,a,end,a+1);
-  }
+  emitTerrain(terrain => {
+    const start=terrain.vertices.length/11;
+    for(let row=0;row<=rows;row++) for(let col=0;col<=columns;col++) {
+      const xx=x+rx*(2*col/columns-1),zz=z+rz*(2*row/rows-1);
+      const h=hillHeight(xx,zz), normal=hillNormal(xx,zz,0,1,0);
+      const shade=Math.min(1,h/dujuanHill.height);
+      const grass=rgb('#789454').map((value,i)=>mix(value,[.44,.55,.28][i],shade*.74));
+      terrain.vertex([xx,h-.0123,zz],normal,grass);
+      if(!row||!col) continue;
+      const end=start+row*(columns+1)+col,a=end-columns-2;
+      if(h||terrain.vertices[(a+1)*11+1]>-.0123||terrain.vertices[(a+columns+1)*11+1]>-.0123||
+        terrain.vertices[a*11+1]>-.0123) terrain.indices.push(a,a+columns+1,end,a,end,a+1);
+    }
+  });
 }
 
 function sculptCampusHill() {
@@ -617,13 +619,15 @@ function programBasins() {
 }
 
 function groundCampuses() {
-  terrain.quad([-1480,-.030,-1450],[1470,-.030,-1450],[1470,-.030,1520],[-1480,-.030,1520],'#abb09a');
-  for(const [outline,origin] of [[perimeter,[0,-.012,-1]],[canghaiPerimeter,[254,-.012,210]]]) {
-    for(let i=0;i<outline.length;i++) {
-      const a=outline[i],b=outline[(i+1)%outline.length];
-      terrain.triangle(origin,[a[0],-.012,a[1]],[b[0],-.012,b[1]],'#789454');
+  emitTerrain(terrain => {
+    terrain.quad([-1480,-.030,-1450],[1470,-.030,-1450],[1470,-.030,1520],[-1480,-.030,1520],'#abb09a');
+    for(const [outline,origin] of [[perimeter,[0,-.012,-1]],[canghaiPerimeter,[254,-.012,210]]]) {
+      for(let i=0;i<outline.length;i++) {
+        const a=outline[i],b=outline[(i+1)%outline.length];
+        terrain.triangle(origin,[a[0],-.012,a[1]],[b[0],-.012,b[1]],'#789454');
+      }
     }
-  }
+  });
   pavement.box([centralSquare[0],.005,centralSquare[1]], [22,.035,13.0], '#c8c0ac');
   const {x,z,w,depth}=yuehaiSportsPlaza;
   scenery.box([x,.035,z],[w,.06,depth],'#b96b5e');
@@ -1964,6 +1968,7 @@ const szuCampusInfo = {
 };
 
 registerCampus('szu', {
+  buildScene: campusUrbanWorld,
   isProtectedGround: (x, z) => protectedCampusGrounds.some(site => closeToBlock(x, z, site, 1.05)),
   shouldSubdivideRibbon: (a) => getActiveCampus() === 'szu' &&
     Math.abs(a.p[0] - dujuanHill.x) < dujuanHill.rx + 6 && Math.abs(a.p[2] - dujuanHill.z) < dujuanHill.rz + 6,

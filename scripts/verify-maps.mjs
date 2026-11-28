@@ -1,12 +1,15 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { alternateCamera } from '../src/data/interface.js';
+import { rideCamera } from '../src/render/ride-camera.js';
 import * as game from '../src/test-exports.js';
 
 const fixture = new URL('./fixtures/map-regression.json', import.meta.url);
 const campuses = ['szu', 'ucl', 'shunde'];
 const selected = process.argv.slice(2);
 const drive = { gas: true, brake: false, left: false, right: false, sprint: false };
+const terrainProbes = { szu: [32, 140, 4.9877], ucl: [0, 0, -.021], shunde: [0, 168, -.18] };
 
 function driveFrom(query, spawn, heading, exploring = false) {
   const rider = game.makeCyclist({ campus: query.campus, spawn, heading }, game.stockBike, 'ebike', null, query);
@@ -33,6 +36,9 @@ function mapSnapshot(campus) {
   game.setActiveCampus(campus);
   game.buildRidingScene(campus);
   const query = game.createWorldQuery(campus);
+  const [gx, gz, height] = terrainProbes[campus];
+  assert.ok(Math.abs(query.terrainMeshHeight(gx, gz) - height) < 1e-8, campus + ' indexes its rendered ground');
+  assertFirstPersonEyeHeight(campus);
   const routes = game.coursesByCampus[campus];
   const roads = campus === 'szu' ? [...game.roads, ...game.cityRoads.keys()]
     : campus === 'ucl' ? game.uclWays.map(way => way.path)
@@ -67,6 +73,17 @@ function mapSnapshot(campus) {
     })).digest('hex'),
     routes: routes.length, roads: roads.length, probes: collisionProbes.length, ghost,
   };
+}
+
+function assertFirstPersonEyeHeight(campus) {
+  const { arrival, heading } = game.campuses[campus];
+  for (const [vehicle, expectedHeight] of Object.entries({ bike: 1.78, ebike: 1.72, trail: 1.82, chair: 1.42 })) {
+    const rider = { position: arrival, heading, vehicle, speed: 0 };
+    for (const aspect of [16 / 9, 9 / 16]) {
+      const camera = rideCamera({ phase: 'free', rider }, aspect, null, 1 / 60, 'first', true);
+      assert.ok(Math.abs(camera.eye[1] - arrival[1] - expectedHeight) < 1e-8, `${campus} ${vehicle} first-person eye height`);
+    }
+  }
 }
 
 function assertFlyoverSeams() {
@@ -221,8 +238,96 @@ function assertPavilionWaterReturn() {
   });
   for (let i = 0; i < 60 && !trial.freeHazardNotice; i++) trial.step(drive);
   assert.match(trial.freeHazardNotice?.text ?? '', /落水/);
+  assert.equal(trial.interpolatedRiderPose(), trial.rider, 'recovery resets the rendered rider immediately');
   const [returnedX, , returnedZ] = trial.rider.position;
   assert.ok(query.surfaceAt(returnedX, returnedZ) && !query.waterHazardAt(returnedX, returnedZ));
+}
+
+function assertShundeCliffApproach() {
+  const query = game.createWorldQuery('shunde');
+  // Foot of the lower Shenbu descent shoulder.
+  const x = 227.617, z = -13.608, heading = 2.117489460348395;
+  const y = query.rideElevation(x, z) + game.ROAD_Y;
+  assert.ok(query.safeToRide(x, z, true));
+  const brake = { ...drive, gas: false, brake: true };
+  for (const vehicle of ['bike', 'ebike', 'trail', 'chair']) {
+    const trial = new game.TimeTrial(game.parkCourse, game.stockBike, vehicle, query);
+    Object.assign(trial.rider, { position: [x, y, z], heading, speed: 8, paved: false });
+    for (let tick = 0; tick < 50; tick++) {
+      trial.step(drive);
+      assert.equal(trial.freeHazardNotice, null, vehicle + ' does not rejoin on top of the cliff');
+      assert.ok(trial.rider.position[1] < y + .2, vehicle + ' stays below the cliff');
+    }
+    const before = trial.rider.position.slice();
+    for (let tick = 0; tick < 90; tick++) trial.step(brake);
+    const [dx, , dz] = game.subtract(trial.rider.position, before);
+    assert.ok(dx * Math.cos(heading) + dz * Math.sin(heading) < -.25, vehicle + ' can back away from the cliff');
+  }
+}
+
+function assertShundeCliffDrop() {
+  const query = game.createWorldQuery('shunde');
+  const path = game.mountainUp, frame = game.courseFrame(path, 82.5);
+  const [x, , z] = game.offsetVertex(frame, -(path.width + 4.12), 0);
+  const heading = Math.atan2(-frame.side[2], -frame.side[0]);
+  const trial = new game.TimeTrial(game.mountainCourses[0], game.stockBike, 'bike', query);
+  trial.start();
+  for (let tick = 0; tick < game.COUNTDOWN_TICKS; tick++) trial.step({ ...drive, gas: false });
+  assert.equal(trial.phase, 'race');
+  trial.nextGate = 1;
+  trial.routeAnchor = game.pointDistance(trial.event.path, [x, z]);
+  Object.assign(trial.rider, {
+    position: [x, query.rideElevation(x, z) + game.ROAD_Y, z], heading, speed: 12, paved: false,
+  });
+  trial.step(drive);
+  assert.equal(trial.rejoinReason, '冲出山路');
+  assert.equal(trial.elapsed, game.REJOIN_MS);
+  assert.equal(trial.nextGate, 1, 'recovery does not advance race checkpoints');
+}
+
+function assertShundeRenderedBank() {
+  const query = game.createWorldQuery('shunde');
+  const frame = game.courseFrame(game.mountainUp, 221.5);
+  const [x, , z] = game.offsetVertex(frame, -6.38, 0);
+  const [insideX, , insideZ] = game.offsetVertex(frame, -7.55, 0);
+  assert.ok(query.safeToRide(insideX, insideZ, true));
+  assert.ok(query.terrainMeshHeight(insideX, insideZ) - query.rideElevation(insideX, insideZ) > 3);
+  const heading = Math.atan2(-frame.side[2], -frame.side[0]);
+  const trial = new game.TimeTrial(game.parkCourse, game.stockBike, 'trail', query);
+  Object.assign(trial.rider, {
+    position: [x, query.rideElevation(x, z) + game.ROAD_Y, z], heading, speed: 8, paved: false,
+  });
+  for (let tick = 0; tick < 60; tick++) {
+    trial.step(drive);
+    const [px, py, pz] = trial.rider.position;
+    assert.ok(query.terrainMeshHeight(px, pz) - py < .43, 'movement stops outside the rendered mountain');
+    assert.equal(trial.freeHazardNotice, null);
+  }
+  const [dx, , dz] = game.subtract(trial.rider.position, [x, 0, z]);
+  assert.ok(dx * Math.cos(heading) + dz * Math.sin(heading) > .15, 'the open road shoulder remains rideable');
+}
+
+function assertShundeCameraClearance() {
+  const query = game.createWorldQuery('shunde');
+  const x = 315.103, z = 81.098, towardBank = 2.327942062451687;
+  const rider = { position: [x, query.rideElevation(x, z) + game.ROAD_Y, z], vehicle: 'trail', speed: 2 };
+  const focus = game.add(rider.position, [0, alternateCamera.second.lookHeight, 0]);
+  const race = { phase: 'free', moved: true, rider };
+  assert.ok(query.terrainMeshHeight(x, z) < rider.position[1]);
+  for (const [mode, heading] of [['second', towardBank], ['third', towardBank + Math.PI]]) {
+    rider.heading = heading + Math.PI;
+    const prior = rideCamera(race, 16 / 9, null, 1 / 60, mode, false);
+    rider.heading = heading;
+    for (const previous of [null, prior]) {
+      const camera = rideCamera(race, 16 / 9, previous, 1 / 60, mode, false);
+      assert.ok(Math.hypot(...camera.right) > .99, mode + ' view keeps a valid basis');
+      for (let step = 1; step <= 100; step++) {
+        const [px, py, pz] = game.lerpPoint(focus, camera.eye, step / 100);
+        const ground = Math.max(query.rideElevation(px, pz), query.terrainMeshHeight(px, pz) ?? -Infinity);
+        assert.ok(py >= ground, mode + ' camera line of sight clears the rendered terrain');
+      }
+    }
+  }
 }
 
 const results = Object.fromEntries((selected.length ? selected : campuses).map(campus => {
@@ -253,5 +358,9 @@ if (Object.hasOwn(results, 'shunde')) {
   assertPavilionWaterReturn();
   assertShundeGatePassage();
   assertShundeShortcutTransitions();
+  assertShundeCliffApproach();
+  assertShundeCliffDrop();
+  assertShundeRenderedBank();
+  assertShundeCameraClearance();
 }
 console.log('Targeted map probes passed for the selected maps.');

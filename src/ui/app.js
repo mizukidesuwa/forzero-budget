@@ -1,11 +1,11 @@
 import { neutralDrive } from '../core/clock.js';
-import { add, clamp, length, multiply, normalize, placement, scale, subtract, transform } from '../core/math.js';
+import { ROAD_Y, add, clamp, length, multiply, normalize, placement, scale, subtract, transform } from '../core/math.js';
 import { Shape } from '../core/shape.js';
 import { getActiveCampus, getStorage, setActiveCampus, setPreferences, worldState } from '../core/state.js';
 import { CampusCourier, makeCourierBeaconShape, nearestCourierLandmark } from '../race/courier.js';
 import { ShadowChase } from '../race/chase.js';
 import { BlindNav } from '../race/blind-nav.js';
-import { blindNavRules, knownLaunchMode } from '../data/modes.js';
+import { blindNavRules, districtChaseRules, knownLaunchMode } from '../data/modes.js';
 import { raceLaunchOptions } from '../race/launch-options.js';
 import { raceReviewRows } from '../race/race-review.js';
 import { liveDeltaMs, vehicleBenchmark } from '../race/records.js';
@@ -58,7 +58,7 @@ import { createMedalTravelController } from './medal-travel.js';
 import { createWorkshopController } from './workshop-ui.js';
 import { createSettingsController } from './settings-dialog.js';
 import { initCustomSounds, playCustomSound, updateRideAudio } from './audio.js';
-import { getShowMapComparison, renderCampusMap, setShowMapComparison } from './minimap.js';
+import { renderCampusMap, setShowMapComparison } from './minimap.js';
 import { applyPendingSaveVehicle, bindSaveUi } from './save-sync.js';
 import { createDrivingHud, observeStageControls, showCameraMode } from './hud-controls.js';
 import {
@@ -130,7 +130,7 @@ const ui = Object.fromEntries([
   'onlineJoin','onlineClose','onlineLeave','onlineTitle','onlineCode','onlinePlayers','onlineStanding','onlineRounds',
   'onlineHostControls','onlineLobbyCampus','onlineLobbyCourse','onlineLobbySeed','onlineLobbyVehicle','onlineLobbyWeather','onlineLobbyTuning','onlineLobbyCollision','onlineTuningBanner','onlineGarage',
   'onlineTuningTime','onlineCollision','settingsTuneBar','settingsTuneText','settingsTuneReady','settingsTuneSkip',
-  'onlineInvite','onlineReady','onlineStart','onlineStatus','onlineLatency','onlineRank','onlineBike','onlineHostHint',
+  'onlineInvite','onlineReady','onlineStart','onlineStatus','onlineLatency','onlineRank','onlineBike','onlineHostHint','onlineDistrictHelp',
   'onlineTag0','onlineTag1','onlineTag2','draftPill','weatherOverlay','settingsWeather','settingsWindSpeed','settingsWindDir','onlineWindSpeed','onlineWindDir','onlineLobbyWindSpeed','onlineLobbyWindDir','mapCompare','reviewMapButton','practiceExit',
   'onlineBudget','onlineBlind','onlineWindMode','onlineLobbyBudget','onlineLobbyBlind','onlineLobbyWindMode','budgetPicker','budgetReadout','budgetHighlight','budgetNotice','soloRulesStatus','raceMode','aiOptions','aiDifficulty','aiWins','courseVariants','courseDirection','courseLaps','mapReplay','replayPlay','replaySpeed','replaySeek','replayDetail','settingsWindMode','puddleStatus','bikePresets','bikePresetName','bikeSprintSpeed','bikeGravel','bikeStyles','bikeAbility','bikePosture',
   'bikeFrame','frameNote','bikeSprint','sprintNote','motorTuning','vehSlots',
@@ -141,7 +141,7 @@ const ui = Object.fromEntries([
   'settingsSound','settingsCollision','settingsTraffic','settingsTouchSize','settingsTouchSizeValue','settingsHudScale','settingsHudScaleValue','settingsHudAuto','settingsGuideBtn','guideSettings','onlineTraffic','onlineLobbyTraffic','friendMultiBar','friendMultiCount','friendMultiPlay',
   'friendFilters','friendCampus','gateFlash','friendCourse','friendVehicle','friendBoardNote','friendScores','friendScoreTemplate',
   'seedButton','seedDialog','seedForm','seedInput','seedCampus','seedStatus','seedRandom','seedClose',
-  'weeklyCode','weeklyPlay','weeklyCopy','weeklyBoard','coursePicker','courseBrief','mapZoom','mapPlace','mapCourse','recover','brakeHint','hospitalRoute',
+  'weeklyCode','weeklyPlay','weeklyCopy','weeklyBoard','coursePicker','courseBrief','mapZoom','mapPlace','mapCourse','recover','brakeHint',
   'settingsButton','settingsDialog','settingsTitle','settingsContinue','settingsState','settingsExit','settingsUnfullscreen',
   'bikeButton','bikeSettings','displaySettings','driverName','bikeLock','vehiclePicker','vehicleNote',
   'bikeParts','bikePaint','riderSkin','riderSkinFile','riderSkinFileInput','riderSkinImport','riderSkinPrompt','riderSkinClear','riderSkinImportButton','riderSkinStatus','bikeTyres','bikeGears','tyreNote','gearNote','bikeBrakes','brakeNote',
@@ -166,7 +166,7 @@ const driveCodes = new Map([
 const touchButtons = Array.from(document.querySelectorAll('[data-drive]'));
 const mapRows = [], dotLights = [];
 let mapOpen=false, zoomMap=false, ready=false, priorTimestamp, cameraRevision=0;
-let pendingCampus=null, uclRouteVisible=false;
+let pendingCampus=null;
 let previousPhase = null, previousPaused = null, previousGate = -1, previousLaunchMode = null, previousChasePhase = null;
 let previousOnlineChasing = false;
 let fpsTime = 0, fpsFrames = 0;
@@ -361,6 +361,7 @@ export function updateHud() {
   const chasing = !online && ShadowChase.active;
   const onlineChaseView = online ? getOnlineChaseView(now) : null;
   const onlineChasing = Boolean(onlineChaseView?.snap?.active);
+  const district = Boolean(onlineChaseView?.district);
   const trial = race.phase !== 'free' || chasing;
   const timed = trial && !chasing && !onlineChasing;
   const freeRiding = !trial && !onlineChasing;
@@ -372,7 +373,7 @@ export function updateHud() {
   setRawText(ui.riderTag,driverProfile.name);
   const opponent=race.opponent;
   const cyan = trial ? message`，青色是${opponent ? ghostLabel(opponent) : translate('影子')}` : '';
-  setRawText(ui.mapLegend,message`橙色是${driverProfile.name}${cyan}`);
+  setRawText(ui.mapLegend,district ? translate('1 / 2 触发区 · A / B 出口') : message`橙色是${driverProfile.name}${cyan}`);
   ui.friendReady.hidden=trial||!opponent;
   if (!ui.friendReady.hidden) {
     const totalGhosts = 1 + (race.extraOpponents?.length ?? 0);
@@ -417,7 +418,7 @@ export function updateHud() {
     stage.dataset.phase = chasing ? (ShadowChase.isRunning() ? 'race' : 'done') : onlineChasing ? 'race' : race.phase;
     ui.intro.hidden = !freeRiding || race.moved || Boolean(activity);
     ui.stationList.hidden = !timed && !mapOpen;
-    if (mapOpen) renderMapStationExtras();
+    if (mapOpen && !district) renderMapStationExtras();
     setText(ui.mapCourse,trial ? courseTitle(event) : '校内外道路');
 
     updateMapZoom();
@@ -475,7 +476,7 @@ export function updateHud() {
   updateCoach();
   const clock = timeLabel(race.elapsed);
   setText(ui.clock,clock);
-  setText(ui.mapClock,trial ? clock : '');
+  setText(ui.mapClock,district ? timeLabel(onlineChaseView.snap.remainingMs) : trial ? clock : '');
   setText(ui.best,race.best === null ? '—' : timeLabel(race.best));
   const lastGap=race.lastGap;
   setRawText(ui.ghostName,ghostLabel(race.reference));
@@ -497,7 +498,8 @@ export function updateHud() {
   setRawText(ui.timedTitle,leg&&race.onGuide?message`${timedName} · 余 ${remainingLabel}`:timedName);
   const touch = touchDriving.matches;
   const navigation = describeRaceNavigation(race, { timed, freeRiding, now, touch });
-  if (navigation.mapHint) setRawText(ui.mapNext, navigation.mapHint);
+  if (district) setRawText(ui.mapNext, chaseHud?.activity.detail ?? '');
+  else if (navigation.mapHint) setRawText(ui.mapNext, navigation.mapHint);
   else setText(ui.mapNext, race.phase === 'done' ? '完赛' : streetName ??
     (campus === 'shunde' ? '旅行站位于牌坊广场' : london ? '旅行站位于 Gower Street 校门旁' : '沿校门可接入校外公路'));
   let blindNote = '';
@@ -531,15 +533,10 @@ const mapControls = createMapControls({
   setMapOpen: v => { mapOpen = Boolean(v); sceneHud.setMapOpen(mapOpen); },
   getZoomMap: () => zoomMap,
   setZoomMap: v => { zoomMap = Boolean(v); },
-  getUclRouteVisible: () => uclRouteVisible,
   getReady: () => ready,
-  getOnlineChaseOverlay: () => {
-    const view = getOnlineChaseView(performance.now());
-    return view?.snap?.active ? { hideCourse: true, chasePings: view.radarPings } : null;
-  },
 });
 
-const { updateMapZoom, openMap, updateMapPlace, handleMapClick, initRouteBuilderControls } = mapControls;
+const { updateMapZoom, openMap, initMapControls } = mapControls;
 
 function focusStage() { stage.focus({preventScroll:true}); }
 
@@ -549,12 +546,19 @@ function beginOnlineChaseRound() {
   BlindNav.leave(setActiveWeather);
   BlindNav.setEnabled(false);
   clearInput();
-  race.freeRide();
-  const startGate = race.event.gates[0];
-  if (startGate) {
-    race.rider.position = courseGround(race.event, startGate.p, startGate.rise ?? 0);
-    race.rider.heading = Math.atan2(startGate.f[2], startGate.f[0]);
-    race.rider.speed = 0;
+  if (getOnlineRoom()?.state.format===districtChaseRules.format) {
+    race.abandon();
+    const {x,z,heading} = districtChaseRules.start;
+    race.rider.position = courseGround(race.event,[x,ROAD_Y,z],0);
+    race.rider.heading = heading;
+  } else {
+    race.freeRide();
+    const startGate = race.event.gates[0];
+    if (startGate) {
+      race.rider.position = courseGround(race.event, startGate.p, startGate.rise ?? 0);
+      race.rider.heading = Math.atan2(startGate.f[2], startGate.f[0]);
+      race.rider.speed = 0;
+    }
   }
   race.moved = true;
   refreshBicycleModels();
@@ -799,32 +803,13 @@ function initInput() {
     if(!next||getOnlineRoom()||pendingCampus||race.phase==='race'||race.phase==='count') {ui.coursePicker.value=race.event.id;return;}
     selectCourse(next);
   });
-  ui.mapCompare.addEventListener('click',()=>{
-    setShowMapComparison(!getShowMapComparison());
-    ui.mapCompare.setAttribute('aria-pressed',String(getShowMapComparison()));
-    renderCampusMap(ui.bigMap,race,false,zoomMap);
-  });
   ui.reviewMapButton.addEventListener('click',()=>{
     setShowMapComparison(true);
     zoomMap=true;
     openMap(true);
   });
   ui.practiceExit.addEventListener('click',exitSectorPractice);
-  ui.mapZoom.addEventListener('click',()=>{
-    zoomMap=!zoomMap;
-    updateMapZoom();
-    ui.mapPlace.hidden=true;
-    renderCampusMap(ui.bigMap,race,false,zoomMap);
-  });
-  ui.hospitalRoute.addEventListener('click',()=>{
-    uclRouteVisible=!uclRouteVisible; worldState.uclRouteVisible=uclRouteVisible;
-    updateMapZoom();
-    renderCampusMap(ui.bigMap,race,false,zoomMap);
-  });
-  ui.bigMap.addEventListener('pointermove',event=>{if(event.pointerType==='mouse')updateMapPlace(event);});
-  ui.bigMap.addEventListener('pointerleave',()=>{ui.mapPlace.hidden=true;});
-  ui.bigMap.addEventListener('click',handleMapClick);
-  initRouteBuilderControls();
+  initMapControls();
   ui.startTrial.addEventListener('click',startTrial);
   ui.freeRide.addEventListener('click',enterFreeRide);
   ui.pause.addEventListener('click',pauseTrial);
@@ -1238,7 +1223,7 @@ function run() {
     for (let i=0;i<onlineTags.length;i++) {
       const remote=extraRiders[i], tag=onlineTags[i];
       if (!tag) continue;
-      if (remote && length(subtract(remote.position,p))<maxTagDist) {
+      if (!onlineChaseView?.district && remote && length(subtract(remote.position,p))<maxTagDist) {
         const baseLabel = remote.tagLabel ?? (remote.skill ? `${remote.name} · ${translate(remote.skill)}` : remote.name||DEFAULT_RIDER_NAME);
         setRawText(tag, remote.tagLabel ? message`${remote.name} · ${Math.round(remote.chaseDistance)}m` : baseLabel);
         const tagY=remote.vehicle==='chair'?1.57:1.96;
@@ -1575,8 +1560,6 @@ export function getAppBridge() {
     setCameraRevision: v => { cameraRevision = v; },
     getZoomMap: () => zoomMap,
     setZoomMap: v => { zoomMap = Boolean(v); },
-    getUclRouteVisible: () => uclRouteVisible,
-    setUclRouteVisible: v => { uclRouteVisible = Boolean(v); worldState.uclRouteVisible = uclRouteVisible; },
     getSettingsOpen: () => settingsOpen,
     setSettingsOpen: v => { settingsOpen = Boolean(v); },
     getMapOpen: () => mapOpen,

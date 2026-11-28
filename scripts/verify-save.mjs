@@ -85,6 +85,8 @@ try {
   const v263PortableDir = join(temp, 'forzero-budget-windows-x64-2.6.3', 'save');
   const v264Dir = join(temp, 'forzero-budget-2.6.4', 'save');
   const v264PortableDir = join(temp, 'forzero-budget-windows-x64-2.6.4', 'save');
+  const v265Dir = join(temp, 'forzero-budget-2.6.5', 'save');
+  const v265PortableDir = join(temp, 'forzero-budget-windows-x64-2.6.5', 'save');
   const newDir = join(temp, `forzero-budget-${version}`);
   await mkdir(previousDir, { recursive: true });
   await mkdir(v232Dir, { recursive: true });
@@ -108,6 +110,8 @@ try {
   await mkdir(v263PortableDir, { recursive: true });
   await mkdir(v264Dir, { recursive: true });
   await mkdir(v264PortableDir, { recursive: true });
+  await mkdir(v265Dir, { recursive: true });
+  await mkdir(v265PortableDir, { recursive: true });
   await mkdir(oldDir, { recursive: true });
   await mkdir(v200Dir, { recursive: true });
   await mkdir(legacyDir, { recursive: true });
@@ -309,10 +313,23 @@ try {
   assert.deepEqual((await requestSave(createAppShell, saveDir, previous)).data, v264Portable, 'The other package form of 2.6.4 takes priority over 2.6.3');
   await writeFile(v264File, JSON.stringify(v264));
   assert.deepEqual((await requestSave(createAppShell, saveDir, previous)).data, v264, 'Matching package form takes priority within 2.6.4');
-  assert.equal((await requestSave(createAppShell, saveDir, previous, 'POST', v264)).status, 200);
+  const v265 = fixture('2.6.5 QA', '2026-11-28T11:20:00.000Z');
+  const v265Portable = fixture('2.6.5 Windows QA', '2026-11-28T11:21:00.000Z');
+  const v265File = join(v265Dir, 'player-data.json');
+  const v265PortableFile = join(v265PortableDir, 'player-data.json');
+  await writeFile(v265File, '{damaged');
+  await writeFile(v265PortableFile, '{damaged');
+  assert.deepEqual((await requestSave(createAppShell, saveDir, previous)).data, v264, 'A damaged 2.6.5 pair must fall back to 2.6.4');
+  await writeFile(v265PortableFile, JSON.stringify(v265Portable));
+  assert.deepEqual((await requestSave(createAppShell, saveDir, previous)).data, v265Portable, 'The other package form of 2.6.5 takes priority over 2.6.4');
+  await writeFile(v265File, JSON.stringify(v265));
+  assert.deepEqual((await requestSave(createAppShell, saveDir, previous)).data, v265, 'Matching package form takes priority within 2.6.5');
+  assert.equal((await requestSave(createAppShell, saveDir, previous, 'POST', v265)).status, 200);
   const migrated = (await requestSave(createAppShell, saveDir, [])).data;
-  assert.deepEqual(migrated.storage, v264.storage);
-  assert.deepEqual(migrated.friends, v264.friends ?? []);
+  assert.deepEqual(migrated.storage, v265.storage);
+  assert.deepEqual(migrated.friends, v265.friends ?? []);
+  assert.deepEqual(JSON.parse(await readFile(v265File, 'utf8')), v265);
+  assert.deepEqual(JSON.parse(await readFile(v265PortableFile, 'utf8')), v265Portable);
   assert.deepEqual(JSON.parse(await readFile(v264File, 'utf8')), v264);
   assert.deepEqual(JSON.parse(await readFile(v264PortableFile, 'utf8')), v264Portable);
   assert.deepEqual(JSON.parse(await readFile(v263File, 'utf8')), v263);
@@ -335,6 +352,8 @@ try {
   assert.deepEqual(JSON.parse(await readFile(v233File, 'utf8')), v233);
   assert.deepEqual(JSON.parse(await readFile(v232File, 'utf8')), v232);
   assert.deepEqual(JSON.parse(await readFile(priorFile, 'utf8')), prior);
+  await rm(v265File);
+  await rm(v265PortableFile);
   await rm(v264File);
   await rm(v264PortableFile);
   await rm(v263File);
@@ -368,7 +387,7 @@ try {
   await writeFile(current, '{damaged current');
   assert.equal((await requestSave(createAppShell, saveDir, previous, 'POST', expected)).status, 409);
   assert.equal(await readFile(current, 'utf8'), '{damaged current');
-  console.log('Save migration through 2.6.4, package form preference, earlier fallbacks and damaged save protection passed.');
+  console.log('Save migration through 2.6.5, package form preference, earlier fallbacks and damaged save protection passed.');
 } finally {
   await rm(temp, { recursive: true, force: true });
 }

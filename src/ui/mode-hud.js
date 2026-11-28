@@ -1,4 +1,5 @@
 // @ts-check
+import { districtChaseRules } from '../data/modes.js';
 import { relativeBearing } from '../race/blind-nav.js';
 import { message, translate } from './language.js';
 import { courierSummary } from './presentation-text.js';
@@ -100,23 +101,36 @@ export function getOnlineChaseHud(view, timeLabel) {
 
   const isHunter = snap.role === 'hunter';
   const remaining = timeLabel(snap.remainingMs);
+  const district = view.district;
+  const hunterTitle = district ? '街区捉人 · 猎手' : '联机捉人 · 本轮捉人者';
+  const runnerTitle = district ? '街区捉人 · 跑者' : '联机捉人 · 本轮逃跑者';
   let title;
   let detail;
   /** @type {CalloutHud | null} */
   let callout = null;
   if (snap.phase === 'count') {
     const seconds = secondsRemaining(snap.countdownMs);
-    title = isHunter ? '联机捉人 · 本轮捉人者' : '联机捉人 · 本轮逃跑者';
+    title = isHunter ? hunterTitle : runnerTitle;
     detail = message`发车倒计时 ${seconds} 秒`;
     callout = {
       mode: 'count', title: translate(isHunter ? '准备出击（捉人者）' : '准备逃脱（逃跑者）'), value: String(seconds),
-      detail: translate(isHunter ? '发车后需等待逃跑者先行 6 秒' : '开局即全速拉开距离！'), large: true,
+      detail: district
+        ? translate(isHunter ? '留意触发提示，选路截击。' : '经过 1 或 2，再从 A 或 B 撤离。')
+        : translate(isHunter ? '发车后需等待逃跑者先行 6 秒' : '开局即全速拉开距离！'), large: true,
     };
   } else if (snap.hunterLocked) {
     const seconds = secondsRemaining(snap.headStartRemainingMs);
-    title = '联机捉人 · 逃跑者先行';
+    title = district ? hunterTitle : '联机捉人 · 逃跑者先行';
     detail = message`还有 ${seconds} 秒出发拦截`;
     callout = {mode: 'count', title: translate('逃跑者先行中'), value: String(seconds), detail: translate('倒计时结束后自由追捕'), large: true};
+  } else if (district) {
+    title = isHunter ? hunterTitle : runnerTitle;
+    const zone = districtChaseRules.zones.find(zone=>zone.id===district.clueId);
+    const status = isHunter
+      ? zone ? message`${translate(zone.name)}刚被触发`
+        : translate(district.triggered ? '出口已开放 · 选路截击' : '留意路口 · 等待触发')
+      : translate(district.triggered ? '从 A 或 B 撤离' : '经过 1 或 2，再从 A 或 B 撤离。');
+    detail = `${remaining} · ${status}`;
   } else if (snap.isCaught) {
     title = '联机捉人 · 已被抓获';
     detail = message`余 ${remaining} · 等待本轮结束`;

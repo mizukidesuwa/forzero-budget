@@ -15,8 +15,9 @@ export const surfacePhysics = {
   puddle: { gripScale: .63, slipAdded: .12, splashMinSpeed: 2 },
 };
 
-// World meters. Small seams and the existing low flyover entries remain rideable.
-export const terrainStepRules = { maxStepUp: .40, probeSpacing: .10, refinementSpacing: .01 };
+// Step dimensions in world meters. Grade is rise divided by horizontal distance.
+export const terrainStepRules = { maxStepUp: .40, probeSpacing: .10, refinementSpacing: .01, maxGrassUphillGrade: 1 };
+export const terrainIndexCellLimit = 64;
 
 export const windPhysics = {
   gust: { frequencyA: .46, frequencyB: .93, phaseB: .71, angleMixB: .73, angleMixA: .27,

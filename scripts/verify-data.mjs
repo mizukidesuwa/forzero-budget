@@ -330,6 +330,21 @@ const baseSkin = {
 };
 const camelResult = game.validateSkinSpec(baseSkin);
 assert.equal(camelResult.valid, true, JSON.stringify(camelResult.errors));
+for (const { valid, ...head } of [
+  { primitive: 'ellipsoid', size: [0.20, 0.20, 0.20], yaw: 0, roll: 0.05, valid: true },
+  { primitive: 'box', size: [0.44, 0.42, 0.40], yaw: 0.20, roll: 0.05, valid: true },
+  { primitive: 'box', size: [0.44, 0.42, 0.40], yaw: 0.20, roll: Math.PI / 4, valid: false },
+]) {
+  const result = game.validateSkinSpec({
+    ...baseSkin,
+    model: {
+      ...baseSkin.model,
+      parts: baseSkin.model.parts.map(part => part.id === 'head' ? { ...part, ...head } : part),
+    },
+  });
+  assert.equal(result.valid, valid, JSON.stringify(result.errors));
+  if (!valid) assert.deepEqual(result.errors, ['model.parts.head: 头部尺寸过大或过小']);
+}
 const taperedExceeded = {
   ...baseSkin,
   bounds: { width: 0.80, height: 1.42, depth: 0.60 },

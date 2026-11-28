@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { Readable, Writable } from 'node:stream';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { createRideServer } from './server.mjs';
+import sharedRules from './shared-rules.cjs';
 import tuning190 from './tuning-190.cjs';
 
 const { protocol } = tuning190;
@@ -40,9 +41,9 @@ async function request(method,url,body,token,status=200) {
 }
 
 const route = {campus:'ucl',id:'seed-U2-326',seed:'U2-326',layout:'0123abcd'};
-async function enter(name,format,code) {
+async function enter(name,format,code,details={}) {
   const payload = code ? {code} : {format,route};
-  const result = await request('POST','/online/rooms',{name,protocol,...payload});
+  const result = await request('POST','/online/rooms',{name,protocol,...payload,...details});
   const url = '/online/rooms/'+result.room.code;
   const eventURL = url+'/events?id='+result.id+'&token='+result.token;
   const stream = emit('GET',eventURL);
@@ -96,6 +97,30 @@ try {
   const b = await enter('乙',null,a.room.code);
   const c = await enter('丙',null,a.room.code);
   const d = await enter('丁',null,a.room.code);
+  const { schemaVersion, rig, proportionDefaults, vehicles } = sharedRules.SKIN_CONSTANTS;
+  const body = { id: 'body', primitive: 'ellipsoid', material: 'green', center: [-0.10, 1.06, 0], size: [0.24, 0.34, 0.24] };
+  const tiltedHead = { id: 'head', primitive: 'ellipsoid', material: 'green', center: [0.02, 1.62, 0], size: [0.20, 0.20, 0.20], yaw: 0, roll: 0.05 };
+  const tiltedSkin = {
+    schemaVersion, id: 'round-head-qa', label: 'Round head QA', class: 'model', rig,
+    palette: { green: '#66bb88' }, proportions: proportionDefaults,
+    headMode: 'integrated', limbMode: 'hidden', animationProfile: 'seated-soft', accessories: [],
+    allowedVehicles: vehicles, bounds: { width: 1.04, height: 1.80, depth: 0.96 },
+    triangleBudget: 2400, model: { version: 1, parts: [body, tiltedHead] }, unlock: null,
+  };
+  await command(b, 'profile', { skinId: tiltedSkin.id, skinSpec: tiltedSkin });
+  const publishedSkin = a.stream.state().players.find(player => player.id === b.id);
+  assert.equal(publishedSkin.skinId, tiltedSkin.id);
+  assert.deepEqual(publishedSkin.skinSpec?.model.parts.find(part => part.id === 'head'), tiltedHead);
+
+  const oversizedSkin = {
+    ...tiltedSkin,
+    model: { version: 1, parts: [body, { ...tiltedHead, primitive: 'box', size: [0.44, 0.42, 0.40], roll: Math.PI / 4 }] },
+  };
+  await command(b, 'profile', { skinId: oversizedSkin.id, skinSpec: oversizedSkin });
+  const rejectedSkin = a.stream.state().players.find(player => player.id === b.id);
+  assert.equal(rejectedSkin.skinId, 'default');
+  assert.equal(rejectedSkin.skinSpec, null);
+
   assert.match(a.iceServers[0].username,new RegExp(':'+a.id+'$'));
   assert.ok(a.iceServers[0].credential);
   await request('POST','/online/rooms',{name:'E',protocol,code:a.room.code},undefined,409);
@@ -447,6 +472,73 @@ try {
   await command(partyHost,'start');
   assert.equal(partyHost.stream.state().round.builds[partyGuest.id].parts.sprint,'rocket');
   console.log('Shared blind budget, over-budget block, frozen gear, seed and party-only mods passed.');
+
+  const district = sharedRules.DISTRICT_CHASE_RULES;
+  const districtRoute = {campus:district.campus,id:district.courseId,seed:null,layout:'0123abcd'};
+  const districtClient = {districtChase:true,roundIdentity:true};
+  await request('POST','/online/rooms',{name:'Wrong map',protocol,format:district.format,route,...districtClient},undefined,400);
+  const districtHost = await enter('District H',district.format,null,{...districtClient,route:districtRoute,weather:'rain',tuningSeconds:30});
+  assert.equal(districtHost.room.weather,'day');
+  assert.equal(districtHost.room.tuningSeconds,0);
+  await request('POST','/online/rooms',{name:'Old client',protocol,code:districtHost.room.code},undefined,400);
+  const districtGuest = await enter('District G',null,districtHost.room.code,districtClient);
+  await request('POST','/online/rooms',{name:'Third rider',protocol,code:districtHost.room.code,...districtClient},undefined,409);
+  await command(districtHost,'config',{route},409);
+
+  async function startDistrict() {
+    await Promise.all([districtHost,districtGuest].map(player=>command(player,'ready',{ready:true})));
+    await command(districtHost,'start');
+    return districtHost.stream.state().round;
+  }
+  function visit(player,round,zone,status=200,x=zone.x) {
+    return command(player,'district-zone',{round:round.number,roundId:round.id,zoneId:zone.id,x,z:zone.z},status);
+  }
+  const [westTrigger,eastTrigger,westExit,eastExit] = district.zones;
+  const districtFirst = await startDistrict();
+  assert.equal(districtFirst.chase.hunterId,districtHost.id);
+  assert.equal(districtFirst.chase.headStartMs,4000);
+  assert.equal(districtFirst.deadline-districtFirst.goAt,85_000);
+  await visit(districtGuest,districtFirst,westTrigger,409);
+  time = districtFirst.goAt+1000;
+  await command(districtHost,'tag',{round:1,roundId:districtFirst.id,targetId:districtGuest.id},409);
+  await visit(districtHost,districtFirst,westTrigger,403);
+  await visit(districtGuest,districtFirst,westExit,409);
+  await visit(districtGuest,districtFirst,westTrigger,400,westTrigger.x+100);
+  await visit(districtGuest,districtFirst,westTrigger);
+  await visit(districtGuest,districtFirst,eastTrigger);
+  assert.deepEqual(districtHost.stream.state().round.chase.trigger,{id:westTrigger.id,ms:1000});
+  time = districtFirst.goAt+30_000;
+  await visit(districtGuest,districtFirst,eastExit);
+  let districtState = districtHost.stream.state();
+  assert.equal(districtState.phase,'between');
+  assert.equal(districtState.history[0].chase.settledReason,'escaped');
+  assert.equal(districtState.history[0].chase.exit.id,eastExit.id);
+  assert.equal(districtState.nextHunterId,districtGuest.id);
+
+  const districtSecond = await startDistrict();
+  assert.equal(districtSecond.chase.hunterId,districtGuest.id);
+  time = districtSecond.goAt+40_000;
+  await visit(districtGuest,districtFirst,westTrigger,409);
+  await visit(districtHost,districtSecond,eastTrigger);
+  await visit(districtHost,districtSecond,westExit);
+  districtState = districtHost.stream.state();
+  assert.equal(districtState.phase,'done');
+  assert.deepEqual(new Set(districtState.winners),new Set([districtHost.id,districtGuest.id]));
+
+  await command(districtHost,'config');
+  assert.equal(districtHost.stream.state().phase,'lobby');
+  const districtRematch = await startDistrict();
+  assert.notEqual(districtFirst.id,districtRematch.id);
+  time = districtRematch.deadline;
+  await visit(districtGuest,districtRematch,westTrigger,409);
+  await command(districtHost,'tag',{round:1,roundId:districtRematch.id,targetId:districtGuest.id},409);
+  await sleep(550);
+  districtState = districtHost.stream.state();
+  assert.equal(districtState.phase,'between');
+  assert.equal(districtState.history[0].chase.settledReason,'timeout');
+  assert.equal(districtState.history[0].results.find(result=>result.won).id,districtHost.id);
+  console.log('District Chase API passed fixed room rules, location and role checks, both exits, role rotation, tie, rematch and timeout.');
+
   console.log('Room API: capacity and auth, signal routing, BO1 tie, BO3 2–0 and 2–1, five league rounds, reconnect, host transfer, timeout, tuning phase, shunde route, collision rule, CORS, host-info and static assets passed.');
 } finally {
   Date.now = realNow;

@@ -37,6 +37,7 @@ const desktopRequired = [
   'server.mjs',
   'shared-rules.cjs',
   'room-rules.cjs',
+  'district-chase.cjs',
   'route-rules.cjs',
   'tuning-190.cjs',
   'README.md',

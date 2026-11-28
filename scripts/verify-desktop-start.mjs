@@ -96,9 +96,9 @@ try {
   await Promise.all([first,second].map(path=>cp(source,path,{recursive:true,filter:file=>file!==join(source,'save')})));
   const oldPortable = snapshot('Prior Windows');
   const oldLight = snapshot('Prior light');
-  const priorPortable = join(temp,'forzero-budget-windows-x64-2.6.4');
-  const priorLight = join(temp,'forzero-budget-2.6.4');
-  const olderPortable = join(temp,'forzero-budget-windows-x64-2.6.3');
+  const priorPortable = join(temp,'forzero-budget-windows-x64-2.6.5');
+  const priorLight = join(temp,'forzero-budget-2.6.5');
+  const olderPortable = join(temp,'forzero-budget-windows-x64-2.6.4');
   const olderSave = snapshot('Older Windows');
   const independent = snapshot('Independent');
   const archive = [{score:{name:'Friend'},replay:'existing archive entry'}];

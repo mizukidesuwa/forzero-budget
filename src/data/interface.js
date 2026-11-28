@@ -13,8 +13,10 @@ export function knownCameraView(value) {
 }
 
 export const alternateCamera = Object.freeze({
-  first: { eye: { bike: 1.65, ebike: 1.58, trail: 1.70, chair: 1.30 }, forward: .18, look: 14, near: .20 },
+  // Lens height above the rider position in world meters.
+  first: { eye: { bike: 1.78, ebike: 1.72, trail: 1.82, chair: 1.42 }, forward: .18, look: 14, near: .20 },
   second: { forward: 6, side: .7, height: 2.65, lookHeight: 1.30 },
+  terrainClearance: .12,
 });
 
 const previousTouchSizes = { compact: 80, standard: 100, large: 110 };

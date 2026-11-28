@@ -15,7 +15,7 @@ import { TYRE_RADIUS, WHEEL_TEETH_RATIO } from './models.js';
 import { crossesTerrainStep } from './terrain-transition.js';
 import { bicycleGravelSpeed, buildVehicleTuning, stockBike, wetBrakeScale, wetGripScale } from './vehicles.js';
 
-import { surfacePhysics, windPhysics } from '../data/surfaces.js';
+import { surfacePhysics, terrainStepRules, windPhysics } from '../data/surfaces.js';
 import { rocketSkill, skillPhysics } from '../data/vehicle-skills.js';
 import { poweredDefaults } from '../data/vehicles.js';
 
@@ -419,36 +419,51 @@ export function moveCyclist(rider, input, dt, exploring = false, wind = null, tr
       (followsDeck || clearance <= flyoverClearance.accessHeight);
     return { deck, clearance, useDeck, height: useDeck ? deck - CITY_ASPHALT : ground };
   };
-  const crossesStep = (px, pz, height) => {
+  const { maxGrassUphillGrade, maxStepUp } = terrainStepRules;
+  const terrainOverlap = (px, pz, height) => (query.terrainMeshHeight?.(px, pz) ?? height) - height;
+  // A rider already overlapping the bank may still move away from it.
+  const overlapLimit = Math.max(maxStepUp, terrainOverlap(p[0], p[2], heightBefore));
+  const movementAt = (px, pz, support = supportAt(px, pz)) => {
     const dx = px - p[0], dz = pz - p[2];
-    return crossesTerrainStep(Math.hypot(dx, dz), heightBefore, height,
-      t => supportAt(p[0] + dx * t, p[2] + dz * t).height);
-  };
-  const mayRide = (px, pz, support = supportAt(px, pz), blockedByStep = crossesStep(px, pz, support.height)) => {
-    if (blockedByStep) return false;
-    if (needsDeck && support.deck === null) return false;
-    if (needsDeck && support.useDeck) return true;
-    if (!followsDeck && support.clearance > flyoverClearance.accessHeight &&
-      support.clearance < flyoverClearance.obstructionHeight) return false;
-    return query.safeToRide(px, pz, exploring, true);
-  };
-  const hazardAt = (px, pz) => {
+    const distance = Math.hypot(dx, dz), rise = support.height - heightBefore;
+    const heightAt = t => supportAt(p[0] + dx * t, p[2] + dz * t).height;
+    if (crossesTerrainStep(distance, heightBefore, support.height, heightAt)) return 'blocked';
     if (query.waterHazardAt(px, pz)) return 'water';
-    return query.cliffHazardAt(px, pz, p[1]) ? 'cliff' : null;
+    // Approaching a marked cliff uphill is a collision with its face.
+    if (query.cliffHazardAt(px, pz, p[1])) return rise > 0 ? 'blocked' : 'cliff';
+    if (needsDeck && support.deck === null) return 'blocked';
+    if (needsDeck && support.useDeck) return 'clear';
+    if (!followsDeck && support.clearance > flyoverClearance.accessHeight &&
+      support.clearance < flyoverClearance.obstructionHeight) return 'blocked';
+    if (!support.useDeck && terrainOverlap(px, pz, support.height) > overlapLimit) return 'blocked';
+    if (!support.useDeck && distance > 0 && rise > distance * maxGrassUphillGrade &&
+      (surfaceKind === 'grass' || query.surfaceKindAt(px, pz, exploring) === 'grass')) {
+      // Measure the slope past a small, otherwise passable step at low speed.
+      const probe = maxStepUp / (distance * maxGrassUphillGrade);
+      if (probe <= 1 || heightAt(probe) - heightBefore > maxStepUp) return 'blocked';
+    }
+    return query.safeToRide(px, pz, exploring, true) ? 'clear' : 'blocked';
   };
   const targetSupport = supportAt(x, z);
-  const blockedByStep = crossesStep(x, z, targetSupport.height);
-  // A rider at the foot of a cliff hits its face before reaching the ground above.
-  rider.hazard = blockedByStep ? null : hazardAt(x, z);
-  if (!rider.hazard && !mayRide(x, z, targetSupport, blockedByStep)) {
-    const slideX = mayRide(x, p[2]), slideZ = mayRide(p[0], z);
-    if (slideX && (!slideZ || Math.abs(step[0]) > Math.abs(step[2]))) z = p[2];
-    else if (slideZ) x = p[0];
-    else { x = p[0]; z = p[2]; }
+  let movement = movementAt(x, z, targetSupport);
+  if (movement === 'blocked') {
+    const slideX = movementAt(x, p[2]), slideZ = movementAt(p[0], z);
+    if (slideX !== 'blocked' && (slideZ === 'blocked' || Math.abs(step[0]) > Math.abs(step[2]))) {
+      z = p[2];
+      movement = slideX;
+    } else if (slideZ !== 'blocked') {
+      x = p[0];
+      movement = slideZ;
+    } else {
+      x = p[0]; z = p[2];
+    }
     rider.speed *= .38;
-    if (blockedByStep && (x !== p[0] || z !== p[2])) rider.hazard = hazardAt(x, z);
   }
-  if (!rider.hazard) [x, z] = resolveVehicleCollisions(rider, x, z, p[1], trafficClock, mayRide, actors, query, environment?.collision);
+  rider.hazard = movement === 'water' || movement === 'cliff' ? movement : null;
+  if (!rider.hazard) {
+    [x, z] = resolveVehicleCollisions(rider, x, z, p[1], trafficClock,
+      (px, pz) => movementAt(px, pz) === 'clear', actors, query, environment?.collision);
+  }
   if (campus === 'shunde') {
     rider.surfaceKind = query.surfaceKindAt(x, z, exploring);
     rider.paved = rider.surfaceKind === 'paved';

@@ -27,6 +27,20 @@ export const citySolid = [];
 export const campusFixtures = [];
 export const uclFixtures = [];
 export const lawnSpans = [];
+export const terrainSpans = [];
+
+/**
+ * Emit solid ground into the terrain layer or a chunked render mesh.
+ * @param {(mesh: Shape) => void} draw
+ * @param {Shape} [mesh]
+ */
+export function emitTerrain(draw, mesh = terrain) {
+  const from = mesh.indices.length;
+  draw(mesh);
+  if (mesh !== terrain && mesh.indices.length > from) {
+    terrainSpans.push({ mesh, from, to: mesh.indices.length });
+  }
+}
 
 export const worldShapes = [masonry, scenery, urban, foliage, road, pavement, water, terrain];
 export const sceneLists = [cityJunctions, cityVehicles, citySolid, campusFixtures, treeSites, lawnSpans, uclFixtures];
@@ -34,6 +48,7 @@ export const sceneLists = [cityJunctions, cityVehicles, citySolid, campusFixture
 export function clearWorldShapes() {
   for (const shape of worldShapes) shape.vertices.length = shape.indices.length = 0;
   signs.length = 0;
+  terrainSpans.length = 0;
 }
 
 export const ROAD_CELL = 12;

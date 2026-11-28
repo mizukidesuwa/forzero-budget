@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
 import { Readable, Writable } from 'node:stream';
+import { routeRules } from '../src/data/routes.js';
+import { districtChaseRules } from '../src/data/modes.js';
+import { districtChaseContact, evaluateDistrictChase } from '../src/race/district-chase.js';
+import { encodeRouteCode, parseRouteCode } from '../src/race/route-code.js';
 import {
   buildCustomNetworkRoute,
   buildRidingScene,
@@ -21,8 +25,10 @@ import {
   makeSeedCourse,
 } from '../src/test-exports.js';
 import { createRideServer } from '../server/server.mjs';
+import serverRouteRules from '../server/route-rules.cjs';
 import { getCourseVariant } from '../src/race/course-variants.js';
 import { ghostCourseKey, loadFriendGhost, makeGhostFile, readGhostFile } from '../src/replay/ghost.js';
+import { createWorldQuery } from '../src/world/query.js';
 
 const backing = new Map();
 setStorage({
@@ -128,6 +134,65 @@ setStorage({
   }
 }
 
+// Long workshop routes need to fit both the map bounds and the shared R1 limits.
+const szuLoop = ['eastTeach', 'eastHosp', 'eastCentre', 'hospital', 'eastSpine'];
+const longWaypoints = Array.from({ length: routeRules.maxEdges + 2 }, (_, i) => szuLoop[i % szuLoop.length]);
+const longDraft = buildCustomNetworkRoute('szu', longWaypoints.slice(0, -1));
+assert.equal(longDraft.maximum, 3000);
+assert.equal(longDraft.edges.length, 64);
+assert.ok(longDraft.valid && longDraft.totalLength > 1080 && longDraft.code.length > 256, longDraft.error);
+assert.deepEqual(parseRouteCode(longDraft.code).edges, longDraft.edges);
+assert.deepEqual(serverRouteRules.parseRouteCode(longDraft.code).edges, longDraft.edges);
+assert.equal(serverRouteRules.encodeRoute(longDraft.route), longDraft.code);
+const longCourse = resolveRouteRef(longDraft.code, { networkFor: networkForCampus, makeNetworkCourse });
+assert.equal(Math.round(longCourse.event.length), longDraft.totalLength);
+
+const tooManyEdges = buildCustomNetworkRoute('szu', longWaypoints);
+assert.equal(tooManyEdges.valid, false);
+assert.equal(tooManyEdges.code, null);
+assert.match(tooManyEdges.error, /65.*64/);
+
+const uclLoop = ['endsleighGordon', 'endsleighTaviton', 'endsleighStreetN', 'gordonNE', 'tavitonGordon', 'gordonNW'];
+const tooFar = buildCustomNetworkRoute('ucl', [...Array.from({ length: 7 }, () => uclLoop).flat(), uclLoop[0]]);
+assert.equal(tooFar.valid, false);
+assert.equal(tooFar.code, null);
+assert.match(tooFar.error, /超出上限（3000 米）/);
+assert.ok(tooFar.edges.length < routeRules.maxEdges, 'Mileage must be checked even within the edge budget');
+
+const oversizedEdges = longDraft.edges.map(edge => ({ ...edge, id: edge.id.padEnd(32, 'x') }));
+const oversizedCode = longDraft.code.slice(0, longDraft.code.lastIndexOf('.') + 1) +
+  oversizedEdges.map(edge => `${edge.id}~${edge.direction}`).join(',');
+assert.ok(oversizedCode.length > routeRules.maxCodeLength);
+assert.equal(encodeRouteCode({ ...longDraft.route, edges: oversizedEdges }), null);
+assert.equal(serverRouteRules.encodeRoute({ ...longDraft.route, edges: oversizedEdges }), null);
+assert.equal(parseRouteCode(oversizedCode), null);
+assert.equal(serverRouteRules.parseRouteCode(oversizedCode), null);
+
+// District markers are on rideable roads, and UCL cover blocks close-range sight.
+{
+  const query = createWorldQuery('ucl');
+  for (const {x,z} of [districtChaseRules.start,...districtChaseRules.zones]) {
+    assert.equal(query.safeToRide(x,z),true);
+    assert.equal(query.surfaceAt(x,z),true);
+  }
+  assert.equal(districtChaseContact([30,.041,27],[30,.041,44]).visible,false);
+  assert.equal(districtChaseContact([120,.041,180],[120,.041,175]).visible,true);
+  assert.equal(districtChaseContact([120,.041,180],[120,.041,145]).visible,false);
+  const snap = {
+    active:true,phase:'race',role:'hunter',hunterId:'h',caughtMap:{},isCaught:false,selfCaughtAt:null,
+    totalRunners:1,caughtCount:0,remainingRunners:1,retiredIds:new Set(),countdownMs:0,elapsedMs:5000,
+    remainingMs:80_000,headStartRemainingMs:0,hunterLocked:false,settledReason:null,
+  };
+  const remote = {id:'r',name:'Runner',position:[120,.041,175],heading:0};
+  const fresh = evaluateDistrictChase(snap,{id:'2',ms:4000},[120,.041,180],[remote]);
+  assert.equal(fresh.district.clueId,'2');
+  assert.deepEqual(fresh.radarPings,[]);
+  assert.equal(fresh.catchCandidate?.id,'r');
+  const expired = evaluateDistrictChase({...snap,elapsedMs:8000},{id:'2',ms:4000},[120,.041,180],[remote]);
+  assert.equal(expired.district.clueId,null);
+  assert.equal(evaluateDistrictChase({...snap,hunterLocked:true},null,[120,.041,180],[remote]).catchCandidate,null);
+}
+
 // 3. Plan A: Online Chase Server + Client Visibility/Radar/Catch Logic
 {
   class MockResponse extends Writable {
@@ -168,6 +233,11 @@ setStorage({
   }
 
   try {
+    const longRoute = { ...longDraft.route, id: longCourse.event.id, layout: longCourse.layout, code: longDraft.code };
+    const longRoom = await reqJson('POST', '/online/rooms', { name: '长路线验收', protocol: tuning190.protocol, format: 'bo1', route: longRoute });
+    assert.equal(longRoom.room.route.code, longDraft.code);
+    assert.deepEqual(longRoom.room.route.edges, longDraft.edges);
+
     const route = { campus: 'szu', id: 'ring', seed: null, layout: '0123abcd' };
     const p1 = await reqJson('POST', '/online/rooms', { name: '追击甲', protocol: tuning190.protocol, format: 'chase', route });
     const s1 = emitReq('GET', `/online/rooms/${p1.room.code}/events?id=${p1.id}&token=${p1.token}`);

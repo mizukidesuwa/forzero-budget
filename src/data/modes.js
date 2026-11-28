@@ -49,3 +49,6 @@ export const blindNavRules = Object.freeze({
 });
 
 export const onlineChaseRules = sharedRules.ONLINE_CHASE_RULES;
+export const districtChaseRules = sharedRules.DISTRICT_CHASE_RULES;
+export const districtChaseZoneAt = sharedRules.districtChaseZoneAt;
+export const isChaseFormat = sharedRules.isChaseFormat;

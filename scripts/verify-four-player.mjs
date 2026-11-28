@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { openTestBrowser } from './browser-runner.mjs';
+import { districtChaseRules } from '../src/data/modes.js';
 import tuning190 from '../server/tuning-190.cjs';
 
 const { protocol } = tuning190;
@@ -354,6 +355,68 @@ try {
     })()`,'leaving chase clears the previous HUD',20_000);
   }));
   console.log('PASS: the online chase round shows its localized activity and clears it on leaving');
+
+  await host.evalPage(`(()=>{
+    const u=__FORZERO__.ui;
+    u.onlineButton.click();u.onlineFormat.value=${JSON.stringify(districtChaseRules.format)};
+    u.onlineFormat.dispatchEvent(new Event('change'));u.onlineCreate.click();
+  })()`);
+  await wait(host, `__FORZERO__.onlineRoom?.state.format===${JSON.stringify(districtChaseRules.format)} && __FORZERO__.onlineRoom.clockReady`, 'create district room');
+  const districtCode = await host.evalPage('__FORZERO__.onlineRoom.state.code');
+  await guest.evalPage(`(()=>{const u=__FORZERO__.ui;u.onlineButton.click();u.onlineCodeInput.value=${JSON.stringify(districtCode)};u.onlineJoinForm.requestSubmit()})()`);
+
+  async function startDistrictRound(number) {
+    for (const page of [host,guest]) {
+      await wait(page, "__FORZERO__.activeCampus==='ucl' && !__FORZERO__.ui.onlineReady.disabled", 'district ready in UCL');
+      await page.evalPage('__FORZERO__.ui.onlineReady.click()');
+      await wait(page, '__FORZERO__.onlineRoom.state.players.find(p=>p.id===__FORZERO__.onlineRoom.id)?.ready', 'district ready confirmed');
+    }
+    await wait(host, '!__FORZERO__.ui.onlineStart.disabled', 'district start');
+    await host.evalPage('__FORZERO__.ui.onlineStart.click()');
+    await Promise.all([host,guest].map(page=>wait(page,`(()=>{const s=__FORZERO__.onlineRoom;return s.state.phase==='race'&&s.state.round.number===${number}&&s.startedRound===s.state.round.id})()`, 'district countdown',20_000)));
+  }
+  const serverNow = 'performance.now()+__FORZERO__.onlineRoom.serverOffset';
+  const districtGoAt = '__FORZERO__.onlineRoom.state.round.goAt';
+  const putRider = (page,x,z) => page.evalPage(`Object.assign(__FORZERO__.race.rider,{position:[${x},.041,${z}],speed:0})`);
+
+  await startDistrictRound(1);
+  assert.equal(await host.evalPage('__FORZERO__.onlineRoom.state.round.chase.hunterId===__FORZERO__.onlineRoom.id'),true);
+  assert.match(await guest.evalPage('__FORZERO__.ui.activityTitle.textContent'),/^District Chase/);
+  await putRider(guest,120,136);
+  await wait(host,`${serverNow}>=${districtGoAt}+${districtChaseRules.headStartMs}`, 'first hunter unlocks');
+  const [trigger,,,eastExit] = districtChaseRules.zones;
+  await putRider(guest,trigger.x,trigger.z);
+  await wait(host,`__FORZERO__.onlineRoom.state.round.chase.trigger?.id===${JSON.stringify(trigger.id)}`, 'district trigger reached');
+  await wait(host,"__FORZERO__.ui.activityDetail.textContent.includes('Gordon Square 西北角')",'one-time trigger clue',4000);
+  if (!networkOnly) {
+    await host.evalPage(`(()=>{
+      const ctx=__FORZERO__.ui.miniMap.getContext('2d');
+      const {drawImage,rotate,fillText}=ctx;
+      ctx.drawImage=function(...args){globalThis.qaDistrictMap={rotations:0,labels:[]};return drawImage.apply(this,args)};
+      ctx.rotate=function(...args){qaDistrictMap.rotations++;return rotate.apply(this,args)};
+      ctx.fillText=function(label,...args){qaDistrictMap.labels.push(label);return fillText.call(this,label,...args)};
+    })()`);
+    await wait(host,"globalThis.qaDistrictMap?.labels.join('')==='12AB' && qaDistrictMap.rotations===1",'public district markers and only the local rider');
+  }
+  await host.evalPage('__FORZERO__.ui.mapToggle.click()');
+  assert.equal(await host.evalPage('!__FORZERO__.ui.mapScreen.hidden && __FORZERO__.ui.mapZoom.hidden && __FORZERO__.ui.stationList.hidden'),true);
+  await host.evalPage('__FORZERO__.ui.mapToggle.click()');
+  await wait(host,"!__FORZERO__.ui.activityDetail.textContent.includes('Gordon Square 西北角')",'clue expires',6000);
+  await putRider(guest,eastExit.x,eastExit.z);
+  await wait(host,"__FORZERO__.onlineRoom.state.phase==='between' && __FORZERO__.onlineRoom.state.history[0].chase.exit.id==='B'", 'runner escapes from east exit');
+
+  await startDistrictRound(2);
+  assert.equal(await guest.evalPage('__FORZERO__.onlineRoom.state.round.chase.hunterId===__FORZERO__.onlineRoom.id'),true);
+  await putRider(host,120,166);
+  await wait(guest,`${serverNow}>=${districtGoAt}+${districtChaseRules.headStartMs}`, 'roles swap and hunter unlocks');
+  assert.equal(await guest.evalPage('__FORZERO__.ui.onlineTag0.hidden'),true);
+  await putRider(guest,120,169);
+  await wait(host,"__FORZERO__.onlineRoom.state.phase==='done' && __FORZERO__.onlineRoom.state.history[1].chase.settledReason==='caught'", 'six-meter district catch');
+  assert.equal(await guest.evalPage('__FORZERO__.onlineRoom.state.winners.includes(__FORZERO__.onlineRoom.id)'),true);
+  await host.evalPage('__FORZERO__.ui.onlineStart.click()');
+  await wait(guest,"__FORZERO__.onlineRoom.state.phase==='lobby' && __FORZERO__.onlineRoom.state.history.length===0",'district rematch');
+  await Promise.all([host,guest].map(page=>page.evalPage('__FORZERO__.ui.onlineLeave.click()')));
+  console.log('PASS: District Chase showed public targets and a temporary clue, accepted an escape, swapped roles, caught a nearby rider and reopened the room.');
 } finally {
   if (browser) await browser.close();
   server.closeAllConnections?.();

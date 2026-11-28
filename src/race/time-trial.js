@@ -484,6 +484,7 @@ export class TimeTrial {
           : nearestSafeRoad(this.rider.position[0], this.rider.position[2], campus);
         if (spot) {
           this.rider.position = [...spot.p];
+          this.previousRiderPose = null;
           this.rider.heading = spot.heading;
           this.rider.speed = 0;
           this.rider.yawRate = 0;

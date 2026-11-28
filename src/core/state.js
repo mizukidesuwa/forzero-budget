@@ -25,7 +25,6 @@ export const worldState = {
   race: null,
   storage: browserPlayerStorage(),
   ui: null,
-  uclRouteVisible: false,
   hooks: {
     onWeatherChange: null,
     playSound: null,

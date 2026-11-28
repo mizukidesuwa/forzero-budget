@@ -4,9 +4,9 @@ import { initCourseBenchmarks } from '../race/records.js';
 import { indexRidingObstacles, resetStreetIndex } from './collision-index.js';
 import { getCampusProvider } from './registry.js';
 import { clearWorldShapes, sceneLists } from './geometry.js';
-import { buildParkWorld, shundeCampusInfo, shundeCourses } from './maps/shunde.js';
-import { campusUrbanWorld, szuCampusInfo, szuCourses } from './maps/szu.js';
-import { buildUclWorld, londonCourses, uclCampusInfo } from './maps/ucl.js';
+import { shundeCampusInfo, shundeCourses } from './maps/shunde.js';
+import { szuCampusInfo, szuCourses } from './maps/szu.js';
+import { londonCourses, uclCampusInfo } from './maps/ucl.js';
 
 export const campuses = {
   szu: szuCampusInfo,
@@ -33,16 +33,16 @@ initCourseBenchmarks(szuCourses);
 initCourseBenchmarks([...londonCourses, ...shundeCourses]);
 
 export function buildRidingScene(campus, { legacyUclFence = false } = {}) {
+  const provider = getCampusProvider(campus);
+  const buildScene = provider?.buildScene ?? getCampusProvider('szu').buildScene;
   worldState.trafficSceneRevision++;
   worldState.ridingObstacles = null;
   resetStreetIndex();
   clearWorldShapes();
   for (const items of sceneLists) items.length = 0;
   withRandom(campus === 'ucl' ? 248091 : 30986, () => {
-    if (campus === 'shunde') buildParkWorld();
-    else if (campus === 'ucl') buildUclWorld(legacyUclFence);
-    else campusUrbanWorld();
-    getCampusProvider(campus)?.buildTraffic?.();
+    buildScene({ legacyUclFence });
+    provider?.buildTraffic?.();
     worldState.ridingObstacles = indexRidingObstacles(campus);
   });
 }

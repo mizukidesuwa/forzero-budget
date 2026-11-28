@@ -6,13 +6,13 @@
 <meta name="theme-color" content="#0b0d0f">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 340 340'%3E%3Crect width='340' height='340' rx='52' fill='%230b0d0f'/%3E%3Cg transform='translate(0,116)'%3E%3Cg transform='translate(14,0) skewX(-10)' font-family='Arial Black, Arial, sans-serif'%3E%3Ctext x='10' y='65' font-size='59' font-weight='950' letter-spacing='-2' fill='%23ffffff'%3EFOR%3Ctspan fill='%23ff6433'%3EZERO%3C/tspan%3E:%3C/text%3E%3Ctext x='15' y='96' font-size='26' font-weight='900' letter-spacing='9' fill='%23ff6433'%3EBUDGET%3C/text%3E%3C/g%3E%3C/g%3E%3C/svg%3E">
 <meta name="description" content="FORZERO: BUDGET（有限竞速：地贫线）— 在深圳大学、伦敦与顺峰山公园之间自由骑行与计时竞速。">
-<title>FORZERO: BUDGET · 有限竞速：地贫线 2.6.5</title>
+<title>FORZERO: BUDGET · 有限竞速：地贫线 2.6.6</title>
 <!-- @style -->
 </head>
 <body>
 <main class="shell">
   <header class="masthead">
-    <div class="identity"><span class="brand-badge" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 108"><g transform="translate(14,0) skewX(-10)" font-family="Arial Black, Arial, sans-serif"><text x="10" y="65" font-size="59" font-weight="950" letter-spacing="-2" fill="#FFFFFF">FOR<tspan fill="#FF6433">ZERO</tspan>:</text><text x="15" y="96" font-size="26" font-weight="900" letter-spacing="9" fill="#FF6433">BUDGET</text></g></svg></span><div><strong class="brand-zh">有限竞速：地贫线</strong><small lang="en">FORZERO: BUDGET · 2.6.5</small></div></div>
+    <div class="identity"><span class="brand-badge" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 108"><g transform="translate(14,0) skewX(-10)" font-family="Arial Black, Arial, sans-serif"><text x="10" y="65" font-size="59" font-weight="950" letter-spacing="-2" fill="#FFFFFF">FOR<tspan fill="#FF6433">ZERO</tspan>:</text><text x="15" y="96" font-size="26" font-weight="900" letter-spacing="9" fill="#FF6433">BUDGET</text></g></svg></span><div><strong class="brand-zh">有限竞速：地贫线</strong><small lang="en">FORZERO: BUDGET · 2.6.6</small></div></div>
     <div class="location" id="campusName">深圳大学 · 粤海校区</div>
   </header>
   <section class="stage" tabindex="0" id="stage" data-phase="free" aria-label="FORZERO: BUDGET 有限竞速：地贫线">
@@ -90,8 +90,7 @@
     </div>
     <section class="map-screen" id="mapScreen" aria-labelledby="mapTitle" hidden>
       <div class="map-head"><h2 id="mapTitle">校园俯视地图</h2><span id="mapLegend">橙色是 player</span></div>
-      <div class="map-plate"><canvas id="bigMap" aria-label="俯视地图，显示校园道路、湖泊、教学楼、检查点和骑手位置">校园俯视地图</canvas><div id="mapReplay" class="map-replay" hidden><button id="replayPlay" class="action" type="button">播放</button><select id="replaySpeed" aria-label="播放倍速"><option value="1">1×</option><option value="2">2×</option></select><input id="replaySeek" type="range" min="0" max="1" value="0" aria-label="回放时间轴"><output id="replayDetail"></output></div><div class="map-tools"><button class="float-button" id="mapZoom" type="button" aria-pressed="false">看赛道</button><button class="float-button" id="mapCompare" type="button" aria-pressed="true" hidden>走线对比</button><button class="float-button" id="hospitalRoute"
-          type="button" aria-pressed="false" hidden>标出 UCLH 路线</button><button class="float-button" id="mapRouteBuild" type="button" aria-pressed="false" hidden>路线工坊</button><output class="map-place" id="mapPlace" hidden></output></div></div>
+      <div class="map-plate"><canvas id="bigMap" aria-label="俯视地图，显示校园道路、湖泊、教学楼、检查点和骑手位置">校园俯视地图</canvas><div id="mapReplay" class="map-replay" hidden><button id="replayPlay" class="action" type="button">播放</button><select id="replaySpeed" aria-label="播放倍速"><option value="1">1×</option><option value="2">2×</option></select><input id="replaySeek" type="range" min="0" max="1" value="0" aria-label="回放时间轴"><output id="replayDetail"></output></div><div class="map-tools"><button class="float-button" id="mapZoom" type="button" aria-pressed="false">看赛道</button><button class="float-button" id="mapCompare" type="button" aria-pressed="true" hidden>走线对比</button><button class="float-button" id="mapRouteBuild" type="button" aria-pressed="false" hidden>路线工坊</button><output class="map-place" id="mapPlace" hidden></output></div></div>
       <aside class="map-side">
         <h3 id="mapCourse">计时赛路线</h3>
         <div class="route-builder-panel" id="routeBuilderPanel" hidden>
@@ -330,7 +329,7 @@
         </div>
         <div class="setting-line">
           <label for="seedInput">种子码 / 路线代码 <small id="seedCampus"></small></label>
-          <input id="seedInput" type="text" maxlength="256" autocomplete="off" spellcheck="false" autocapitalize="characters" aria-describedby="seedStatus">
+          <input id="seedInput" type="text" autocomplete="off" spellcheck="false" autocapitalize="characters" aria-describedby="seedStatus">
         </div>
         <p class="bike-note" id="seedStatus" role="status">同一张地图输入同一种子码，得到同一条赛道。</p>
         <div class="settings-actions seed-actions">
@@ -384,9 +383,11 @@
             <option value="random">盲盒随机 · 三轮随机种子</option>
             <option value="triathlon">四项全能 · 四轮全载具</option>
             <option value="chase">联机捉人 · 1 追 N（三轮轮换）</option>
+            <option value="district-chase">街区捉人 · 1 对 1</option>
           </select>
           <button class="action primary" id="onlineCreate" type="button">创建房间</button>
         </div>
+        <p class="bike-note" id="onlineDistrictHelp" hidden>在 UCL 骑过一个触发区，再选一个出口撤离。</p>
         <div class="online-rules-row">
           <label>车型
             <select id="onlineVehicleRule">

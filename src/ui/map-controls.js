@@ -1,7 +1,8 @@
 import { getActiveCampus, worldState } from '../core/state.js';
+import { districtChaseRules } from '../data/modes.js';
 import { ShadowChase } from '../race/chase.js';
-import { getOnlineRoom } from '../online/client.js';
-import { getShowMapComparison, mapCache, renderCampusMap } from './minimap.js';
+import { getOnlineChaseView, getOnlineRoom } from '../online/client.js';
+import { getShowMapComparison, mapCache, renderCampusMap, setShowMapComparison } from './minimap.js';
 import { mapReplay } from '../replay/map-replay.js';
 import { londonPlaces } from '../world/maps/ucl.js';
 import { buildingAt } from '../world/query.js';
@@ -23,9 +24,7 @@ export function createMapControls({
   setMapOpen,
   getZoomMap,
   setZoomMap,
-  getUclRouteVisible,
   getReady,
-  getOnlineChaseOverlay,
 }) {
   const builder = {
     active: false,
@@ -36,7 +35,10 @@ export function createMapControls({
   };
 
   function currentOverlay() {
-    if (getOnlineRoom()) return getOnlineChaseOverlay?.() ?? null;
+    if (getOnlineRoom()) {
+      const view = getOnlineChaseView();
+      return view?.snap?.active ? { hideCourse:true, chasePings:view.radarPings, district:view.district } : null;
+    }
     const chase = ShadowChase.mapOverlay();
     if (!builder.active) return chase;
     return {
@@ -49,6 +51,11 @@ export function createMapControls({
         draft: builder.draft,
       },
     };
+  }
+
+  function districtMapActive() {
+    const state = getOnlineRoom()?.state;
+    return state?.format===districtChaseRules.format && state.phase==='race';
   }
 
   function redrawBigMap() {
@@ -91,7 +98,8 @@ export function createMapControls({
       if (draft?.valid) {
         setRawText(ui.routeBuilderStatus, message`已串联 ${builder.waypoints.length} 点 · ${draft.totalLength} 米 · 可立即生成并开跑`);
       } else {
-        setRawText(ui.routeBuilderStatus, draft?.error ? translate(draft.error) : translate('点击地图路口串联自定义赛道'));
+        const status = draft?.formatError?.(message) ?? translate(draft?.error ?? '点击地图路口串联自定义赛道');
+        setRawText(ui.routeBuilderStatus, status);
       }
     }
     if (ui.routeBuilderCode) {
@@ -109,16 +117,19 @@ export function createMapControls({
     const free = race.phase === 'free';
     const zoomMap = getZoomMap();
     const mapOpen = getMapOpen();
-    updateElevationMap();
+    const district = districtMapActive();
+    if (district) ui.elevationPanel.hidden = true;
+    else updateElevationMap();
     const london = getActiveCampus() === 'ucl';
-    ui.hospitalRoute.hidden = !london || !free || zoomMap || builder.active;
-    ui.mapCompare.hidden = !race.lastRun || builder.active;
+    ui.mapCompare.hidden = district || !race.lastRun || builder.active;
     ui.mapCompare.setAttribute('aria-pressed', String(getShowMapComparison()));
-    ui.hospitalRoute.setAttribute('aria-pressed', String(getUclRouteVisible()));
-    setText(ui.hospitalRoute, getUclRouteVisible() ? '隐藏 UCLH 路线' : '标出 UCLH 路线');
+    ui.mapZoom.hidden = district;
     ui.mapZoom.setAttribute('aria-pressed', String(zoomMap));
     setText(ui.mapZoom, zoomMap ? (getActiveCampus() === 'shunde' ? '看全园' : london ? '看街区' : free ? '看校外' : '看全校') : '看赛道');
-    if (free) {
+    if (district) {
+      ui.stationList.hidden = true;
+      setText(ui.mapCourse,'街区捉人');
+    } else if (free) {
       ui.stationList.hidden = (!zoomMap && !mapOpen) || builder.active;
       if (mapOpen && !builder.active) renderMapStationExtras();
       setText(ui.mapCourse, builder.active ? '地图点选建线' : zoomMap ? courseTitle(race.event) : getActiveCampus() === 'shunde' ? '顺峰山自由骑行' : london ? 'Bloomsbury 自由骑行' : '校内外道路');
@@ -137,8 +148,8 @@ export function createMapControls({
     ui.mapToggle.setAttribute('aria-pressed', String(show));
     setText(ui.mapText, show ? (race.phase === 'done' || (ShadowChase.active && !ShadowChase.isRunning()) ? '返回结算' : '返回骑行') : '俯视地图');
     if (show) {
-      ui.stationList.hidden = builder.active;
-      if (!builder.active) renderMapStationExtras();
+      ui.stationList.hidden = builder.active || districtMapActive();
+      if (!ui.stationList.hidden) renderMapStationExtras();
       redrawBigMap();
     } else {
       ui.mapPlace.hidden = true;
@@ -202,7 +213,25 @@ export function createMapControls({
     redrawBigMap();
   }
 
-  function initRouteBuilderControls() {
+  function initMapControls() {
+    ui.mapCompare.addEventListener('click', () => {
+      const showComparison = !getShowMapComparison();
+      setShowMapComparison(showComparison);
+      ui.mapCompare.setAttribute('aria-pressed', String(showComparison));
+      redrawBigMap();
+    });
+    ui.mapZoom.addEventListener('click', () => {
+      setZoomMap(!getZoomMap());
+      updateMapZoom();
+      ui.mapPlace.hidden = true;
+      redrawBigMap();
+    });
+    ui.bigMap.addEventListener('pointermove', event => {
+      if (event.pointerType === 'mouse') updateMapPlace(event);
+    });
+    ui.bigMap.addEventListener('pointerleave', () => { ui.mapPlace.hidden = true; });
+    ui.bigMap.addEventListener('click', handleMapClick);
+
     ui.mapRouteBuild?.addEventListener('click', () => {
       if (builder.active) resetBuilder(false);
       else {
@@ -253,7 +282,7 @@ export function createMapControls({
       if (!code) return;
       try {
         await navigator.clipboard.writeText(code);
-        if (ui.routeBuilderStatus) setRawText(ui.routeBuilderStatus, message`已复制分享码：${code}`);
+        if (ui.routeBuilderStatus) setText(ui.routeBuilderStatus, '已复制分享码。');
       } catch {
         if (ui.routeBuilderStatus) setText(ui.routeBuilderStatus, '请在下方选中并复制分享码。');
       }
@@ -263,9 +292,7 @@ export function createMapControls({
   return {
     updateMapZoom,
     openMap,
-    updateMapPlace,
-    handleMapClick,
-    initRouteBuilderControls,
+    initMapControls,
     currentOverlay,
     resetBuilder,
     refreshBuilderUi,

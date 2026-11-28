@@ -46,8 +46,9 @@ bounds 必须一次性提供 width、height、depth，单位是米，分别限�
 - center 是图元中心。ellipsoid 的 size 是三个半径，不是直径；box 的 size 是完整长宽高，不是半尺寸；tube 的 from/to 是两端点，radius 和 radius2 是实际半径。
 - body 中心必须落在 x=-0.35–0.15、y=1.05–1.30、z=-0.10–0.10。body 使用 ellipsoid 时每轴半径必须为 x=0.15–0.27、y=0.21–0.35、z=0.14–0.29，使用 box 时每轴完整尺寸必须为 x=0.30–0.54、y=0.42–0.70、z=0.28–0.58。
 - head 中心必须落在 x=-0.05–0.20、y=1.45–1.72、z=-0.10–0.10。head 使用 ellipsoid 时每轴半径必须为 0.11–0.22，使用 box 时每轴完整尺寸必须为 0.22–0.44。
+- head 缩放、旋转后，沿 x、y、z 三轴测得的包围盒边长最大为 0.56 米。默认倍率下，圆头 size=[0.20,0.20,0.20] 且 roll=0.05 时，最大边长仍为 0.40 米。
 - 四肢和颈部 tube 的 radius、radius2 推荐 0.025–0.11，手脚图元的实际尺寸推荐 0.04–0.20。不要使用接近全局上限的尺寸。
-- 所有图元缩放后必须严格满足以下**安全坐标盒**（含每个图元自身的半径或半尺寸），即可一次性通过外包络和 hip 偏移校验：
+- 所有图元缩放、旋转后必须严格满足以下**安全坐标盒**（含每个图元的实际包围盒），即可一次性通过外包络和 hip 偏移校验：
   - **x 总包络必须在 [-0.44, +0.45]**：特别注意尾巴或背部部件的端点 x **不得小于 -0.38**（半径 ≤ 0.06），手部可伸至车把 x ≈ 0.40–0.42（半尺寸 ≤ 0.03），这样 maxX - minX ≤ 0.89 ≤ 0.96 且相对 hip=[-0.222,0.990,0] 的 x 偏移 ≤ 0.68 ≤ 0.76。
   - **y 总包络必须在 [0.48, 1.84]**：脚部底面 ≤ 0.62、头顶/耳朵顶面 ≥ 1.74，确保总高度在 1.12–1.36 米（稳落 1.08–1.90 米内，且相对 hip 的 y 偏移 ≤ 0.85 ≤ 1.80×0.75）。
   - **z 总包络必须在 [-0.45, +0.45]**：手臂或躯干左右至少伸到 ±0.22，确保总宽度在 0.44–0.90 米（稳落 0.40–1.10 米内，且 |z| ≤ 0.45 ≤ 1.04×0.72）。
@@ -60,7 +61,7 @@ model 规则：
 - 每个图元必须有唯一小写 id、primitive、material。id 必须匹配 /^[a-z][a-z0-9_-]{0,31}$/，不得重复，且不得包含 helmet 或 backpack。
 - ellipsoid 和 box 只能使用 center、size、可选 anchor、yaw、roll。tube 只能使用 from、to、radius、可选 radius2、anchor、yaw、roll。禁止使用其它字段。
 - center、size、from、to 都必须是恰好三个数字的数组。所有局部坐标每轴必须在 -2.5–2.5，ellipsoid 半径和 box 尺寸每轴必须在 0.004–1.2，radius 和 radius2 必须在 0.004–0.45。实际生成尺寸还必须满足上面的部位推荐范围和最终外包络范围。
-- yaw、roll 必须是有限数字，绝对值不能超过 4π。不得使用 NaN、Infinity、字符串数字或数学表达式。
+- yaw、roll 使用弧度，必须是有限数字，绝对值不能超过 4π。ellipsoid 和 box 先绕 z 轴旋转 roll，再绕 y 轴旋转 yaw。不得使用 NaN、Infinity、字符串数字或数学表达式。
 - anchor 只能是 body、head、neck、back、leftHand、rightHand、leftFoot、rightFoot。身体部件应挂到合理挂点，不能发明新挂点。左右手臂与手部部件请优先标 anchor="leftHand"/"rightHand"，左右腿与脚部部件请优先标 anchor="leftFoot"/"rightFoot"，游戏会自动联动车把转向与踩踏动画；无四肢角色可不标这些挂点，不会强行拉伸。
 - 身体原点接近座位髋部，车辆把手参考位置约为 [0.43, 1.052, ±0.238]。手臂和手部可以合法延伸到该把手参考点，不要为了贴近髋部而截断手臂。不要生成车架、车轮、道路、碰撞盒或场景。
 
@@ -109,8 +110,9 @@ Geometry:
 - All dimensions are metres. Hip reference is [-0.222,0.990,0]. Positive x points towards the handlebars, y points up and z goes sideways. The handlebar reference is [0.43,1.052,±0.238].
 - The body centre must lie within x −0.35 to 0.15, y 1.05 to 1.30 and z −0.10 to 0.10. Body ellipsoid radii must be x 0.15–0.27, y 0.21–0.35 and z 0.14–0.29. Body box dimensions must be x 0.30–0.54, y 0.42–0.70 and z 0.28–0.58.
 - The head centre must lie within x −0.05 to 0.20, y 1.45 to 1.72 and z −0.10 to 0.10. Head ellipsoid radii must be 0.11–0.22 on each axis. Head box dimensions must be 0.22–0.44 on each axis.
+- After scaling and rotation, the longest side of the head's axis-aligned bounding box may be at most 0.56 m. With default multipliers, a round head with size=[0.20,0.20,0.20] and roll=0.05 still spans 0.40 m.
 - Recommended tube radii for limbs and neck are 0.025–0.11, and hand and foot dimensions 0.04–0.20. Avoid the global maximum for these parts.
-- Keep ALL scaled parts (including radius / half-size) inside this safe coordinate box so combined geometry (depth ∈ [0.45, 0.96], height ∈ [1.08, 1.90], width ∈ [0.40, 1.10]), bounds and hip offsets (x ≤ max(bounds.depth × 0.72, 0.76), y ≤ bounds.height × 0.75, |z| ≤ bounds.width × 0.72) all pass automatically:
+- Keep ALL parts inside this safe coordinate box, including each part's bounding box after scaling and rotation, so combined geometry (depth ∈ [0.45, 0.96], height ∈ [1.08, 1.90], width ∈ [0.40, 1.10]), bounds and hip offsets (x ≤ max(bounds.depth × 0.72, 0.76), y ≤ bounds.height × 0.75, |z| ≤ bounds.width × 0.72) all pass automatically:
   - **x in [-0.44, +0.45]**: keep rear parts such as tails at x ≥ -0.38 (radius ≤ 0.06), while hands may reach [0.40–0.42, 1.05, ±0.23] (half-size ≤ 0.03).
   - **y in [0.48, 1.84]**: keep feet bottom ≤ 0.62 and head/ears top ≥ 1.74 (total height ~1.12–1.36 m).
   - **z in [-0.45, +0.45]**: extend arms/torso to at least ±0.22 (total width ~0.44–0.90 m).
@@ -120,7 +122,7 @@ Model:
 - Each part needs a unique lowercase id, a primitive and a material. IDs must match /^[a-z][a-z0-9_-]{0,31}$/ and cannot contain helmet or backpack. Supported primitives: ellipsoid, tube and box.
 - Ellipsoid and box use center and size, plus optional anchor, yaw and roll. Tube uses the endpoints from and to and radius, plus optional radius2, anchor, yaw and roll. Do not add other fields.
 - center, size, from and to each contain exactly three numbers. Local coordinates range from −2.5 to 2.5. Ellipsoid size is three radii. Box size is three full dimensions. Each radius or dimension is 0.004–1.2. Tube radius and radius2 are 0.004–0.45. Apply the narrower body, head and combined limits above.
-- yaw and roll are finite numbers with absolute value ≤ 4π. Do not use NaN, Infinity, strings for numbers or expressions.
+- yaw and roll are finite numbers in radians with absolute value ≤ 4π. For ellipsoid and box, apply roll about z first, then yaw about y. Do not use NaN, Infinity, strings for numbers or expressions.
 - Allowed anchors: body, head, neck, back, leftHand, rightHand, leftFoot, rightFoot. Tag left/right arms and hands with anchor="leftHand"/"rightHand", and left/right legs and feet with anchor="leftFoot"/"rightFoot" so the game animates steering and pedaling automatically; omit limb anchors on limbless characters. Arms may extend to the handlebar reference. Do not generate a bicycle frame, wheels, roads, collision boxes or scenery.
 
 Budget each ellipsoid at 288 triangles, each tube at 40 and each box at 12, with a hard maximum total of 2400. Follow these primitive caps so the total never exceeds 2400: at most **6 ellipsoids** (only for torso/head), at most **8 tubes** (limbs/tail), and at most **14 boxes** (hands, feet, ears, snout, eyes). **Always set "triangleBudget": 2400** instead of guessing a smaller integer. Allow at most 6 accessories from eye, belly, scarf, vest, tail and antenna. Allowed accessory anchors: body, head, back, leftHand, rightHand. Accessory scale is 0.5–1.5 and colour is #RRGGBB.

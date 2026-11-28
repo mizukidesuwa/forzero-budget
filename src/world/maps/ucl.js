@@ -12,12 +12,12 @@ import { emitIronGateRail, emitRailFence, emitSlopedCourtRail } from '../assets/
 import { emitUclArrivalCourtDetails, emitUclGardenDetails, emitUclStreetWall, emitUclUrbanInfill } from '../assets/campus-v220.js';
 import { OBSTACLE_MARGIN, treeBlocks, uclFixtureAt } from '../collision-index.js';
 import {
-  bench, campusFootprint, closeToBlock, courseFrame, deciduous, facadeName, facadeOf,
+  bench, campusFootprint, closeToBlock, courseFrame, deciduous, emitTerrain, facadeName, facadeOf,
   fitsBetweenBuildings, foliage, footprintCorners, inOutline,
   londonPaving, lotBox, lotPart, lotPoint, masonry, namedSign,
   offsetVertex, pavement, placeTravelSign, plate, pointDistance, ribbon, road,
-  scenery, section, signs, street, streetCell, streetGapSquared, terrain, urban,
-  treeSites, uclFixtures, wallPanel, joinTrack,
+  scenery, signs, street, streetCell, streetGapSquared, urban,
+  treeSites, uclFixtures, wallPanel,
 } from '../geometry.js';
 import { registerCampus } from '../registry.js';
 import {
@@ -214,12 +214,6 @@ const uclLandmarks=[
   {name:'Birkbeck',x:91,z:260}, ...londonGardens.map(({name,center:[x,z]})=>({name,x,z}))
 ];
 
-
-const uclHospitalRoute=joinTrack([
-  section(londonRoads.get('quad'),[uclCampusInfo.arrival[0],uclCampusInfo.arrival[2]],junction.quadGate),
-  section(londonRoads.get('gower'),junction.quadGate,junction.eustonGower),
-  section(londonRoads.get('euston'),junction.eustonGower,[hospitalEntrance[0],-138])
-]).rows.map(row=>row.p).concat([hospitalEntrance]);
 
 function uclBuildingAt(x,z,margin=.38,y=0) {
   const contains=part=>y<part.height&&y+.1>=(part.bottom??0)&&closeToBlock(x,z,part,margin);
@@ -881,7 +875,9 @@ function uclStreetFurniture() {
 }
 
 function buildUclWorld(legacyUclFence = false) {
-  terrain.quad([-500,-.021,-475],[700,-.021,-475],[700,-.021,810],[-500,-.021,810],'#a5a09a',[0,1,0]);
+  emitTerrain(terrain => {
+    terrain.quad([-500,-.021,-475],[700,-.021,-475],[700,-.021,810],[-500,-.021,810],'#a5a09a',[0,1,0]);
+  });
   londonGroundSurfaces();
   londonStreetPaint();
   uclMainQuad();
@@ -2074,6 +2070,7 @@ function londonLantern(x, z) {
 }
 
 registerCampus('ucl', {
+  buildScene: ({ legacyUclFence }) => buildUclWorld(legacyUclFence),
   buildTraffic: () => buildLondonTraffic(cityVehicles),
   timingSpan: (frame, _c, fallback) => londonGateSpan(frame, fallback),
   safeToRide: (x, z) => canRideUcl(x, z),
@@ -2102,5 +2099,5 @@ export {
   senateHouse, stPancras, studentCentreLot, tubeStops, uclBounds, uclBuildingAt,
   uclBuildings, uclCampusInfo, uclQuad, uclQuadPlanting, uclStreetAt,
   uclStreetIndex, uclSurfaceAt, uclWayByPath, uclWays, unionBuilding, warrenTube,
-  londonLot, uclLandmarks, uclHospitalRoute, londonSection, uclLibrary, londonGroundSurfaces,
+  londonLot, uclLandmarks, londonSection, uclLibrary, londonGroundSurfaces,
 };

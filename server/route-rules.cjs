@@ -62,10 +62,10 @@ function encodeRoute(route) {
   const payload = normalized.source === 'fixed' ? normalized.id : normalized.source === 'seed' ? normalized.seed : normalized.networkRevision;
   const edges = normalized.edges.length ? '.' + normalized.edges.map(edge => `${encodeToken(edge.id)}~${edge.direction}`).join(',') : '';
   const code = `R1.${normalized.campus}.${sourceCode}.${encodeToken(payload)}.${normalized.variant.direction}.${normalized.variant.laps}${edges}`;
-  return code.length <= 256 ? code : null;
+  return code.length <= ROUTE_RULES.maxCodeLength ? code : null;
 }
 function parseRouteCode(text) {
-  if (typeof text !== 'string' || text.length > 256) return null;
+  if (typeof text !== 'string' || text.length > ROUTE_RULES.maxCodeLength) return null;
   const parts = text.trim().split('.');
   if (parts.length < 6 || parts.length > 7 || parts[0] !== 'R1') return null;
   const camp = campus(parts[1]);

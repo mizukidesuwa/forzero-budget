@@ -1,6 +1,7 @@
 import { TAU, add, headingVector } from '../core/math.js';
 import { getLanguage, message, translate } from './language.js';
 import { getActiveCampus, getPreferences, worldState } from '../core/state.js';
+import { districtChaseRules } from '../data/modes.js';
 import { CampusCourier } from '../race/courier.js';
 import { replayAt } from '../replay/ghost.js';
 import { mapReplay } from '../replay/map-replay.js';
@@ -17,7 +18,7 @@ import {
 } from '../world/maps/szu.js';
 import {
   ioe, londonGardens, londonNorth, londonPaths, londonPlaces,
-  senateHouse, tubeStops, uclBounds, uclBuildings, uclHospitalRoute, uclLandmarks,
+  senateHouse, tubeStops, uclBounds, uclBuildings, uclLandmarks,
   uclQuad, uclWays,
 } from '../world/maps/ucl.js';
 import { campuses } from '../world/scene-builder.js';
@@ -186,12 +187,6 @@ export function uclChart(width,height,dpr,compact,event,focus,exploring,cityView
       ctx.fill();ctx.stroke();
     }
   }
-  if(exploring&&!focus&&worldState.uclRouteVisible) {
-    mapPath(ctx,project,uclHospitalRoute);
-    ctx.strokeStyle=compact?'#a4e2de':'#2b6578';
-    ctx.lineWidth=compact?1.9:3;
-    ctx.stroke();
-  }
   if(!exploring||focus) drawCourseMap(ctx,project,compact,event);
   const reserved=[];
   const [pinX,pinY]=project(campuses.ucl.arrival);
@@ -268,7 +263,7 @@ export function uclChart(width,height,dpr,compact,event,focus,exploring,cityView
     }
   }
   travelPin(ctx,project,'ucl',true);
-  return {canvas,project,unproject,width,height,dpr,event,focus,exploring,cityView,hospitalRoute:worldState.uclRouteVisible};
+  return {canvas,project,unproject,width,height,dpr,event,focus,exploring,cityView};
 }
 
 export function parkChart(width,height,dpr,compact,event,focus,exploring,cityView) {
@@ -581,17 +576,47 @@ export function mapPin(ctx, project, rider, compact, ghost=false) {
   }
 }
 
+function drawDistrictZones(ctx,project,district,compact) {
+  const radius = compact ? 6.5 : 10;
+  ctx.save();
+  ctx.font = `700 ${compact?9:12}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const zone of districtChaseRules.zones) {
+    const [x,y] = project([zone.x,0,zone.z]);
+    const clue = district.clueId===zone.id;
+    ctx.beginPath();
+    ctx.arc(x,y,radius,0,TAU);
+    ctx.fillStyle = zone.kind==='exit' ? (district.triggered?'#9ce7ad':'#b9bfbb') : '#ffd780';
+    ctx.strokeStyle = '#252e2b';
+    ctx.lineWidth = 1.5;
+    ctx.fill();
+    ctx.stroke();
+    if (clue) {
+      ctx.beginPath();
+      ctx.arc(x,y,radius+(compact?4:7),0,TAU);
+      ctx.strokeStyle = '#ff934b';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#1e2b27';
+    ctx.fillText(zone.id,x,y+.4);
+  }
+  ctx.restore();
+}
+
 export function renderCampusMap(element,race,compact,focused=false,overlay=null) {
   const width = element.clientWidth, height = element.clientHeight;
   if (!width || !height) return;
   const dpr=Math.min(2,devicePixelRatio||1),event=race.event;
-  const exploring = race.phase === 'free';
+  const district = overlay?.district;
+  const exploring = Boolean(district) || race.phase === 'free';
+  if (district) focused = false;
   const outside = getActiveCampus()==='szu'&&!inCampus(race.rider.position[0],race.rider.position[2]);
   const cityView=getActiveCampus()==='szu'&&(exploring&&!compact&&!focused || outside&&(exploring||!event.cityAccess));
   let layout = mapCache.get(element);
   if (!layout || layout.width !== width || layout.height !== height || layout.dpr !== dpr || layout.event!==event ||
-      layout.language!==getLanguage() || layout.focus!==focused || layout.exploring!==exploring || layout.cityView!==cityView || layout.campus!==getActiveCampus() ||
-      (getActiveCampus()==='ucl'&&layout.hospitalRoute!==worldState.uclRouteVisible)) {
+      layout.language!==getLanguage() || layout.focus!==focused || layout.exploring!==exploring || layout.cityView!==cityView || layout.campus!==getActiveCampus()) {
     const chart=getActiveCampus()==='shunde'?parkChart:getActiveCampus()==='ucl'?uclChart:campusChart;
     layout=chart(width,height,dpr,compact,event,focused,exploring,cityView);
     layout.campus=getActiveCampus();
@@ -624,13 +649,18 @@ export function renderCampusMap(element,race,compact,focused=false,overlay=null)
       ctx.fillText(terminal ? translate(gate.number)[0] : String(gate.index),x,y+.2);
     }
   }
-  const shadow=getPreferences().ghost?race.ghost:null;
-  drawComparisonTraces(ctx,layout.project,race,compact);
-  const replay=drawReplayPins(ctx,layout.project,race,compact);
-  if(!replay&&shadow&&!worldState.onlineRoom&&!race.rivals?.length) mapPin(ctx,layout.project,shadow,compact,true);
-  if(!replay) for(const rival of race.rivals??[]) if(rival.pose) mapPin(ctx,layout.project,rival.pose,compact,true);
-  if(getPreferences().ghost&&!worldState.onlineRoom) for (const extra of race.extraGhosts) mapPin(ctx,layout.project,extra,compact,true);
-  for (const rider of (worldState.hooks.onlineRiderPoses ?? (() => []))(performance.now())) mapPin(ctx,layout.project,rider,compact,true);
+  let replay = false;
+  if (district) {
+    drawDistrictZones(ctx,layout.project,district,compact);
+  } else {
+    const shadow=getPreferences().ghost?race.ghost:null;
+    drawComparisonTraces(ctx,layout.project,race,compact);
+    replay=drawReplayPins(ctx,layout.project,race,compact);
+    if(!replay&&shadow&&!worldState.onlineRoom&&!race.rivals?.length) mapPin(ctx,layout.project,shadow,compact,true);
+    if(!replay) for(const rival of race.rivals??[]) if(rival.pose) mapPin(ctx,layout.project,rival.pose,compact,true);
+    if(getPreferences().ghost&&!worldState.onlineRoom) for (const extra of race.extraGhosts) mapPin(ctx,layout.project,extra,compact,true);
+    for (const rider of (worldState.hooks.onlineRiderPoses ?? (() => []))(performance.now())) mapPin(ctx,layout.project,rider,compact,true);
+  }
   if(!worldState.onlineRoom&&CampusCourier.active&&CampusCourier.target&&CampusCourier.campus===getActiveCampus()&&race.phase==='free') {
     const [cx,cy]=layout.project(CampusCourier.target.p);
     ctx.beginPath();ctx.arc(cx,cy,compact?4.5:9,0,TAU);

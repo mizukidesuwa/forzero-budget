@@ -2,6 +2,7 @@ import { COUNTDOWN_TICKS, STEP_MS } from '../core/clock.js';
 import { add, clamp, mix } from '../core/math.js';
 import { desktopInstallId } from '../core/browser-storage.js';
 import { getActiveCampus, getPreferences, getStorage, worldState } from '../core/state.js';
+import { districtChaseRules, districtChaseZoneAt } from '../data/modes.js';
 import { seedVersion } from '../race/seed-code.js';
 import { knownWeather, setActiveWeather, weatherChoices } from '../render/atmosphere.js';
 import { ghostCourseKey } from '../replay/ghost.js';
@@ -299,7 +300,8 @@ function onlineRaceRank(now) {
   return {rank, total, gapMeters, leaderName: leader?.name ?? ''};
 }
 
-const ONLINE_FORMAT = {bo1:'BO1',bo3:'BO3',league:'积分联赛',random:'盲盒随机',triathlon:'四项全能',chase:'联机捉人'};
+const ONLINE_FORMAT = {bo1:'BO1',bo3:'BO3',league:'积分联赛',random:'盲盒随机',triathlon:'四项全能',chase:'联机捉人',
+  [districtChaseRules.format]:'街区捉人'};
 const ONLINE_VEHICLE_RULE = {bike:'统一自行车',trail:'统一越野小摩托',ebike:'统一电动自行车',chair:'统一电动轮椅',any:'自由混选'};
 const ONLINE_API = '/online/rooms';
 const ONLINE_HOST_KEY = 'szu-litchi-online-host-1';
@@ -543,7 +545,15 @@ function onlineStandings(state) {
   for (const round of rows) {
     const line = document.createElement('li');
     let summary;
-    if (state.format==='chase' && round.chase) {
+    if (state.format===districtChaseRules.format && round.chase) {
+      const winner = round.results.find(result=>result.won);
+      if (winner) {
+        const reason = {escaped:'撤离成功',caught:'拦截成功',timeout:'守到超时',retired:'对手已退场'}[round.chase.settledReason];
+        const exit = districtChaseRules.zones.find(zone=>zone.id===round.chase.exit?.id);
+        const outcome = exit ? message`从 ${exit.id} 出口撤离` : translate(reason);
+        summary = `${names.get(winner.id)??translate('已退出骑手')} · ${outcome}`;
+      }
+    } else if (state.format==='chase' && round.chase) {
       const caughtCount = Object.keys(round.chase.caught ?? {}).length;
       summary = round.results.map(item => {
         const who = names.get(item.id) ?? translate('已退出骑手');
@@ -565,7 +575,9 @@ function onlineStandings(state) {
   }
   for (const player of state.standing) {
     const row = document.createElement('li');
-    const name = state.winners.includes(player.id)?message`冠军 · ${player.name}`:player.name;
+    const name = state.winners.includes(player.id)
+      ? (state.winners.length>1 && state.format===districtChaseRules.format ? message`平局 · ${player.name}` : message`冠军 · ${player.name}`)
+      : player.name;
     row.textContent = message`${name} · ${player.wins} 胜 · ${player.points} 分`;
     worldState.ui.onlineStanding.append(row);
   }
@@ -662,6 +674,9 @@ function renderOnline() {
   if (!session) {
     worldState.ui.onlineHostHint.hidden = true;
     worldState.ui.onlineHostControls.hidden = true;
+    const district = worldState.ui.onlineFormat.value===districtChaseRules.format;
+    worldState.ui.onlineDistrictHelp.hidden = !district;
+    for (const row of worldState.ui.onlineSetup.querySelectorAll('.online-rules-row')) row.hidden = district;
     if (worldState.ui.onlineFormat.value === 'triathlon') {
       worldState.ui.onlineVehicleRule.value = 'bike';
       worldState.ui.onlineVehicleRule.disabled = true;
@@ -673,6 +688,7 @@ function renderOnline() {
     return;
   }
   const {state} = session;
+  const district = state.format===districtChaseRules.format;
   const self = state.players.find(player=>player.id===session.id);
   const waiting = state.phase==='lobby'||state.phase==='between';
   const tuning = state.phase==='tuning';
@@ -681,7 +697,8 @@ function renderOnline() {
   const linked = onlineDataLinks(session);
   const rule = state.vehicleRule ?? 'bike';
   const weather = knownWeather(state.weather);
-  app.setText(worldState.ui.onlineTitle,translate(ONLINE_FORMAT[state.format])+' · '+(session.course?courseTitle(session.course):translate('载入赛道'))+' · '+translate(weatherChoices[weather].name));
+  const venue = district ? 'UCL · Gordon Square' : session.course ? courseTitle(session.course) : translate('载入赛道');
+  app.setText(worldState.ui.onlineTitle,translate(ONLINE_FORMAT[state.format])+' · '+venue+' · '+translate(weatherChoices[weather].name));
   app.setText(worldState.ui.onlineCode,state.code);
   const activeVeh = onlineVehicleForSession(session);
   const {tyres,gears,brakes} = worldState.race.bike;
@@ -690,7 +707,9 @@ function renderOnline() {
   const traffic = translate({off:'关闭',sparse:'稀疏',standard:'标准'}[knownTraffic(state.traffic)]);
   const collision = translate(state.collision?'开':'关');
   const ruleTags = message`车流 ${traffic} · 碰撞箱：${collision} · 改车 ${state.tuningSeconds??0}s · ${wLabel} · ${roomBudgetLabel(state)}`;
-  if (state.format==='triathlon') {
+  if (district) {
+    app.setText(worldState.ui.onlineBike,'跑者选一个触发区，再从任一出口撤离。两轮交换角色。');
+  } else if (state.format==='triathlon') {
     const rotation = state.vehicleRotation ?? ['bike', 'chair', 'trail'];
     const total = state.roundsTotal ?? rotation.length;
     const step = Math.min(total, state.history.length + (state.phase === 'done' ? 0 : 1));
@@ -711,7 +730,7 @@ function renderOnline() {
   worldState.ui.onlineHostHint.hidden = !hostHint;
   app.setText(worldState.ui.onlineHostHint,hostHint);
 
-  const canConfig = isHost && state.phase!=='race' && !tuning;
+  const canConfig = isHost && state.phase!=='race' && !tuning && !district;
   worldState.ui.onlineHostControls.hidden = !canConfig;
   if (canConfig) {
     const routeCampus = state.route?.campus ?? getActiveCampus();
@@ -741,7 +760,7 @@ function renderOnline() {
     worldState.ui.onlineLobbyVehicle.disabled = onlineBusy || state.format==='triathlon';
   }
 
-  const nextHunterId = state.format==='chase' ? onlineChaseNextHunterId(state) : null;
+  const nextHunterId = isOnlineChaseRoom(session) ? onlineChaseNextHunterId(state) : null;
   const roster = state.players.map(player=>{
     const row = document.createElement('li');
     const peer = session.peers.get(player.id);
@@ -767,9 +786,11 @@ function renderOnline() {
   worldState.ui.onlineReady.disabled = onlineBusy||!hasOnlineCourse(session)||!session.clockReady||
     (waiting && !self?.ready && (state.players.length<2||linked!==state.players.length-1));
   app.setText(worldState.ui.onlineReady,tuning?(self?.ready?'继续改装':'完成改装'):(self?.ready?'取消准备':'准备'));
-  worldState.ui.onlineStart.hidden = !(waiting||tuning)||!isHost;
-  app.setText(worldState.ui.onlineStart,tuning?'立即发车':'发车');
+  const rematch = district && state.phase==='done';
+  worldState.ui.onlineStart.hidden = !(waiting||tuning||rematch)||!isHost;
+  app.setText(worldState.ui.onlineStart,rematch?'再开一场':tuning?'立即发车':'发车');
   worldState.ui.onlineStart.disabled = onlineBusy||!hasOnlineCourse(session)||ridersMissing||
+    (rematch&&(state.players.length!==districtChaseRules.players||!state.players.every(player=>player.online)))||
     (waiting&&(state.players.length<2||!state.players.every(player=>player.online&&player.ready)||linked!==state.players.length-1));
   worldState.ui.onlineGarage.hidden = state.phase==='race';
   worldState.ui.onlineGarage.disabled = onlineBusy || (waiting && Boolean(self?.ready));
@@ -778,10 +799,11 @@ function renderOnline() {
   updateOnlineTuningBanner(session,performance.now());
   if (onlineNotice) return;
   const guidance = !session.course?'正在载入房间赛道…':!session.clockReady?'正在同步发车时钟…':state.phase==='done'?
-    (state.winners.length?'比赛结束。房主可切换赛道开始下一局。':'比赛结束，暂无完赛骑手。'):
+    (district?'两轮已结束。':state.winners.length?'比赛结束。房主可切换赛道开始下一局。':'比赛结束，暂无完赛骑手。'):
     tuning?(ridersMissing?'等待骑手重连后再发车。':'改装倒计时中：可进入车库调校配装，全员完成后自动发车。'):
     state.phase==='race'?'本轮进行中。':state.players.length<2?'复制邀请链接或把房主地址发给好友。':
-    linked!==state.players.length-1?'正在建立骑手间连接…':'准备前可点「车库改装」调整配装。';
+    linked!==state.players.length-1?'正在建立骑手间连接…':district&&state.phase==='between'?'双方交换角色，准备后开始下一轮。':
+      '准备前可点「车库改装」调整配装。';
   app.setText(worldState.ui.onlineStatus,guidance);
 }
 
@@ -980,9 +1002,13 @@ async function joinOnline(code) {
       initialAddresses = Array.isArray(started.addresses) ? started.addresses : [];
     }
     const event = worldState.race.event;
-    const entry = {...onlineProfilePayload(),protocol:tuning190.protocol,roundIdentity:true,raceProgress:true};
+    const entry = {...onlineProfilePayload(),protocol:tuning190.protocol,roundIdentity:true,raceProgress:true,districtChase:true};
+    const format = worldState.ui.onlineFormat.value;
+    const district = format===districtChaseRules.format;
     let routeEvent = event;
-    if (!code && worldState.ui.onlineFormat.value==='random') {
+    if (!code && district) {
+      routeEvent = coursesByCampus[districtChaseRules.campus].find(course=>course.id===districtChaseRules.courseId);
+    } else if (!code && format==='random') {
       if (event.campus==='shunde') {
         const list = coursesByCampus.shunde;
         routeEvent = list[Math.floor(Math.random()*list.length)];
@@ -993,14 +1019,15 @@ async function joinOnline(code) {
       }
     }
     const details = code ? {code} : {
-      format:worldState.ui.onlineFormat.value,
-      vehicleRule:worldState.ui.onlineFormat.value==='triathlon'?'bike':worldState.ui.onlineVehicleRule.value,
+      format,
+      vehicleRule:format==='triathlon'?'bike':worldState.ui.onlineVehicleRule.value,
       weather:worldState.ui.onlineWeather.value,
       budget:worldState.ui.onlineBudget.value,blind:worldState.ui.onlineBlind.value==='on',windMode:worldState.ui.onlineWindMode.value,
       windSpeed:Math.round(Math.max(0,Math.min(15,Number(worldState.ui.onlineWindSpeed?.value??0)||0))*10)/10,
       windDir:Math.max(0,Math.min(7,Math.round(Number(worldState.ui.onlineWindDir?.value??0)||0))),
       tuningSeconds:Math.max(0,Math.min(180,Math.round(Number(worldState.ui.onlineTuningTime?.value??30)||0))),
       collision:worldState.ui.onlineCollision?.value==='on',traffic:worldState.ui.onlineTraffic.value,
+      ...(district?districtChaseRules.roomSettings:{}),
       route:onlineRoutePayload(routeEvent),
     };
     const {id,token,room,iceServers} = await onlineRequest(origin+ONLINE_API,{...entry,...details});
@@ -1074,7 +1101,7 @@ async function hostUpdateOnlineConfig(changes) {
 
 async function hostSelectOnlineCourse(campus,courseId,randomSeed=false) {
   const session = onlineRoom;
-  if (!session || session.id!==session.state.host || session.state.phase==='race') return;
+  if (!session || session.id!==session.state.host || session.state.phase==='race' || session.state.format===districtChaseRules.format) return;
   let event;
   if (randomSeed) {
     const code = `${campus==='ucl'?'U':'S'}${seedVersion}-${Math.random().toString(36).slice(2,7).toUpperCase()}`;
@@ -1105,6 +1132,24 @@ function getOnlineChaseView(now = performance.now()) {
   });
 }
 
+function reachDistrictZone(session,snap,roundCommand,now) {
+  if (!snap?.active || snap.phase!=='race' || snap.role!=='runner' || snap.remainingMs<=0) return;
+  const kind = session.state.round.chase.trigger ? 'exit' : 'trigger';
+  if (session.districtZone?.kind!==kind) session.districtZone = null;
+  if (!session.districtZone) {
+    const [x,,z] = worldState.race.rider.position;
+    const zone = districtChaseZoneAt(x,z,kind);
+    if (!zone) return;
+    session.districtZone = {kind, sample:{zoneId:zone.id,x,z}, retryAt:now, sending:false};
+  }
+  const pending = session.districtZone;
+  if (pending.sending || now<pending.retryAt) return;
+  pending.sending = true;
+  void onlineCommand(session,{action:'district-zone',...roundCommand,...pending.sample})
+    .then(()=>{ pending.retryAt = Infinity; },()=>{ pending.retryAt = performance.now()+500; })
+    .finally(()=>{ pending.sending = false; });
+}
+
 function tickOnline(now) {
   const session = onlineRoom;
   if (session&&now>=(session.nextProbeAt??0)) {
@@ -1130,6 +1175,7 @@ function tickOnline(now) {
     session.reported = false;
     session.retired = false;
     session.tagSent = new Set();
+    session.districtZone = null;
     session.chasePingCache = { lastAt: -Infinity, byId: new Map() };
     if (isOnlineChaseRoom(session)) app.beginOnlineChaseRound();
     else app.beginTrial({ online:true });
@@ -1148,15 +1194,17 @@ function tickOnline(now) {
   if (isOnlineChaseRoom(session)) {
     const view = getOnlineChaseView(now);
     const snap = view?.snap;
+    if (view?.district) reachDistrictZone(session,snap,roundCommand,now);
     if (snap?.role==='hunter' && snap.phase==='race' && !snap.hunterLocked && view?.catchCandidate) {
       const cand = view.catchCandidate;
       if (!session.tagSent?.has(cand.id)) {
         session.tagSent ??= new Set();
         session.tagSent.add(cand.id);
-        worldState.hooks.playSound?.('finish');
+        if (!view.district) worldState.hooks.playSound?.('finish');
         void onlineCommand(session,{
           action:'tag', ...roundCommand, targetId:cand.id, ms:Math.max(1,Math.round(snap.elapsedMs)),
-        }).catch(() => { if (roundIdentity(session.state.round)===identity) session.tagSent?.delete(cand.id); });
+        }).then(()=>{ if (view.district && onlineRoom===session) worldState.hooks.playSound?.('finish'); })
+          .catch(() => { if (roundIdentity(session.state.round)===identity) session.tagSent?.delete(cand.id); });
       }
     }
     return;
@@ -1245,8 +1293,11 @@ function initOnline() {
   });
   worldState.ui.onlineReady.addEventListener('click',()=>void onlineLobbyCommand({action:'ready',
     ready:!onlineRoom.state.players.find(player=>player.id===onlineRoom.id)?.ready}));
-  worldState.ui.onlineStart.addEventListener('click',()=>void onlineLobbyCommand({
-    action:onlineRoom?.state.phase==='tuning'?'skipTuning':'start'}));
+  worldState.ui.onlineStart.addEventListener('click',()=>{
+    const state = onlineRoom?.state;
+    const rematch = state?.phase==='done' && state.format===districtChaseRules.format;
+    void onlineLobbyCommand({action:rematch?'config':state?.phase==='tuning'?'skipTuning':'start'});
+  });
   worldState.ui.settingsTuneReady?.addEventListener('click',async()=>{
     const session = onlineRoom;
     if (!session || session.state.phase!=='tuning' || onlineBusy) return;

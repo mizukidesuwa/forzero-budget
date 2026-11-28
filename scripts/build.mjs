@@ -6,7 +6,7 @@ import esbuild from 'esbuild';
 import { buildManifestName, describeBuildFile } from './build-manifest.mjs';
 import { writeDeterministicZip } from './deterministic-zip.mjs';
 
-export const VERSION = '2.6.5';
+export const VERSION = '2.6.6';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
@@ -95,6 +95,7 @@ writeFileSync(join(desktopDir, 'game.js'), gameJs, 'utf8');
 const serverCopies = [
   ['server.mjs', 'server.mjs', '\n'],
   ['room-rules.cjs', 'room-rules.cjs', '\n'],
+  ['district-chase.cjs', 'district-chase.cjs', '\n'],
   ['route-rules.cjs', 'route-rules.cjs', '\n'],
   ['README.md', 'README.md', '\n'],
   ['start-game.bat', '启动游戏.bat', '\r\n'],

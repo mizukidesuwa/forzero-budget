@@ -665,10 +665,32 @@ try {
     setActiveCampus(campus);
     buildRidingScene(campus);
     const network = networkForCampus(campus);
-    const waypoints = Object.keys(network.endpoints).slice(0, 3);
+    let waypoints = Object.keys(network.endpoints).slice(0, 3);
+    if (campus === 'ucl') {
+      const loop = ['endsleighGordon', 'endsleighTaviton', 'endsleighStreetN', 'gordonNE', 'tavitonGordon', 'gordonNW'];
+      waypoints = [...Array.from({ length: 6 }, () => loop).flat(), loop[0]];
+    }
     const route = buildCustomNetworkRoute(campus, waypoints, network);
     assert.equal(route.valid, true);
     const event = makeNetworkCourse(route.route, network);
+    if (campus === 'ucl') {
+      assert.ok(route.totalLength > 1280 && route.code.length > 256);
+      await evaluate('__FORZERO__.ui.mapToggle.click()');
+      assert.equal(await evaluate("document.getElementById('hospitalRoute') === null"), true);
+      assert.equal(await evaluate('__FORZERO__.ui.mapRouteBuild.hidden'), false);
+      await evaluate('__FORZERO__.ui.mapRouteBuild.click()');
+      assert.match(await evaluate('__FORZERO__.ui.routeBuilderStatus.textContent'), /max 3000 m and 64 road segments/);
+      assert.equal(await evaluate('__FORZERO__.ui.routeBuildApply.disabled'), true);
+      await evaluate('__FORZERO__.ui.mapToggle.click();__FORZERO__.ui.seedButton.click();__FORZERO__.ui.seedInput.select()');
+      assert.equal(await evaluate('__FORZERO__.ui.seedInput.maxLength'), saveRules.ROUTE_RULES.maxCodeLength);
+      await rpc('Input.insertText', { text: route.code }, sessionId);
+      assert.equal(await evaluate('__FORZERO__.ui.seedInput.value'), route.code);
+      await evaluate('__FORZERO__.ui.seedForm.requestSubmit()');
+      await wait(`!__FORZERO__.ui.seedDialog.open && __FORZERO__.race.event.id===${JSON.stringify(event.id)}`, 'UCL long workshop code did not import');
+      await evaluate('__FORZERO__.ui.startTrial.click()');
+      await wait("__FORZERO__.race.phase==='count'||__FORZERO__.race.phase==='race'", 'UCL long workshop route did not start');
+      await evaluate('__FORZERO__.ui.freeRide.click()');
+    }
     const networkGhost = environmentGhost(event, { ...event.benchmark, vehicle: 'bike' }, { name: 'Workshop QA', paint: 'classic' });
     await uploadGhost(networkGhost);
     await wait(`__FORZERO__.race.event.id===${JSON.stringify(event.id)} && __FORZERO__.race.opponent?.name==='Workshop QA' && !__FORZERO__.ui.friendDialog.open`,

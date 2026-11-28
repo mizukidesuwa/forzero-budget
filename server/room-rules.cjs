@@ -1,8 +1,15 @@
 const {randomBytes}=require('node:crypto');
 const tuning190=require('./tuning-190.cjs');
-const {ONLINE_CHASE_RULES}=require('./shared-rules.cjs');
+const {ONLINE_CHASE_RULES,DISTRICT_CHASE_RULES,isChaseFormat}=require('./shared-rules.cjs');
+const {districtChaseResults,tallyDistrictChase}=require('./district-chase.cjs');
 const ALL_ROUND_VEHICLES = Object.freeze(['bike','ebike','chair','trail']);
-const ROOM_ROUNDS = {bo1:1,bo3:3,league:5,random:3,triathlon:ALL_ROUND_VEHICLES.length,chase:ONLINE_CHASE_RULES.rounds};
+const ROOM_ROUNDS = {bo1:1,bo3:3,league:5,random:3,triathlon:ALL_ROUND_VEHICLES.length,chase:ONLINE_CHASE_RULES.rounds,
+  [DISTRICT_CHASE_RULES.format]:DISTRICT_CHASE_RULES.rounds};
+
+/** @typedef {'escaped' | 'caught' | 'timeout' | 'retired'} DistrictResult */
+/** @typedef {{phase: string, format: string, roster: import('./district-chase.cjs').Rider[], round: {
+ *  chase: {hunterId: string, settledReason: DistrictResult | null}, results: import('./district-chase.cjs').DistrictResult[]
+ * }}} DistrictRoundRoom */
 
 /** @param {{stream?: {destroyed?: boolean, writableEnded?: boolean} | null}} player */
 function roomPlayerOnline({stream}) {
@@ -49,6 +56,11 @@ function blindBudget(seed,policy) {
 }
 
 function tally(room) {
+  if (room.format === DISTRICT_CHASE_RULES.format) {
+    const {standing,leaders} = tallyDistrictChase(room.roster,room.history);
+    room.standing = standing;
+    return leaders;
+  }
   const totals = new Map(room.roster.map(({id,name})=>[id,{id,name,wins:0,points:0,finishes:0,time:0}]));
   if (room.format === 'chase') {
     for (const round of room.history) {
@@ -114,9 +126,30 @@ function settle(room) {
   for (const player of room.players.values()) player.ready = false;
 }
 
-function settleChaseRound(room, timedOut = false) {
-  if (room.phase !== 'race' || room.format !== 'chase' || !room.round?.chase) return false;
+/**
+ * @param {DistrictRoundRoom} room
+ * @param {DistrictResult} reason
+ * @param {string} winnerId
+ * @param {number} ms
+ * @param {string | null} [retiredId]
+ * @returns {boolean}
+ */
+function settleDistrictRound(room, reason, winnerId, ms, retiredId = null) {
+  if (room.phase !== 'race' || room.format !== DISTRICT_CHASE_RULES.format || !room.round?.chase) return false;
   const chase = room.round.chase;
+  chase.settledReason = reason;
+  room.round.results = districtChaseResults(room.roster,chase.hunterId,winnerId,ms,retiredId);
+  settle(room);
+  return true;
+}
+
+function settleChaseRound(room, timedOut = false) {
+  if (room.phase !== 'race' || !isChaseFormat(room.format) || !room.round?.chase) return false;
+  const chase = room.round.chase;
+  if (room.format === DISTRICT_CHASE_RULES.format) {
+    return settleDistrictRound(room,timedOut?'timeout':'caught',chase.hunterId,
+      timedOut?chase.durationMs:Object.values(chase.caught)[0]);
+  }
   chase.settledReason = timedOut ? 'timeout' : 'sweep';
   const retiredSet = new Set(room.round.results.filter(r => r.retired || r.ms === null).map(r => r.id));
   const caughtEntries = Object.values(chase.caught);
@@ -138,7 +171,7 @@ function settleChaseRound(room, timedOut = false) {
 }
 
 function tagChaseRunner(room, hunterId, targetId, ms) {
-  if (room.phase !== 'race' || room.format !== 'chase' || !room.round?.chase) return false;
+  if (room.phase !== 'race' || !isChaseFormat(room.format) || !room.round?.chase) return false;
   const chase = room.round.chase;
   if (chase.hunterId !== hunterId || targetId === hunterId) return false;
   if (!room.roster.some(player => player.id === targetId)) return false;
@@ -155,6 +188,15 @@ function tagChaseRunner(room, hunterId, targetId, ms) {
 
 function retire(room,id) {
   if (room.phase!=='race'||room.round.results.some(result=>result.id===id)) return;
+  if (room.format===DISTRICT_CHASE_RULES.format && room.round?.chase) {
+    if (!room.roster.some(player=>player.id===id)) return;
+    const opponent = room.roster.find(player=>player.id!==id);
+    if (opponent) {
+      const elapsed = Math.max(0,Math.min(room.round.chase.durationMs,Date.now()-room.round.goAt));
+      settleDistrictRound(room,'retired',opponent.id,elapsed,id);
+    }
+    return;
+  }
   if (room.format === 'chase' && room.round?.chase) {
     room.round.results.push({ id, ms: null, retired: true });
     const chase = room.round.chase;
@@ -192,7 +234,7 @@ function beginTuning(room,now) {
  * @returns {string | null}
  */
 function nextChaseHunterId(room, roster = room.roster?.length ? room.roster : [...room.players.values()]) {
-  if (room.format !== 'chase' || room.phase === 'done') return null;
+  if (!isChaseFormat(room.format) || room.phase === 'done') return null;
   const previous = roster.findIndex(player => player.id === room.history.at(-1)?.chase?.hunterId);
   for (let offset = 1; offset <= roster.length; offset++) {
     const { id } = roster[(previous + offset) % roster.length];
@@ -206,9 +248,12 @@ function beginRoomRound(room,now) {
   const players = [...room.players.values()];
   const roster = room.phase==='lobby' || !room.roster?.length || room.history.length===0
     ? players.map(({id,name})=>({id,name})) : room.roster;
-  const isChase = room.format === 'chase';
+  const isChase = isChaseFormat(room.format);
+  const district = room.format === DISTRICT_CHASE_RULES.format;
+  const chaseRules = district ? DISTRICT_CHASE_RULES : ONLINE_CHASE_RULES;
   const hunterId = nextChaseHunterId(room,roster);
-  if (!roomRosterOnline(room) || (isChase && (!hunterId || !roster.some(({id})=>id!==hunterId&&room.players.has(id))))) {
+  if (!roomRosterOnline(room) || (district && players.length!==DISTRICT_CHASE_RULES.players) ||
+      (isChase && (!hunterId || !roster.some(({id})=>id!==hunterId&&room.players.has(id))))) {
     return {kind:'connections',message:'等待骑手重连后再发车。'};
   }
   lockRoomVehicle(room);
@@ -225,16 +270,17 @@ function beginRoomRound(room,now) {
   const number = room.history.length+1;
   room.roundSerial = (room.roundSerial ?? 0) + 1;
   const poseNumber = players.every(player=>player.roundIdentity) ? room.roundSerial & 0xffff : number;
-  room.round = {number,id:`${room.matchId}:${number}`,poseNumber,goAt,deadline:goAt+(isChase?ONLINE_CHASE_RULES.durationMs:20*60_000),
+  room.round = {number,id:`${room.matchId}:${number}`,poseNumber,goAt,deadline:goAt+(isChase?chaseRules.durationMs:20*60_000),
     trafficSeed:randomBytes(4).readUInt32LE(),
     windSeed:randomBytes(4).readUInt32LE(),windMode:room.windMode,budget,blindSeed,
     ...(isChase ? {
       chase: {
         hunterId,
-        headStartMs: ONLINE_CHASE_RULES.headStartMs,
-        durationMs: ONLINE_CHASE_RULES.durationMs,
+        headStartMs: chaseRules.headStartMs,
+        durationMs: chaseRules.durationMs,
         caught: {},
         settledReason: null,
+        ...(district ? {trigger:null,exit:null} : {}),
       },
     } : {}),
     builds:Object.fromEntries(players.map(player=>[player.id,{
@@ -245,5 +291,5 @@ function beginRoomRound(room,now) {
   return null;
 }
 
-module.exports = {ROOM_ROUNDS,ALL_ROUND_VEHICLES,ONLINE_CHASE_RULES,lockRoomVehicle,tally,settle,settleChaseRound,tagChaseRunner,retire,beginTuning,beginRoomRound,nextChaseHunterId,
+module.exports = {ROOM_ROUNDS,ALL_ROUND_VEHICLES,ONLINE_CHASE_RULES,lockRoomVehicle,tally,settle,settleChaseRound,settleDistrictRound,tagChaseRunner,retire,beginTuning,beginRoomRound,nextChaseHunterId,
   roomVehicle,roomParts,roomBuildProblem,roomBudgetProblems,blindBudget,roomPlayerOnline,roomRosterOnline};

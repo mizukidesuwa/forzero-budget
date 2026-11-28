@@ -33,7 +33,7 @@ try {
   write('scripts/test-export.mjs',`import { mkdirSync, writeFileSync } from 'node:fs';\nmkdirSync('dist-v2'); writeFileSync('dist-v2/test-marker','tested');\n`);
   write('src/sentinel.js');
   write('scripts/verify-hygiene.mjs', '');
-  for (const file of ['index.html', 'style.css', 'game.js', 'server.mjs', 'shared-rules.cjs', 'room-rules.cjs',
+  for (const file of ['index.html', 'style.css', 'game.js', 'server.mjs', 'shared-rules.cjs', 'room-rules.cjs', 'district-chase.cjs',
     'route-rules.cjs', 'tuning-190.cjs', 'README.md', '启动游戏.bat', 'LICENSE']) write(`dist-v2/desktop/${file}`);
   for (const file of [desktopZip,mobileHtml,windowsZip]) write(`dist-v2/${file}`);
   const retainPortable = join(sandbox,'staged');

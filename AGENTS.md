@@ -8,6 +8,7 @@
 2. 按任务范围查阅 FORZERO-WORK-GUIDE.md。
 3. 只看 CHANGELOG.md 顶部条目，了解最近改动和已完成的验证。
 4. 需要了解玩家功能时再看 README.md。
+5. 涉及地图制作或地图资产时，按指南核对 `src/world/assets/index.js` 的当前导出和相关分类模块的参数、依赖。 [地图制作指南](src/world/maps/README.md)
 
 除非用户明确要求追溯历史，不要读取 HISTORY.md。
 
@@ -36,6 +37,7 @@
 
 - 新增参数和规则放在 src/data/，不要把魔法数字散落在物理、地图或 UI 中。
 - 新增可复用的围挡、栏杆、树、街具、路灯、车辆或场景网格时，在 src/world/assets/ 对应分类模块（`trees.js`、`rail-fence.js`、`street-furniture.js`、`lamps.js`、`barriers.js`、`traffic-vehicles.js`、`campus-v220.js`）创建或扩展 emitXxx(spec, dependencies) 形式的纯函数，并在 `src/world/assets/index.js` 统一重导出，不要把同类小件建模再内联堆入地图主文件。资产模块不得读取全局 worldState、消费全局随机流或操作 DOM。
+- 新增资产分类或改变共享资产的接入方式时，在同一次改动中核对受影响的地图调用和资产验证，并同步地图制作指南中的相关用法。
 - 地图特有逻辑通过地图注册和查询接口接入。独立子系统放在对应模块，由地图主文件或 `src/ui/app.js` 等入口装配。`app.js` 还负责帧循环调度。修改 `app.js` 时，随相关改动增量抽取能通过清晰接口独立维护的逻辑，并运行浏览器验收。
 - 已稳定的地图主文件和 src/online/client.js 不做没有收益的强行拆分。
 - 客户端与服务端共用的配件、价格、预算和协议规则必须同时检查两侧。违禁配件成绩不得进入正式存档、勋章或官方影子。

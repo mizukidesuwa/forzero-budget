@@ -1,8 +1,8 @@
 import { dot } from '../core/math.js';
-import { routeNetworkRevision } from '../data/routes.js';
+import { routeNetworkRevision, routeRules } from '../data/routes.js';
 import { encodeRouteCode } from '../race/route-code.js';
 import { validateRouteRef } from '../race/route-validation.js';
-import { along } from './geometry.js';
+import { along, joinTrack } from './geometry.js';
 import { networkForCampus } from './seed-courses.js';
 
 /** Return a readable Chinese/local label for a road-network intersection id. */
@@ -120,9 +120,12 @@ export function buildCustomNetworkRoute(campus, waypointIds, network = networkFo
 
   const waypoints = Array.isArray(waypointIds) ? waypointIds.filter(id => Boolean(network.points?.[id])) : [];
   if (waypoints.length < 2) {
+    const formatError = waypoints.length ? null
+      : format => format`请点击至少 2 个路口（上限 ${network.maximum} 米、${routeRules.maxEdges} 段道路）。`;
     return {
       valid: false,
-      error: waypoints.length ? '请再点击地图上的下一个路口或地标作为终点。' : '请在俯视地图上点击至少 2 个路口串联赛道。',
+      error: formatError ? formatError(String.raw) : '请再点击地图上的下一个路口或地标作为终点。',
+      formatError,
       campus,
       waypoints,
       edges: [],
@@ -165,7 +168,6 @@ export function buildCustomNetworkRoute(campus, waypointIds, network = networkFo
   }
 
   const edges = stitched.map(edge => ({ id: edge.id, direction: 1 }));
-  const totalLength = Math.round(stitched.reduce((sum, edge) => sum + edge.span, 0));
   const polyline = [];
   for (const edge of stitched) {
     for (const pt of sampleEdgePolyline(edge)) {
@@ -183,18 +185,27 @@ export function buildCustomNetworkRoute(campus, waypointIds, network = networkFo
     variant: { direction: 'forward', laps: 1 },
   };
   const validation = validateRouteRef(routeSpec, { networkFor: () => network });
-  const code = validation.valid ? encodeRouteCode(validation.route) : null;
-  const error = !validation.valid
-    ? (totalLength < network.minimum
-      ? `当前路线仅 ${totalLength} 米（需至少 ${network.minimum} 米），请继续选点。`
-      : totalLength > network.maximum
-        ? `当前路线 ${totalLength} 米超出上限（${network.maximum} 米），请撤销几段。`
-        : validation.error)
-    : (!code ? '路线过长无法生成分享码，请适当精简拐点。' : null);
+  // The joined path accounts for the bends between road edges.
+  const length = validation.valid
+    ? joinTrack(stitched).length
+    : stitched.reduce((sum, edge) => sum + edge.span, 0);
+  const totalLength = Math.round(length);
+  let formatError = null;
+  if (edges.length > routeRules.maxEdges) {
+    formatError = format => format`当前路线有 ${edges.length} 段道路（上限 ${routeRules.maxEdges} 段），请撤销几段。`;
+  } else if (length < network.minimum) {
+    formatError = format => format`当前路线仅 ${Math.floor(length)} 米（需至少 ${network.minimum} 米），请继续选点。`;
+  } else if (length > network.maximum) {
+    formatError = format => format`当前路线 ${Math.ceil(length)} 米超出上限（${network.maximum} 米），请撤销几段。`;
+  }
+  let error = formatError ? formatError(String.raw) : validation.error;
+  const code = !error ? encodeRouteCode(validation.route) : null;
+  if (!error && !code) error = '路线过长无法生成分享码，请适当精简拐点。';
 
   return {
     valid: Boolean(validation.valid && code),
     error,
+    formatError,
     campus,
     waypoints,
     edges,

@@ -1,5 +1,29 @@
 # 更新日志（CHANGELOG）
 
+## Unreleased
+
+## 2.6.6 — 共享地形碰撞、第一人称与 UCL 街区捉人
+
+- 深大、UCL 和顺峰山统一登记 `buildScene`，用 `emitTerrain()` 绘制实体地形。场景构建时按实际三角形建立共享索引，供车辆碰撞和镜头避让读取。顺峰山的分块山体也走同一入口。新图可直接用网格提供骑行标高。关联 `src/world/geometry.js`、`src/world/scene-builder.js`、`src/world/collision-index.js`、`src/world/mesh-surface.js` 与 `src/world/query.js`，接入示例见 `src/world/maps/README.md`。
+- 第一人称镜头提高 12 至 14 厘米。自行车、电动自行车、越野小摩托和电动轮椅的镜头相对骑手位置分别为 1.78、1.72、1.82 和 1.42 米。关联 `src/data/interface.js`。
+- 回归覆盖新图网格支撑、坡脚阻挡与倒车、镜头避让、切图地形索引和三图四车型的横竖屏 1P 高度。通过 `npm run build`、`npm run lint`、`npm run typecheck` 和 `npm run verify:all -- --skip-build` 的 18 项检查。沿用 v2.6.0 运行时基线和现有地图及资产快照。
+
+- 修复崖脚上坡误触发「冲出山路」并复位到高处，以及沿边滑动进入危险区时漏判的问题。直接移动、滑动和碰撞推挤共用落点判定，草地连续陡坡受上行坡度限制。共用三角网格查询向碰撞和镜头提供实际绘制的地形高度，自由骑行复位时立即刷新显示姿态。关联 `src/ride/physics.js`、`src/world/mesh-surface.js`、`src/world/query.js`、`src/render/ride-camera.js` 与 `src/race/time-trial.js`。
+- 顺峰山回归覆盖四车型崖脚停车和倒车、实际山路落崖加 2 秒、路肩山体阻挡及二、三人称镜头避让。独立测试地图验证了共享网格查询的阻挡与倒车。通过 `npm run build`、`npm run lint`、`npm run typecheck` 和 `npm run verify:all -- --skip-build` 的 18 项检查。沿用 v2.6.0 运行时基线和现有地图快照。
+
+- 修复骑手皮肤轻微旋转时被误判为超尺寸的问题。客户端和联机服务端共用椭球和方盒按渲染角度计算的包围盒，头部实际最大跨度上限为 0.56 米。中英文 AI 提示词补充旋转顺序、弧度和头部跨度的例子。关联 `src/data/shared-rules.cjs`、`src/ride/rider-skin.js`、`server/server.mjs` 与 `src/data/rider-skin-prompt.js`。
+- 回归验证半径 0.20 米的圆头倾斜 0.05 弧度仍可导入和联机同步，实际超限的旋转方头仍被拒绝。GPT-5.6-Luna 按中文提示词首次生成的样例通过本地注册和联机同步。通过 `npm run build`、`npm run lint`、`npm run typecheck` 与 `npm run verify:all -- --skip-build` 的 18 项检查。沿用 v2.6.0 运行时基线和现有地图快照。
+
+- 联机新增 UCL「街区捉人 · 1 对 1」试跑赛制。跑者先行 4 秒，经过任一触发区后可从两个出口择一撤离。触发地点只向猎手提示 3 秒，近距离无遮挡才显示对手，6 米内可抓捕。每轮 85 秒，两轮换边各计一分。关联 `src/data/shared-rules.cjs`、`src/race/district-chase.js`、`src/online/client.js`、`src/ui/minimap.js` 与 `server/district-chase.cjs`。
+- 双端 Chrome 验证了地图的公共目标、短暂提示、撤离、抓捕、换边和重开。无干扰的游戏物理试骑分别用时约 38 秒和 44 秒。通过 `npm run build`、`npm run lint`、`npm run typecheck` 与 `npm run verify:all -- --skip-build` 的 18 项检查，并核对了桌面发行 ZIP 的房规模块。沿用 v2.6.0 运行时基线和现有地图快照。
+
+- 移除 UCL 俯视地图的「标出 UCLH 路线」按钮与辅助走线，将俯视地图的画布事件、缩放和走线对比统一接入地图控制模块。关联 `src/ui/map-controls.js`、`src/ui/minimap.js` 与 `src/world/maps/ucl.js`。
+- 深大与 UCL 路线工坊的单条长度上限从 1080 米和 1280 米统一提高到 3000 米，道路段数上限从 32 提高到 64。客户端与联机服务端共用 1024 字符的 R1 分享码上限。关联 `src/data/shared-rules.cjs`、`src/world/route-builder.js`、`src/world/seed-courses.js`、`src/ui/seed-dialog.js` 与 `server/route-rules.cjs`。
+- 通过 `npm run build`、`npm run lint`、`npm run typecheck` 和 `npm run verify:all -- --skip-build` 的 18 项全量检查。Chrome 验证了 UCL 约 2.77 公里的路线码粘贴导入与发车，服务端验证了深大 64 段道路路线建房。覆盖距离、段数和路线码超限，沿用 v2.6.0 运行时基线及现有地图快照。
+
+- 桌面版从 2.6.5 升级时，优先迁移同版本的匹配包型存档。两种 2.6.5 存档都损坏时继续尝试 2.6.4。关联 `server/server.mjs`、`scripts/verify-save.mjs` 与 `scripts/verify-desktop-start.mjs`。
+- 通过 `npm run lint`、`npm run typecheck`、`npm run build:release`、`node scripts/verify-save.mjs` 与 `node scripts/verify-desktop-start.mjs`，核对了轻量版和 Windows 免安装版的存档继承顺序与损坏回退。
+
 ## 2.6.5 — 桌面存档跨端口与浏览器恢复
 
 - 桌面启动器在同一安装的 `save/player-data.pending.json` 持久化待写个人进度。桌面导入等启动器确认后再显示成功，旧正式保存响应挂起时仍可登记新进度。换端口或浏览器配置重开时先合并待写进度，正式保存完成后按修订清理。关联 `src/ui/save-sync.js`、`src/data/interface.js` 与 `server/server.mjs`。

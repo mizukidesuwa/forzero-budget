@@ -1,4 +1,5 @@
-import { getActiveCampus } from '../core/state.js';
+import { getActiveCampus, worldState } from '../core/state.js';
+import { sampleMeshSurface } from './mesh-surface.js';
 import { getCampusProvider } from './registry.js';
 
 export function safeToRide(x, z, exploring = false, skipHazard = false, campus = getActiveCampus()) {
@@ -29,7 +30,13 @@ export function cityWallAt(x, z, y = 0, campus = getActiveCampus()) {
 
 export function rideElevation(x, z, campus = getActiveCampus()) {
   const p = getCampusProvider(campus);
-  return p?.rideElevation ? p.rideElevation(x, z) : 0;
+  return p?.rideElevation ? p.rideElevation(x, z) : terrainMeshHeight(x, z, campus) ?? 0;
+}
+
+/** World-space height sampled from the rendered terrain, when available. */
+export function terrainMeshHeight(x, z, campus = getActiveCampus()) {
+  const obstacles = worldState.ridingObstacles;
+  return obstacles?.region === campus ? sampleMeshSurface(obstacles.ground, x, z)?.height ?? null : null;
 }
 
 export function onCampusGround([x, y, z], campus = getActiveCampus()) {
@@ -76,6 +83,7 @@ export function createWorldQuery(campus = getActiveCampus()) {
     buildingAt: (x, z, margin = .38, y = 0) => buildingAt(x, z, margin, y, campus),
     cityWallAt: (x, z, y = 0) => cityWallAt(x, z, y, campus),
     rideElevation: (x, z) => rideElevation(x, z, campus),
+    terrainMeshHeight: (x, z) => terrainMeshHeight(x, z, campus),
     onCampusGround: (pt) => onCampusGround(pt, campus),
     riderGrade: (position, heading) => riderGrade(position, heading, campus),
     waterHazardAt: (x, z) => waterHazardAt(x, z, campus),

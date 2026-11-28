@@ -1,6 +1,7 @@
 // @ts-check
 import { clamp } from '../core/math.js';
-import { onlineChaseRules } from '../data/modes.js';
+import { districtChaseRules, isChaseFormat, onlineChaseRules } from '../data/modes.js';
+import { evaluateDistrictChase } from './district-chase.js';
 
 /**
  * @typedef {'hunter' | 'runner'} OnlineChaseRole
@@ -44,6 +45,7 @@ import { onlineChaseRules } from '../data/modes.js';
  *   proximity: OnlineChaseProximity,
  *   nearestDistance: number,
  *   catchCandidate: { id: string, name: string, distance: number } | null,
+ *   district?: import('./district-chase.js').DistrictChaseView,
  * }} OnlineChasePeerEvaluation
  */
 
@@ -53,7 +55,7 @@ import { onlineChaseRules } from '../data/modes.js';
  * @returns {boolean}
  */
 export function isOnlineChaseRoom(session) {
-  return Boolean(session?.state?.format === 'chase');
+  return isChaseFormat(session?.state?.format);
 }
 
 /**
@@ -62,7 +64,7 @@ export function isOnlineChaseRoom(session) {
  * @returns {string | null}
  */
 export function onlineChaseNextHunterId(state) {
-  if (!state || state.format !== 'chase') return null;
+  if (!isChaseFormat(state?.format)) return null;
   if (state.phase === 'race' && state.round?.chase?.hunterId) return state.round.chase.hunterId;
   if (Object.hasOwn(state, 'nextHunterId')) return state.nextHunterId;
   const list = state.roster?.length ? state.roster : state.players;
@@ -93,8 +95,9 @@ export function onlineChaseSnapshot(session, now = performance.now()) {
   const serverNow = now + (session.serverOffset ?? 0);
   const countdownMs = Math.max(0, round.goAt - serverNow);
   const elapsedMs = Math.max(0, serverNow - round.goAt);
-  const headStartMs = chase.headStartMs ?? onlineChaseRules.headStartMs;
-  const durationMs = chase.durationMs ?? onlineChaseRules.durationMs;
+  const rules = state.format===districtChaseRules.format ? districtChaseRules : onlineChaseRules;
+  const headStartMs = chase.headStartMs ?? rules.headStartMs;
+  const durationMs = chase.durationMs ?? rules.durationMs;
   const headStartRemainingMs = Math.max(0, headStartMs - elapsedMs);
   const remainingMs = Math.max(0, durationMs - elapsedMs);
   /** @type {OnlineChaseRole} */
@@ -146,6 +149,9 @@ export function evaluateOnlineChasePeers(session, selfPos, remoteRiders, now, {
   pingCache = null,
 } = {}) {
   const snap = onlineChaseSnapshot(session, now);
+  if (snap?.active && session.state.format===districtChaseRules.format) {
+    return evaluateDistrictChase(snap,session.state.round.chase.trigger,selfPos,remoteRiders);
+  }
   if (!snap?.active || !selfPos) {
     return {
       snap,

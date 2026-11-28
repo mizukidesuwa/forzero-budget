@@ -1,5 +1,6 @@
 import { ROAD_Y, add, clamp, dot, mix, normalize, scale, subtract } from '../core/math.js';
 import { getActiveCampus, worldState } from '../core/state.js';
+import { routeRules } from '../data/routes.js';
 import { brakingCorners, makeBenchmark } from '../race/records.js';
 import { readSeedCode, seedRandom, seedVersion } from '../race/seed-code.js';
 import { referenceCornerScores } from '../replay/ghost.js';
@@ -196,7 +197,12 @@ export function shenzhenSeedRoads() {
 export const seedNetworks = { szu: shenzhenSeedRoads, ucl: londonSeedRoads };
 
 export function networkForCampus(campus) {
-  return typeof seedNetworks[campus] === 'function' ? seedNetworks[campus]() : null;
+  const buildNetwork = seedNetworks[campus];
+  if (typeof buildNetwork !== 'function') return null;
+  const network = buildNetwork();
+  // Workshop routes use a longer limit than deterministic seed generation.
+  network.maximum = routeRules.maxWorkshopLength;
+  return network;
 }
 
 export function makeNetworkCourse(route, network = networkForCampus(route?.campus)) {
