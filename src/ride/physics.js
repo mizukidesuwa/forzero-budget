@@ -12,6 +12,7 @@ import { cityVehicles } from '../world/geometry.js';
 import { courseGround, createWorldQuery } from '../world/query.js';
 import { cachedTrafficPosition } from '../world/traffic.js';
 import { TYRE_RADIUS, WHEEL_TEETH_RATIO } from './models.js';
+import { crossesTerrainStep } from './terrain-transition.js';
 import { bicycleGravelSpeed, buildVehicleTuning, stockBike, wetBrakeScale, wetGripScale } from './vehicles.js';
 
 import { surfacePhysics, windPhysics } from '../data/surfaces.js';
@@ -402,25 +403,49 @@ export function moveCyclist(rider, input, dt, exploring = false, wind = null, tr
   rider.lean = mix(rider.lean, bank, 1 - Math.exp(-9.8 * dt));
 
   const step = scale(headingVector(rider.heading - rider.yawRate * dt * .5), rider.speed * dt);
-  let x = p[0] + step[0], z = p[2] + step[2];
-  const onDeck = exploring ? query.flyoverAt(p[0], p[2]) : null;
-  const onUpperRoad = onDeck !== null && p[1] >= onDeck - flyoverClearance.deckTolerance;
-  const deckAt = (px, pz) => exploring ? query.flyoverAt(px, pz) : null;
-  const mayRide = (px, pz) => {
-    const deck = deckAt(px, pz);
-    if (onUpperRoad && onDeck > flyoverClearance.accessHeight) return deck !== null;
-    if (!onUpperRoad && deck !== null && deck > flyoverClearance.accessHeight && deck < flyoverClearance.obstructionHeight) return false;
+  const targetX = p[0] + step[0], targetZ = p[2] + step[2];
+  let x = targetX, z = targetZ;
+  const deckAt = (px, pz) => query.flyoverAt?.(px, pz) ?? null;
+  const onDeck = deckAt(p[0], p[2]), groundBefore = query.rideElevation(p[0], p[2]);
+  const followsDeck = onDeck !== null && onDeck - CITY_ASPHALT >= groundBefore &&
+    Math.abs(p[1] - onDeck) <= flyoverClearance.deckTolerance;
+  const needsDeck = followsDeck && onDeck - groundBefore > flyoverClearance.accessHeight;
+  const heightBefore = followsDeck ? onDeck - CITY_ASPHALT : groundBefore;
+  const supportAt = (px, pz) => {
+    const ground = query.rideElevation(px, pz), deck = deckAt(px, pz);
+    const clearance = deck === null ? Infinity : deck - ground;
+    const useDeck = deck !== null && deck - CITY_ASPHALT >= ground &&
+      (followsDeck || clearance <= flyoverClearance.accessHeight);
+    return { deck, clearance, useDeck, height: useDeck ? deck - CITY_ASPHALT : ground };
+  };
+  const crossesStep = (px, pz, height) => {
+    const dx = px - p[0], dz = pz - p[2];
+    return crossesTerrainStep(Math.hypot(dx, dz), heightBefore, height,
+      t => supportAt(p[0] + dx * t, p[2] + dz * t).height);
+  };
+  const mayRide = (px, pz, support = supportAt(px, pz), blockedByStep = crossesStep(px, pz, support.height)) => {
+    if (blockedByStep) return false;
+    if (needsDeck && support.deck === null) return false;
+    if (needsDeck && support.useDeck) return true;
+    if (!followsDeck && support.clearance > flyoverClearance.accessHeight &&
+      support.clearance < flyoverClearance.obstructionHeight) return false;
     return query.safeToRide(px, pz, exploring, true);
   };
-  rider.hazard = null;
-  if (query.waterHazardAt(x, z)) rider.hazard = 'water';
-  else if (query.cliffHazardAt(x, z, p[1])) rider.hazard = 'cliff';
-  if (!rider.hazard && !mayRide(x, z)) {
+  const hazardAt = (px, pz) => {
+    if (query.waterHazardAt(px, pz)) return 'water';
+    return query.cliffHazardAt(px, pz, p[1]) ? 'cliff' : null;
+  };
+  const targetSupport = supportAt(x, z);
+  const blockedByStep = crossesStep(x, z, targetSupport.height);
+  // A rider at the foot of a cliff hits its face before reaching the ground above.
+  rider.hazard = blockedByStep ? null : hazardAt(x, z);
+  if (!rider.hazard && !mayRide(x, z, targetSupport, blockedByStep)) {
     const slideX = mayRide(x, p[2]), slideZ = mayRide(p[0], z);
     if (slideX && (!slideZ || Math.abs(step[0]) > Math.abs(step[2]))) z = p[2];
     else if (slideZ) x = p[0];
     else { x = p[0]; z = p[2]; }
     rider.speed *= .38;
+    if (blockedByStep && (x !== p[0] || z !== p[2])) rider.hazard = hazardAt(x, z);
   }
   if (!rider.hazard) [x, z] = resolveVehicleCollisions(rider, x, z, p[1], trafficClock, mayRide, actors, query);
   if (campus === 'shunde') {
@@ -430,11 +455,8 @@ export function moveCyclist(rider, input, dt, exploring = false, wind = null, tr
     rider.paved = query.surfaceAt(x, z, exploring);
     rider.surfaceKind = rider.paved ? 'paved' : 'grass';
   }
-  const deck = deckAt(x, z);
-  const nextOnDeck = deck !== null && (onUpperRoad || deck <= flyoverClearance.accessHeight);
   const height = rider.paved ? ROAD_Y + .002 : -.006;
-  const heightBefore = query.rideElevation(p[0], p[2]) + (onUpperRoad ? onDeck - CITY_ASPHALT : 0);
-  const heightAfter = query.rideElevation(x, z) + (nextOnDeck ? deck - CITY_ASPHALT : 0);
+  const heightAfter = (x === targetX && z === targetZ ? targetSupport : supportAt(x, z)).height;
   rider.position = [x, heightAfter + mix(p[1] - heightBefore, height, 1 - Math.exp(-13 * dt)), z];
   rider.travel += forward * Math.hypot(x - p[0], heightAfter - heightBefore, z - p[2]);
   return p;

@@ -15,6 +15,9 @@ export const surfacePhysics = {
   puddle: { gripScale: .63, slipAdded: .12, splashMinSpeed: 2 },
 };
 
+// World meters. Small seams and the existing low flyover entries remain rideable.
+export const terrainStepRules = { maxStepUp: .40, probeSpacing: .10, refinementSpacing: .01 };
+
 export const windPhysics = {
   gust: { frequencyA: .46, frequencyB: .93, phaseB: .71, angleMixB: .73, angleMixA: .27,
     angleDivisor: 15, strengthA: .145, strengthB: .075 },

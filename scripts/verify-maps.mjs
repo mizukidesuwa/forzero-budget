@@ -6,6 +6,14 @@ import * as game from '../src/test-exports.js';
 const fixture = new URL('./fixtures/map-regression.json', import.meta.url);
 const campuses = ['szu', 'ucl', 'shunde'];
 const selected = process.argv.slice(2);
+const drive = { gas: true, brake: false, left: false, right: false, sprint: false };
+
+function driveFrom(query, spawn, heading, exploring = false) {
+  const rider = game.makeCyclist({ campus: query.campus, spawn, heading }, game.stockBike, 'ebike', null, query);
+  rider.speed = 12;
+  game.moveCyclist(rider, drive, game.PHYSICS_STEP, exploring, null, null, [], query);
+  return rider;
+}
 
 function pathSnapshot(path) {
   return { length: path.length, width: path.width, rows: path.rows };
@@ -75,6 +83,18 @@ function assertFlyoverSeams() {
   assert.equal(deck(from + .05), deck(to - .05));
   assert.ok(Math.abs(deck(from + .05) - game.CITY_ASPHALT) < .001);
   assert.ok(Math.abs(deck(to - .05) - game.CITY_ASPHALT) < .001);
+  for (const distance of [from - .04, crossing, to - .04]) {
+    const frame = game.courseFrame(path, distance);
+    const [x, , z] = frame.p, heading = Math.atan2(frame.f[2], frame.f[0]);
+    const surface = (query.flyoverAt(x, z) ?? game.CITY_ASPHALT) + .006;
+    const rider = driveFrom(query, [x, surface, z], heading, true);
+    assert.ok(rider.travel > .08 && !rider.hazard, 'rider continues across the flyover');
+    if (distance === crossing) {
+      assert.ok(Math.abs(rider.position[1] - surface) < .001, 'flyover height');
+      const underneath = driveFrom(query, [x, game.ROAD_Y, z], heading, true);
+      assert.ok(underneath.travel > .08 && underneath.position[1] < .1, 'road beneath the flyover stays on ground');
+    }
+  }
 }
 
 function assertSzuOpenGround() {
@@ -166,6 +186,24 @@ function assertShundeGatePassage() {
   assert.ok(query.safeToRide(1.2, 7, true), 'Shunfengshan gate inner clearance');
   assert.equal(query.safeToRide(2, 7, true), false, 'Shunfengshan gate pillar remains solid');
 }
+
+function assertShundeShortcutTransitions() {
+  const query = game.createWorldQuery('shunde');
+  for (const cut of game.shundeHighRiskShortcuts) {
+    const path = game.street(cut.points, cut.width);
+    for (let distance = .2; distance < path.length - .2; distance += .5) {
+      const frame = game.courseFrame(path, distance);
+      const [x, , z] = frame.p;
+      const heading = Math.atan2(frame.f[2], frame.f[0]);
+      for (const direction of [heading, heading + Math.PI]) {
+        const rider = driveFrom(query, [x, game.ROAD_Y, z], direction);
+        const advance = (rider.position[0] - x) * Math.cos(direction) + (rider.position[2] - z) * Math.sin(direction);
+        assert.ok(advance > .08 && !rider.hazard, `${cut.name} at ${distance.toFixed(1)} m`);
+      }
+    }
+  }
+}
+
 function assertPavilionWaterReturn() {
   game.setActiveCampus('shunde');
   game.buildRidingScene('shunde');
@@ -181,8 +219,7 @@ function assertPavilionWaterReturn() {
     position: [x, query.rideElevation(x, z) + game.ROAD_Y, z],
     heading: Math.atan2(middle.side[2], middle.side[0]), speed: 4,
   });
-  const input = { gas: true, brake: false, left: false, right: false, sprint: false };
-  for (let i = 0; i < 60 && !trial.freeHazardNotice; i++) trial.step(input);
+  for (let i = 0; i < 60 && !trial.freeHazardNotice; i++) trial.step(drive);
   assert.match(trial.freeHazardNotice?.text ?? '', /落水/);
   const [returnedX, , returnedZ] = trial.rider.position;
   assert.ok(query.surfaceAt(returnedX, returnedZ) && !query.waterHazardAt(returnedX, returnedZ));
@@ -215,5 +252,6 @@ if (Object.hasOwn(results, 'ucl')) {
 if (Object.hasOwn(results, 'shunde')) {
   assertPavilionWaterReturn();
   assertShundeGatePassage();
+  assertShundeShortcutTransitions();
 }
 console.log('Targeted map probes passed for the selected maps.');

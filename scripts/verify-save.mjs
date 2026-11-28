@@ -77,6 +77,7 @@ try {
   const v254Dir = join(temp, 'forzero-budget-2.5.4', 'save');
   const v256Dir = join(temp, 'forzero-budget-2.5.6', 'save');
   const v257Dir = join(temp, 'forzero-budget-2.5.7', 'save');
+  const v260Dir = join(temp, 'forzero-budget-2.6.0', 'save');
   const newDir = join(temp, `forzero-budget-${version}`);
   await mkdir(previousDir, { recursive: true });
   await mkdir(v232Dir, { recursive: true });
@@ -92,6 +93,7 @@ try {
   await mkdir(v254Dir, { recursive: true });
   await mkdir(v256Dir, { recursive: true });
   await mkdir(v257Dir, { recursive: true });
+  await mkdir(v260Dir, { recursive: true });
   await mkdir(oldDir, { recursive: true });
   await mkdir(v200Dir, { recursive: true });
   await mkdir(legacyDir, { recursive: true });
@@ -117,7 +119,7 @@ try {
   await mkdir(olderDir, { recursive: true });
   await writeFile(join(olderDir, 'player-data.json'), JSON.stringify(older));
   const actual = await requestSave(createAppShell, saveDir, previous);
-  assert.equal(actual.exists, true, '2.5.0 must find the 2.1.0 save when newer saves are absent');
+  assert.equal(actual.exists, true, 'The installation must find the 2.1.0 save when newer saves are absent');
   assert.deepEqual(actual.data, expected, 'The migrated save must match the backup');
   const prior = fixture('2.3.1 QA', '2026-11-20T00:00:00.000Z');
   const priorFile = join(previousDir, 'player-data.json');
@@ -175,10 +177,15 @@ try {
   const v257File = join(v257Dir, 'player-data.json');
   await writeFile(v257File, JSON.stringify(v257));
   assert.deepEqual((await requestSave(createAppShell, saveDir, previous)).data, v257);
-  assert.equal((await requestSave(createAppShell, saveDir, previous, 'POST', v257)).status, 200);
+  const v260 = fixture('2.6.0 QA', '2026-11-27T22:42:34.000Z');
+  const v260File = join(v260Dir, 'player-data.json');
+  await writeFile(v260File, JSON.stringify(v260));
+  assert.deepEqual((await requestSave(createAppShell, saveDir, previous)).data, v260);
+  assert.equal((await requestSave(createAppShell, saveDir, previous, 'POST', v260)).status, 200);
   const migrated = (await requestSave(createAppShell, saveDir, [])).data;
-  assert.deepEqual(migrated.storage, v257.storage);
-  assert.deepEqual(migrated.friends, v257.friends ?? []);
+  assert.deepEqual(migrated.storage, v260.storage);
+  assert.deepEqual(migrated.friends, v260.friends ?? []);
+  assert.deepEqual(JSON.parse(await readFile(v260File, 'utf8')), v260);
   assert.deepEqual(JSON.parse(await readFile(v257File, 'utf8')), v257);
   assert.deepEqual(JSON.parse(await readFile(v256File, 'utf8')), v256);
   assert.deepEqual(JSON.parse(await readFile(v254File, 'utf8')), v254);
@@ -193,6 +200,7 @@ try {
   assert.deepEqual(JSON.parse(await readFile(v233File, 'utf8')), v233);
   assert.deepEqual(JSON.parse(await readFile(v232File, 'utf8')), v232);
   assert.deepEqual(JSON.parse(await readFile(priorFile, 'utf8')), prior);
+  await rm(v260File);
   await rm(v257File);
   await rm(v256File);
   await rm(v254File);
@@ -218,7 +226,7 @@ try {
   await writeFile(current, '{damaged current');
   assert.equal((await requestSave(createAppShell, saveDir, previous, 'POST', expected)).status, 409);
   assert.equal(await readFile(current, 'utf8'), '{damaged current');
-  console.log('Save migration through 2.5.7, earlier fallbacks and damaged save protection passed.');
+  console.log('Save migration through 2.6.0, earlier fallbacks and damaged save protection passed.');
 } finally {
   await rm(temp, { recursive: true, force: true });
 }

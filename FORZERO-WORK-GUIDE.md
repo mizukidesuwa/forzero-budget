@@ -2,13 +2,13 @@
 
 本文档是源码、构建和验证的按需索引，不是第二份开发规则。规则只看仓库根目录的 AGENTS.md。
 
-## 2.5.1 生效源码索引
+## 2.x 生效源码索引
 
 2.5.1 在 2.5.0 基础上新增 ESLint AST 静态检查（`eslint.config.mjs`，拦截 `no-undef` 等语法缺陷，零运行时依赖），并将活跃服务端与自动跑圈助手迁移至 `server/` 与 `scripts/lib/drive-path.js`（彻底将历史包 `szu-litchi-dev/` 移出公开仓库）。玩法功能、地图、资产与物理基线与 2.5.0 完全一致。
 
 | 入口 | 依赖 | 定向测试 |
 | --- | --- | --- |
-| `src/entry.js`、`src/debug-bridge.js`、`src/test-exports.js` | `src/ride/`、`src/world/`、`src/data/`、`scripts/lib/drive-path.js` | `npm test`、`node scripts/verify-esm-parity.mjs`、`node scripts/verify-runtime-parity.mjs` |
+| `src/entry.js`、`src/debug-bridge.js`、`src/test-exports.js` | `src/ride/`、`src/world/`、`src/data/`、`scripts/lib/drive-path.js` | `npm test`、`node scripts/verify-esm-parity.mjs` |
 | `src/ui/language.js`、`src/ui/presentation-text.js`、`src/data/english-text.js` | 设置语言选择、界面词条和动态文案。翻译应用于界面与俯视地图文字。路线身份、记录键及场景招牌沿用原数据 | `npm run verify:hygiene`、`node scripts/verify-browser.mjs`、`node scripts/verify-four-player.mjs --drive` |
 | `src/ui/app.js`、`friend-duel.js`、`medal-travel.js`、`workshop-ui.js`、`settings-dialog.js` | 主舞台、模块装配与帧循环调度、友人对战弹窗、勋章/三站旅行与海拔图、车库/预算/皮肤导入 UI、二级设置面板 | `npm run build`、`npm run verify:hygiene`、`node scripts/verify-browser.mjs` |
 | `src/data/interface.js`、`src/ui/hud-controls.js`、`src/render/ride-camera.js` | HUD / 触屏按钮缩放和视角偏好、全屏视角控制、三档镜头 | `node scripts/verify-browser.mjs`、`node scripts/verify-save.mjs` |
@@ -19,6 +19,7 @@
 | `src/data/rider-skins.js`、`src/ride/rider-skin.js`、`src/ride/models.js` | shared-rider-v1 SkinModelSpec、AI JSON/ModelFile 导入、比例/挂点/图元白名单、完整非人类模型发射（`rider-skin.js` 已启用 `// @ts-check` + JSDoc 契约） | `npm run typecheck`、`node scripts/verify-data.mjs`、SkinModelSpec 导入和网格探针 |
 | `src/ride/vehicles.js`、`src/ride/models.js`、`src/ride/skin-animation.js`、`src/data/vehicles.js`、`src/replay/ghost.js`、`src/online/client.js`、`server/server.mjs` | 独立骑手皮肤缓存、动态四肢踩踏/转向联动（`skin-animation.js` 已启用 `// @ts-check` + JSDoc）、四载具座椅挂点适配、本地/Ghost/联机 profile 与规范哈希 | `npm run typecheck`、`node scripts/verify-data.mjs`、`node scripts/verify-save.mjs`、`node scripts/verify-four-player.mjs --drive`、`node server/verify.mjs` |
 | `src/world/traffic.js`、`src/render/traffic.js`、`src/ride/physics.js` | 按物理时间复用车流姿态，渲染点与碰撞姿态隔离 | `node scripts/verify-maps.mjs`、`node scripts/verify-esm-parity.mjs` |
+| `src/ride/terrain-transition.js`、`src/ride/physics.js`、`src/data/surfaces.js` | 贴地前沿位移检测向上的高差断面，分别使用桥面和地面高度 | `node scripts/verify-terrain-transition.mjs`、`node scripts/verify-maps.mjs`、`node scripts/verify-esm-parity.mjs` |
 | `src/render/webgl-renderer.js` | 动态骑手网格容量复用和 `bufferSubData` 更新 | `node scripts/verify-browser.mjs`、`node scripts/verify-performance.mjs --repeat-maps --route --memory` |
 | `src/data/tuning-190.cjs`、`server/tuning-190.cjs` | 客户端及 `server/` 房间服务 | `node scripts/verify-data.mjs`、`node server/verify.mjs` |
 | `src/world/assets/`（`index.js`、`trees.js`、`rail-fence.js`、`street-furniture.js`、`lamps.js`、`barriers.js`、`traffic-vehicles.js`、`campus-v220.js`）、`src/world/maps/ucl/gardens.js` 的 `extraGardenFences` | 统一纯函数小件/街具/车辆/精修资产库（除 `campus-v220.js` 外均已启用 `// @ts-check` + JSDoc），供 `geometry.js` 与三图复用 | `npm run typecheck`、`node scripts/verify-assets.mjs` |
@@ -34,26 +35,25 @@
 
 > 历史交付与早期架构见 [HISTORY.md](HISTORY.md)；版本流水见 [CHANGELOG.md](CHANGELOG.md)；1.8.6 车流见本地归档 `szu-litchi-dev/ride-update/1.8.6-traffic.md`。巨型 `perf-*.json`、截图与旧包已归档至 `D:\szubikeGPT-archive\`。
 
-## 1. 2.6.0 构建产物与本地版
+## 1. 2.6.1 构建产物与本地版
 
 - Windows 便携版构建需要同一个官方 Node.js 22 Windows x64 归档内的 `node.exe` 和完整的 `LICENSE`。将 `FORZERO_NODE_EXE` 指向解压后的二进制，再执行 `npm run build:release:win`。构建器默认从二进制同目录读取 `LICENSE`，也可通过 `FORZERO_NODE_LICENSE` 指定该归档里的许可文件。
-- `npm run verify:all` 默认只测当前构建，性能报告写入 `dist-v2/hardware-perf.verify.json`。当前预算为硬件渲染 p95 120 ms、软件渲染 p95 250 ms、JS 堆峰值 640 MiB 和浏览器进程内存峰值 3 GiB。需要历史硬件对比时，再给 `scripts/verify-performance.mjs` 传入 `--baseline=<目录>`。目录内需有历史桌面版的 `index.html`。
-- `npm run build:release` 生成轻量 `dist-v2/desktop/`、`dist-v2/forzero-budget-2.6.0.zip` 和 `dist-v2/forzero-budget-mobile-2.6.0.html`；执行 `npm run build:release:win`（或 `-- --bundle-node`）额外生成内置便携 `runtime/node.exe` 的 Windows 免安装版 **`dist-v2/forzero-budget-windows-x64-2.6.0.zip`**。
-- `npm run release:stage` 将可分发归档、校验清单（`SHA256SUMS.txt`、`MANIFEST.json`、`RELEASE-NOTES.md`）暂存到 `dist-v2/release/v2.6.0/`；`npm run release:github` 按 `AGENTS.md` 规范生成拆分式 GitHub 上传目录 `github-upload-2.6.0/repo/`（纯净源码树，含 `src/`、`server/`、`scripts/`、`.github/` 且不含 `szu-litchi-dev/` 或任何 `.exe`/`.zip` 二进制）与 `github-upload-2.6.0/release-assets/`（Releases 附件与 `RELEASE-NOTES.md`）。
+- 性能检查默认只测当前构建，报告写入 `dist-v2/hardware-perf.verify.json`。当前预算为硬件渲染 p95 120 ms、软件渲染 p95 250 ms、JS 堆峰值 640 MiB 和浏览器进程内存峰值 3 GiB。需要历史硬件对比时，再给 `scripts/verify-performance.mjs` 传入 `--baseline=<目录>`。目录内需有历史桌面版的 `index.html`。
+- `npm run build:release` 生成轻量 `dist-v2/desktop/`、`dist-v2/forzero-budget-2.6.1.zip` 和 `dist-v2/forzero-budget-mobile-2.6.1.html`。执行 `npm run build:release:win`（或 `-- --bundle-node`）额外生成内置便携 `runtime/node.exe` 的 Windows 免安装版 **`dist-v2/forzero-budget-windows-x64-2.6.1.zip`**。
+- `npm run release:stage` 将可分发归档和校验清单（`SHA256SUMS.txt`、`MANIFEST.json`、`RELEASE-NOTES.md`）暂存到 `dist-v2/release/v2.6.1/`。`npm run release:github` 按 `AGENTS.md` 生成拆分式上传目录 `github-upload-2.6.1/repo/`（纯净源码树）与 `github-upload-2.6.1/release-assets/`（发行附件与 `RELEASE-NOTES.md`）。
 - GitHub 导出先校验候选源码，再在隔离副本中运行 `npm ci` 和 `npm test`。验证通过后才替换旧导出，测试生成的依赖和构建文件留在隔离目录。
 - `.github/workflows/ci.yml` 在 `main` 推送、PR 和 `v*` 标签上运行 Windows 和 Ubuntu 校验及 Chrome 桌面、手机和四客户端联机验收。通过后，`main` 可部署 Pages，版本标签可进入 Release。Release 在 Windows 上按本次构建清单暂存附件，解压并用包内 Node.js 验收启动，再上传附件。
 - `dist-v2/build-manifest.json` 指定本次构建的手机 HTML 和发行附件及其校验值。浏览器验收 `node scripts/verify-browser.mjs` 和手机预览 `node scripts/serve-phone.mjs` 从该清单选择手机文件。手动指定其他构建时使用 `FORZERO_BUILD_DIR`，或通过 `FORZERO_MOBILE_HTML` 提供明确文件。
 - 本地 `szu-litchi-dev/` 已移除；公开 GitHub 仓库与发行产物不再携带历史 1.x 构建链。
-- 2.6.0 桌面版优先读取同级轻量版或 Windows 免安装版目录中的 `2.5.7` 存档，再依次尝试 `2.5.6`、`2.5.5`、`2.5.4`、`2.5.3`、`2.5.2`、`2.5.1.1`、`2.5.1`、`2.5.0`、`2.4.0`、`2.3.4` 及前序存档。手机单文件可通过游戏设置导出和导入备份。
+- 2.6.1 桌面版优先读取同级轻量版或 Windows 免安装版目录中的 `2.6.0` 存档，再依次尝试 `2.5.7`、`2.5.6`、`2.5.5`、`2.5.4`、`2.5.3`、`2.5.2`、`2.5.1.1`、`2.5.1`、`2.5.0`、`2.4.0`、`2.3.4` 及前序存档。手机单文件可通过游戏设置导出和导入备份。
 
-### 2.3.1 本地路径
+### 2.3.1 归档路径
 
 - **桌面目录**：`forzero-budget-2.3.1/`（个人存档在 `save/player-data.json`），公开分发使用同名 ZIP。
 - **手机单文件**：`forzero-budget-mobile-2.3.1.html`。
 - **分发镜像**：`szu-litchi-loop/dist/` 与公开发布目录 `github-upload-2.3.1/`。
-- **回归基线**：1.9.1.1，以下旧链索引用于定位旧版行为。
 
-## 2. 1.9.1.1 旧链源码与地图索引
+## 2. 旧链源码与地图索引（历史归档）
 
 ### 上游纯净地图源码层（自上而下重构建顺序）
 `street-riding/szu-litchi-loop.html` → `campus-map` → `endurance` → `road-junctions` → `garage` → `architecture` → `bloomsbury` → `slopes` → `london` → `ride-update`
@@ -85,9 +85,9 @@
 | `ride-update/save-sync.js` / `sound.js` / `atmosphere.js` / `shortcuts.js` / `practice-review.js` / `station-travel.js` | 存档同步、音效、天气、近路、复盘单练、三站旅行 |
 | `online/server.mjs` / `room-rules.cjs` / `start-game.bat` | 本地应用壳 `--app`、信令、房间状态机与轮次结算 |
 
-## 3. 构建、同步与定向验证
+### 历史交付复现命令
 
-2.3.1 使用 `npm run build:release`。依赖缺失时再运行 `npm ci`。把 `dist-v2/desktop/` 中的发行文件同步到当前版本目录和 `szu-litchi-loop/dist/`，跳过 `save/`。以下 Python 与旧版验证命令只用于重建 1.9.1.1 回归基线。2.1.2 仅作为地图资产和性能基线。
+以下命令仅用于本地 1.x 归档的指定版本复现。已有旧版构建时，可手动运行 `node scripts/verify-runtime-parity.mjs` 检查旧包行为。
 
 ```powershell
 python szu-litchi-dev/ride-update/build.py
@@ -106,6 +106,13 @@ node szu-litchi-dev/ride-update/verify-mountain.mjs          # 神步山上下�
 node szu-litchi-dev/ride-update/verify.mjs                   # 核心物理、种子与 UCL 净空
 node szu-litchi-dev/online/verify.mjs                        # 联机服务端 API 与房间状态机
 ```
+
+## 3. 当前构建与运行时验证
+
+- 使用 `npm run build` 生成开发构建，用 `npm run build:release` 生成发行构建。依赖缺失时运行 `npm ci`。
+- `node scripts/verify-esm-parity.mjs` 使用 `scripts/fixtures/runtime-baseline.json` 中公开 v2.6.0 发布源码生成的固定快照。`npm test` 和 `npm run verify:all` 均执行这项检查。
+- 下次刷新基线时，使用当时最近一次正式发布标签的干净 Git 检出，通过 `node scripts/verify-esm-parity.mjs --capture-from=<检出目录>` 输出 JSON。与仓库中的快照比对并审阅差异后，再更新基线与更新日志。
+- 2.1.2 地图资产与性能基线的入口见下方地图资产章节。
 
 ## 4. 模块化与资产化边界（接手必读）
 
@@ -141,7 +148,7 @@ node szu-litchi-dev/online/verify.mjs                        # 联机服务端 A
 - `src/world/assets/traffic-vehicles.js` 生成两档车模，`src/render/traffic.js` 负责视锥裁剪和分批提交。运行 `node scripts/verify-browser.mjs` 检查 WebGL 实例绘制及手机单文件。
 - `src/world/traffic.js` 以 actor 和物理时间缓存 `trafficPosition`，`src/render/traffic.js` 使用独立 `renderPoint`，避免渲染高程修正污染碰撞姿态。当前复用精确姿态，不额外改变 `drawScene` 时序，渲染 accumulator 插值留待独立 profiling。
 - `src/ride/physics.js` 只对 AI 和联机骑手采样尾流。普通车流仍由碰撞开关控制。用 `node scripts/verify-210.mjs` 和 `node scripts/verify-esm-parity.mjs` 检查蓄力、弹弓及对拍。
-- 当前安装和上传目录为 `forzero-budget-2.3.1/`、`github-upload-2.3.1/`。已迁移存档的旧发行文件放在本地 `legacy/`。
+- 2.3.1 当时的安装和上传目录为 `forzero-budget-2.3.1/`、`github-upload-2.3.1/`。已迁移存档的旧发行文件放在本地 `legacy/`。
 
 ### 2.3.1 确定性竞速与复盘入口
 

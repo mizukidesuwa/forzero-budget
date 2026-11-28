@@ -1,5 +1,14 @@
 # 更新日志（CHANGELOG）
 
+## 2.6.1 — 地形断层与桥面通行修复
+
+- 共享骑行物理在贴地前沿位移检测向上的地形断层。超过 0.40 米的单级断面触发减速和沿边滑移，连续坡面按细分高度样本判断。斜向避让和车辆接触推挤也检查过渡，重叠的桥面与地面分别取高。关联 `src/ride/physics.js`、`src/ride/terrain-transition.js` 与 `src/data/surfaces.js`。
+- 高地上恰好 0.40 米的台阶可以通过，桥面埋入地面时按地面高度判断断层。`node scripts/verify-terrain-transition.mjs` 纳入快速和全量检查，覆盖四车型、倒车、斜撞、落崖、连续陡坡、窄脊、桥面分层和车辆推挤。深大立交和顺峰山三条捷径通过实际移动探针。
+- 桌面版优先迁移同级 2.6.0 存档。同版本优先读取与当前安装包型匹配的存档。关联 `server/server.mjs`、`scripts/verify-save.mjs` 与 `scripts/verify-desktop-start.mjs`。
+
+- 日常运行时对拍从入库快照读取参考值。快照从已发布 v2.6.0（`7d86888`）采集，与 v2.5.7 核对了 20 条赛道、3 张地图、9 次固定跑圈和四车型轨迹。关联 `scripts/verify-esm-parity.mjs`、`scripts/verify-all.mjs` 与 `scripts/fixtures/runtime-baseline.json`。
+- 通过 `npm run build`、`npm run lint`、`npm run typecheck`、`npm run build:release -- --bundle-node` 和 `npm run verify:all -- --skip-build` 的 18 项检查，覆盖地图、资产、确定性、桌面和手机浏览器、四人联机与性能。用 `node scripts/verify-desktop-start.mjs --portable` 验证解压后的免安装包在空 `PATH` 下启动、迁移存档和建房。沿用地图、资产和性能基线，运行时对拍使用上述 v2.6.0 快照。
+
 ## 2.6.0 — 动力车五槽改装与预算策略
 
 - 越野小摩托增加制动分配与出弯牵引，电自增加车架几何与超频回收，轮椅增加制动响应与双电机分配。新增槽位各提供 ¥0 原厂件和两种合法取舍。现有配件价格与违禁清单沿用，动力火箭继续独立计算。关联 `src/data/parts.js`、`src/data/tuning-190.cjs` 与 `src/ride/physics.js`。
@@ -9,10 +18,10 @@
 - 调整自行车二手光头胎、各车型二手轻框和电自合法电控。电自新国标原厂保留 ¥0、25 km/h 与原草地表现，标准、强扭、平顺电控的铺装上限为 45、42、42 km/h。价格表与违禁规则沿用现有配置。关联 `src/data/parts.js`。
 - 自行车火箭收敛冲刺峰值并提高消耗。三种动力车型的火箭改为技能键触发，爆发 2 秒、冷却 8 秒，替代原主动技能。HUD 显示就绪、爆发与冷却，持续按键、发车倒计时和返场均按同一计时规则处理。关联 `src/data/vehicle-skills.js`、`src/ride/physics.js`、`src/race/time-trial.js` 和 `src/ui/hud-controls.js`。
 - 车库能力栏增加雨地抓地、雨地带刹抓地与雨地直线制动，按同车型原厂在无积水湿铺装下的表现比较。自行车原越野湿地综合项改为草地表现。关联 `src/ui/workshop-ui.js`、`src/ride/vehicles.js` 和 `scripts/verify-browser.mjs`。
-- 平衡改动通过 `npm run verify:all -- --skip-build` 的 17 项检查。雨地面板完成后重跑 `npm run build`、`npm run lint`、`npm run typecheck`、`npm run verify:fast -- --skip-build` 与 `node scripts/verify-browser.mjs`。车库选装及 Shift 火箭烟测通过，面板接入前后的干地、雨地与爬坡物理对照一致。沿用地图、资产、物理与性能验证基线。旧版 1.9.1.1 对拍因本地无旧包跳过。
+- 平衡改动通过 `npm run verify:all -- --skip-build` 的 17 项检查。雨地面板完成后重跑 `npm run build`、`npm run lint`、`npm run typecheck`、`npm run verify:fast -- --skip-build` 与 `node scripts/verify-browser.mjs`。车库选装及 Shift 火箭烟测通过，面板接入前后的干地、雨地与爬坡物理对照一致。沿用地图、资产、物理与性能验证基线。
 - 四种车型的速度仪表统一显示实时抓地余量与技能百分比。抓地余量沿用各车型当下的横向转向极限，包含路面、雨地、带刹和甩尾修正。车库将六项同口径能力放在相同位置，后接车型特色项。关联 `src/ride/physics.js`、`src/ui/hud-controls.js` 与 `src/ui/workshop-ui.js`。
 - 仪表和车库统一通过 `npm run build`、`npm run lint`、`npm run typecheck`、`npm run verify:fast -- --skip-build`、`node scripts/verify-deterministic-race.mjs` 与 `node scripts/verify-browser.mjs`。浏览器覆盖四车型转向读数、车库顺序和三个手机尺寸的仪表布局。沿用现有验证基线。
-- 2.6.0 通过 `npm run lint`、`npm run typecheck`、`npm run build:release` 与 `npm run verify:all -- --skip-build` 的 17 项检查，覆盖桌面和手机五槽、联机过预算及旧协议拒绝、四人 WebRTC、存档迁移和性能。沿用现有地图、资产、原厂物理及性能基线。旧版 1.9.1.1 对拍因本地无旧包跳过。
+- 2.6.0 通过 `npm run lint`、`npm run typecheck`、`npm run build:release` 与 `npm run verify:all -- --skip-build` 的 17 项检查，覆盖桌面和手机五槽、联机过预算及旧协议拒绝、四人 WebRTC、存档迁移和性能。沿用现有地图、资产、原厂物理及性能基线。
 
 ## 2.5.7 — 桌面存档恢复与联机比赛修复
 
@@ -20,7 +29,7 @@
 - 普通联机赛通过姿态包同步有效赛程，可区分同一位置的不同圈次。旧客户端继续使用原姿态包，多圈进度不足时暂缓显示实时名次。房间连续换线时只采用最新路线，服务端拒绝针对过期路线发出的准备和发车请求。关联 `src/online/client.js`、`server/server.mjs` 和 `scripts/verify-four-player.mjs`。
 - 联机捉人按本轮退赛记录计算存活人数，退赛骑手从雷达和拦截候选中移除。关联 `src/race/online-chase.js`、`src/ui/mode-hud.js` 和 `scripts/verify-route-builder-chase.mjs`。
 - 桌面版优先从同级 2.5.6 轻量版或 Windows 免安装版迁移存档，同版本优先匹配当前包型。关联 `server/server.mjs`、`scripts/verify-save.mjs` 和 `scripts/verify-desktop-start.mjs`。
-- 通过 `npm run lint`、`npm run typecheck`、`npm run build`、`npm run build:release -- --bundle-node`、`npm run verify:all -- --skip-build` 的 17 项检查及 `node scripts/verify-four-player.mjs --network-only --drive`。便携 ZIP 解压后用 `node scripts/verify-desktop-start.mjs --portable` 验证了包内 Node.js 启动、2.5.6 存档迁移与建房。地图、资产、物理和性能沿用现有基线。旧版 1.9.1.1 对拍因本地无旧包跳过。
+- 通过 `npm run lint`、`npm run typecheck`、`npm run build`、`npm run build:release -- --bundle-node`、`npm run verify:all -- --skip-build` 的 17 项检查及 `node scripts/verify-four-player.mjs --network-only --drive`。便携 ZIP 解压后用 `node scripts/verify-desktop-start.mjs --portable` 验证了包内 Node.js 启动、2.5.6 存档迁移与建房。地图、资产、物理和性能沿用现有基线。
 
 ## 2.5.6 — 桌面存档隔离、玩法成绩与联机修复
 
@@ -30,7 +39,7 @@
 - 耐力赛分段单练只展示该段的完赛结果。普通联机赛按房间规则发车，实时排名使用远端姿态的 X/Z 坐标。关联 `src/race/race-review.js`、`src/race/launch-options.js`、`src/ui/app.js` 和 `src/online/client.js`。
 - 手机预览默认从当前构建清单选取并校验 HTML。GitHub 导出在候选源码的隔离副本完成依赖安装和测试，通过后再替换旧导出。关联 `scripts/serve-phone.mjs`、`scripts/stage-release.mjs` 和 `scripts/verify-release-staging.mjs`。
 - 耐力单练的浏览器验收通过固定物理步进完成骑行，完赛后仍检查三次实际游戏帧更新，避免托管 CI 的渲染帧率触发自动暂停。2.5.5 标签的发布流程在浏览器验收失败后停止，本版接续发行。关联 `scripts/verify-browser.mjs`。
-- 通过 `npm run lint`、`npm run typecheck`、`npm run build`、`npm run build:release` 和 `npm run verify:all -- --skip-build` 的 17 项检查。Chrome 覆盖同端口双安装、导入写入失败及回滚失败、耐力单练实骑、联机预选追捕后的发车与实时排名。隔离导出通过 12 项快速检查，桌面 ZIP 和手机 HTML 的 SHA-256 一致。旧版 1.9.1.1 对拍因本地无旧包跳过，沿用原有基线。
+- 通过 `npm run lint`、`npm run typecheck`、`npm run build`、`npm run build:release` 和 `npm run verify:all -- --skip-build` 的 17 项检查。Chrome 覆盖同端口双安装、导入写入失败及回滚失败、耐力单练实骑、联机预选追捕后的发车与实时排名。隔离导出通过 12 项快速检查，桌面 ZIP 和手机 HTML 的 SHA-256 一致。沿用原有基线。
 - 移除未接入当前验证流程的旧版桌面验收脚本 `server/browser.mjs`、`server/browser-mock.js` 和 `server/verify-version-folder.mjs`，归档历史性能采样报告。通过 `npm run build`（临时输出）、`npm run typecheck`、`npm run verify:hygiene` 和 `npm test -- --skip-build`。正式基线校验值一致。
 
 ## 2.5.4 — 联机复赛、存档兼容与发布验收

@@ -1,16 +1,45 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import vm from 'node:vm';
-import * as game from '../src/test-exports.js';
 
+const [captureArgument, ...extraArguments] = process.argv.slice(2);
+const captureFlag = '--capture-from=';
+const reference = captureArgument?.startsWith(captureFlag) && captureArgument.slice(captureFlag.length);
+if (extraArguments.length || (captureArgument && !reference)) {
+  throw Error('Usage: node scripts/verify-esm-parity.mjs [--capture-from=<published tag checkout>]');
+}
+
+const sourceRoot = reference ? resolve(reference) : fileURLToPath(new URL('..', import.meta.url));
+const captureRelease = reference ? readReleaseIdentity(sourceRoot) : null;
 const baselinePath = new URL('./fixtures/runtime-baseline.json', import.meta.url);
-const baseline = JSON.parse(readFileSync(baselinePath, 'utf8')).deterministic;
+const baseline = captureRelease ? null : JSON.parse(readFileSync(baselinePath, 'utf8'));
+const game = await import(pathToFileURL(join(sourceRoot, 'src/test-exports.js')));
+const snapshots = {};
+
+function readReleaseIdentity(root) {
+  const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+  const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+  assert.equal(git('status', '--porcelain'), '', 'Reference release checkout must be clean');
+  const commit = git('rev-parse', 'HEAD');
+  assert.equal(commit, git('rev-parse', 'refs/tags/v' + version + '^{commit}'), 'Reference HEAD must match the release tag');
+  return { version, commit };
+}
+
+function compareSnapshot(name, value) {
+  if (captureRelease) {
+    snapshots[name] = value;
+    return;
+  }
+  assert.deepEqual(value, baseline.deterministic[name], name + ' mismatch vs v' + baseline.version);
+}
 
 const round = (n, d = 6) => (Number.isFinite(n) ? Number(n.toFixed(d)) : n);
 const roundArr = (arr, d = 6) => Array.from(arr, v => round(v, d));
 
-// Configure baseline preferences matching historical baseline capture
+// Use the same preferences for release capture and local verification.
 game.setPreferences({
   soloBudget: 'open',
   weather: 'clear',
@@ -43,8 +72,7 @@ const coursesSummary = allCourses.map(([camp, c]) => ({
   benchmarkTime: round(c.benchmark?.time ?? 0, 2),
   stages: c.stages ? c.stages.map(s => ({ name: s.name, from: round(s.from, 4), to: round(s.to, 4) })) : null,
 }));
-assert.deepEqual(coursesSummary, baseline.coursesSummary, '20 courses mismatch vs historical baseline baseline');
-console.log('1. All 20 courses, gates, medalTimes, benchmarks: EXACT MATCH');
+compareSnapshot('coursesSummary', coursesSummary);
 
 // 2. Verify all 3 campuses static batches, trees, Qingyun LoS, collision probes
 const batchStats = {};
@@ -171,33 +199,12 @@ for (const c of ['szu', 'ucl', 'shunde']) {
 }
 
 const normalizeJson = (x) => JSON.parse(JSON.stringify(x));
-// 2.1.0 adds Shenzhen barriers and UCL traffic while retaining the historical baseline capture.
-const expectedBatches = structuredClone(baseline.batchStats);
-expectedBatches.szu.shapes.scenery = { verts: 212744, tris: 112894 };
-expectedBatches.szu.totalStaticTris = 439378;
-expectedBatches.szu.citySolid = 589;
-expectedBatches.szu.shapes.urban = { verts: 78220, tris: 39962 };
-expectedBatches.ucl.cityVehicles = 36;
-expectedBatches.ucl.shapes.scenery = { verts: 111796, tris: 62064 };
-expectedBatches.ucl.shapes.masonry = { verts: 382784, tris: 190317 };
-expectedBatches.ucl.shapes.foliage = { verts: 31124, tris: 28628 };
-expectedBatches.ucl.shapes.pavement = { verts: 49518, tris: 16884 };
-expectedBatches.ucl.shapes.urban = { verts: 10416, tris: 5208 };
-expectedBatches.ucl.totalStaticTris = 311400;
-expectedBatches.shunde.shapes.scenery = { verts: 75155, tris: 40976 };
-expectedBatches.shunde.shapes.pavement = { verts: 2988, tris: 1494 };
-expectedBatches.shunde.totalStaticTris = 106480;
-assert.deepEqual(normalizeJson(batchStats), expectedBatches, 'batchStats mismatch vs 2.1.0 expectations');
-assert.deepEqual(normalizeJson(treeSummary), baseline.treeSummary, 'treeSummary mismatch vs historical baseline');
-// Shenzhen opens additional off-road grounds. Surface, water and elevation probes still match.
-const expectedProbes = structuredClone(baseline.collisionProbes);
-expectedProbes.szu.grid.rideTrue = 671;
-expectedProbes.ucl.grid.surfaceTrue = 986;
-assert.deepEqual(normalizeJson(collisionProbes), expectedProbes, 'collisionProbes mismatch vs 2.1.0 expectations');
-console.log('2. All 3 campus batchStats, treeSummary, collisionProbes, Qingyun LoS: EXACT MATCH');
+compareSnapshot('batchStats', normalizeJson(batchStats));
+compareSnapshot('treeSummary', normalizeJson(treeSummary));
+compareSnapshot('collisionProbes', normalizeJson(collisionProbes));
 
-// 3. Fixed-route laps via test-exports + rounds/drive-path.js
-const driveSrc = readFileSync(resolve('scripts/lib/drive-path.js'), 'utf8');
+// 3. Fixed-route laps via the shared auto-driver
+const driveSrc = readFileSync(join(sourceRoot, 'scripts/lib/drive-path.js'), 'utf8');
 const rideTest = vm.runInNewContext(driveSrc + '\nrideTest;', {
   TimeTrial: game.TimeTrial,
   along: game.along,
@@ -238,12 +245,7 @@ for (const [camp, id, spr, sec] of lapCourses) {
   };
 }
 Math.random = savedMathRandom;
-// The Qingyun Lake lap no longer receives the shuttle's wake in 2.1.1.
-const expectedLaps = structuredClone(baseline.laps);
-expectedLaps['qingyun-lake'].elapsed = 88630;
-expectedLaps['qingyun-lake'].position = [-0.032653, 0.043, -0.004724];
-assert.deepEqual(laps, expectedLaps, '9 fixed-route laps mismatch vs 2.1.1 expectations');
-console.log('3. All 9 fixed-route laps (pure ESM without global vm): EXACT MATCH');
+compareSnapshot('laps', laps);
 
 // 4. Standalone Node 120 Hz physics trajectories using explicit createWorldQuery(campus)
 const stepInputs = (tick) => {
@@ -289,8 +291,8 @@ for (const veh of ['bike', 'trail', 'ebike', 'chair']) {
           travel: round(rider.travel, 6),
           slip: round(rider.slip, 6),
           paved: rider.paved,
-          gravel: Boolean(rider.gravel),
-          puddle: Boolean(rider.puddle),
+          gravel: rider.surfaceKind === 'gravel',
+          puddle: Boolean(rider.inPuddle),
           skill: rider.skill ?? '',
         });
       }
@@ -299,19 +301,10 @@ for (const veh of ['bike', 'trail', 'ebike', 'chair']) {
   }
 }
 
-const stripTiming = structuredClone(baseline.trajectories);
-for (const v of Object.values(stripTiming)) {
-  for (const c of Object.values(v)) delete c.stepUs;
+compareSnapshot('trajectories', trajectories);
+
+if (captureRelease) {
+  console.log(JSON.stringify({ ...captureRelease, deterministic: snapshots }, null, 2));
+} else {
+  console.log('Runtime parity vs v' + baseline.version + ' (' + baseline.commit.slice(0, 7) + '): courses, terrain, fixed-route laps and four-vehicle trajectories passed.');
 }
-// Opening the Shenzhen boundary keeps these two wheelchair samples on pavement.
-const chairRing = stripTiming.chair.ring.checkpoints;
-Object.assign(chairRing[3], {
-  pos: [-98.74855, 0.043, 23.463699], speed: 1.121114, heading: -1.340781,
-  travel: 23.206883, slip: 0.010179, paved: true,
-});
-Object.assign(chairRing[4], {
-  pos: [-98.759779, 0.043, 23.47419], heading: -1.118252,
-  travel: 23.209907, slip: 0.000002, paved: true,
-});
-assert.deepEqual(trajectories, stripTiming, '4-vehicle 120Hz trajectories mismatch vs 2.1.0 expectations');
-console.log('4. All 4 vehicles x 2 maps standalone Node 120 Hz trajectories (with activeCampus deliberately flipped!): EXACT MATCH');

@@ -28,7 +28,7 @@
 
 - 使用 rg，只搜索与任务直接相关的 src/、server/ 或 scripts/ 文件。
 - 源码搜索优先限定 *.js、*.py、*.css 和 *-dialog.html。package.json、fixture 和 Markdown 仅在任务需要时定点读取。
-- 旧版对拍只在明确需要时查阅 szu-litchi-dev/ride-update/ 或旧地图层。
+- 需要复现历史交付时才查阅 szu-litchi-dev/ride-update/ 或旧地图层。
 - 不搜索或整读发行产物和历史文件，包括 game.js、szu-litchi-loop.html、forzero-budget-mobile-*.html、release/、forzero-budget-*、szu-litchi-loop/dist/ 和 HISTORY.md。
 - 必须确认产物时，先搜索定位行号，再局部读取不超过 120 行。ride-update/build.py 也遵循此限制。
 
@@ -51,7 +51,8 @@
 - 静态检查与类型门禁运行 `npm run lint` 与 `npm run typecheck`（`tsc -p jsconfig.json --noEmit`）。
 - `npm run verify:hygiene` 报告 `src/ui/app.js` 的行数。超过 1700 行时提示复核改动的职责边界，校验继续执行。
 - 数据、资产和地图改动优先运行 node scripts/verify-data.mjs、node scripts/verify-assets.mjs 和 node scripts/verify-maps.mjs [szu|ucl|shunde]。
-- 物理、竞速、确定性和对拍改动按需运行 node scripts/verify-drafting-ai.mjs、node scripts/verify-deterministic-race.mjs、node scripts/verify-esm-parity.mjs 和 node scripts/verify-runtime-parity.mjs。
+- 物理、竞速和确定性改动按需运行 `node scripts/verify-drafting-ai.mjs`、`node scripts/verify-deterministic-race.mjs` 和 `node scripts/verify-esm-parity.mjs`。
+- 日常运行时回归读取 `scripts/fixtures/runtime-baseline.json` 中 v2.6.0 发布源码生成的固定快照。`npm test` 与 `npm run verify:all` 均执行 ESM 对拍。刷新基线时，从当时最近一次正式发布标签的干净检出采集快照，审阅差异并在更新日志记录原因。
 - 浏览器、存档、联机和性能改动按需运行 node scripts/verify-browser.mjs、node scripts/verify-save.mjs、node server/verify.mjs、node scripts/verify-four-player.mjs 和 node scripts/verify-performance.mjs。
 - 地图资产改动还要运行 npm run verify:map-assets-perf，并检查 scripts/fixtures/map-assets-2.1.2.json、scripts/fixtures/map-regression.json 与硬件性能基线。
 - 发行前运行 `npm run lint`、`npm run typecheck` 与 `npm run build:release`。版本以 package.json、scripts/build.mjs 和 src/index.html 的一致状态为准。
@@ -60,10 +61,10 @@
 
 - 发行同步时跳过 save/、player-data.json、dist-v2/ 临时内容和旧链调试产物，不覆盖玩家存档。
 - 准备公开仓库上传包 `github-upload-<version>/` 时，必须拆分为互不混杂的两部分（优先直接执行 `npm run release:github`）：
-  - `github-upload-<version>/repo/`：仅保留推送到 GitHub 主干的纯净工程与文档（根目录 `.editorconfig`、`.gitattributes`、`.gitignore`、`AGENTS.md`、`CHANGELOG.md`、`CONTRIBUTING.md`、`FORZERO-ROUTE-SKIN-DESIGN.md`、`FORZERO-WORK-GUIDE.md`、`HISTORY.md`、`LICENSE`、`README.md`、`SECURITY.md`、`eslint.config.mjs`、`jsconfig.json`、`package.json`、`package-lock.json` 与 `.github/`、`src/`、`server/`、`scripts/`）；严格排除历史 1.9.1.1 大文件目录（`szu-litchi-dev/` 等）、构建分发包（`forzero-budget-*`、`*.zip`、`forzero-budget-mobile-*.html`、`szu-litchi-loop/dist/`、`dist-v2/`）、`node_modules/`、`legacy/`、`save/`、`player-data.json`、`.openai/`、`__pycache__/`、`chrome-*` 与临时调试产物，且须在 `repo/` 目录内通过 `node scripts/verify-hygiene.mjs` 与 `npm test`。
+  - `github-upload-<version>/repo/`：仅保留推送到 GitHub 主干的纯净工程与文档（根目录 `.editorconfig`、`.gitattributes`、`.gitignore`、`AGENTS.md`、`CHANGELOG.md`、`CONTRIBUTING.md`、`FORZERO-ROUTE-SKIN-DESIGN.md`、`FORZERO-WORK-GUIDE.md`、`HISTORY.md`、`LICENSE`、`README.md`、`SECURITY.md`、`eslint.config.mjs`、`jsconfig.json`、`package.json`、`package-lock.json` 与 `.github/`、`src/`、`server/`、`scripts/`）；严格排除 1.x 归档大文件目录（`szu-litchi-dev/` 等）、构建分发包（`forzero-budget-*`、`*.zip`、`forzero-budget-mobile-*.html`、`szu-litchi-loop/dist/`、`dist-v2/`）、`node_modules/`、`legacy/`、`save/`、`player-data.json`、`.openai/`、`__pycache__/`、`chrome-*` 与临时调试产物，且须在 `repo/` 目录内通过 `node scripts/verify-hygiene.mjs` 与 `npm test`。
   - `github-upload-<version>/release-assets/`：仅放挂到 GitHub Releases（`v<version>`）的玩家下载产物与校验清单（`forzero-budget-<version>.zip`、`forzero-budget-mobile-<version>.html`、`SHA256SUMS.txt`、`MANIFEST.json`、`RELEASE-NOTES.md`），确保压缩包不含 `save/` 或 `player-data.json`，并核对 SHA-256 与 `SHA256SUMS.txt` 一致。
 - 升级版本号并生成上传包时，同步保持 `README.md` 顶部的「直接下载游玩（玩家入口）」指向 GitHub Releases（`v<version>`）。
-- 旧版 szu-litchi-dev/ride-update/build.py 只用于明确的 1.9.1.1 回归任务，不作为 2.x 入口。
+- 旧版 szu-litchi-dev/ride-update/build.py 仅用于明确要求的 1.x 历史交付复现。
 - 维护旧链时保留 rounds/drive-path.js，不在 ride-update/ 残留手机单文件、截图或调试脚本。阶段产物验收后清理失效的 dist-v2/ 临时内容。
 - 向公开仓库同步前检查 remote 和暂存清单。
 

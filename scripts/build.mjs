@@ -6,7 +6,7 @@ import esbuild from 'esbuild';
 import { buildManifestName, describeBuildFile } from './build-manifest.mjs';
 import { writeDeterministicZip } from './deterministic-zip.mjs';
 
-export const VERSION = '2.6.0';
+export const VERSION = '2.6.1';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');

@@ -1,50 +1,6 @@
 {
-  "version": "1.9.1.1",
-  "capturedAt": "2026-11-24T14:10:15.809Z",
-  "sizes": {
-    "mobileHtml": 788183,
-    "desktopZip": 273392,
-    "gameJs": 693001,
-    "indexHtml": 40147,
-    "styleCss": 55072,
-    "mobileSha256": "22ad207919f497ab901a32b01bc9feeb3ae5315c29cb7999e9ab42e6c7edad8f",
-    "gameJsSha256": "795837e4716e0c630f7e9744519287834ec0ec956a3ddabd304c880d1901c2c8"
-  },
-  "chromePerf": {
-    "coldStartMs": 831,
-    "gpuMetrics": {
-      "szu": {
-        "switchMs": 0,
-        "p95FrameMs": 100.2,
-        "medianFrameMs": 54.3,
-        "avgDrawCalls": 68,
-        "avgDrawTris": 109312,
-        "buffersAlive": 160,
-        "buffersCreated": 160,
-        "buffersDeleted": 0
-      },
-      "ucl": {
-        "switchMs": 1170,
-        "p95FrameMs": 100.1,
-        "medianFrameMs": 45.9,
-        "avgDrawCalls": 76,
-        "avgDrawTris": 159516,
-        "buffersAlive": 178,
-        "buffersCreated": 324,
-        "buffersDeleted": 146
-      },
-      "shunde": {
-        "switchMs": 239,
-        "p95FrameMs": 37.6,
-        "medianFrameMs": 33.3,
-        "avgDrawCalls": 52,
-        "avgDrawTris": 74541,
-        "buffersAlive": 62,
-        "buffersCreated": 372,
-        "buffersDeleted": 310
-      }
-    }
-  },
+  "version": "2.6.0",
+  "commit": "7d868887732459d6795f93dc05c74e26795b254f",
   "deterministic": {
     "coursesSummary": [
       {
@@ -3116,12 +3072,12 @@
             "tris": 112028
           },
           "scenery": {
-            "verts": 205304,
-            "tris": 109174
+            "verts": 212744,
+            "tris": 112894
           },
           "urban": {
-            "verts": 74620,
-            "tris": 38162
+            "verts": 78220,
+            "tris": 39962
           },
           "foliage": {
             "verts": 134630,
@@ -3144,10 +3100,10 @@
             "tris": 1489
           }
         },
-        "totalStaticTris": 433858,
+        "totalStaticTris": 439378,
         "signs": 61,
         "cityVehicles": 38,
-        "citySolid": 122,
+        "citySolid": 589,
         "campusFixtures": 47,
         "uclFixtures": 0
       },
@@ -3158,24 +3114,24 @@
             "tris": 190317
           },
           "scenery": {
-            "verts": 108932,
-            "tris": 60428
+            "verts": 111796,
+            "tris": 62064
           },
           "urban": {
-            "verts": 0,
-            "tris": 0
+            "verts": 10416,
+            "tris": 5208
           },
           "foliage": {
-            "verts": 29264,
-            "tris": 26796
+            "verts": 31124,
+            "tris": 28628
           },
           "road": {
             "verts": 24897,
             "tris": 8299
           },
           "pavement": {
-            "verts": 49374,
-            "tris": 16812
+            "verts": 49518,
+            "tris": 16884
           },
           "water": {
             "verts": 0,
@@ -3186,9 +3142,9 @@
             "tris": 2
           }
         },
-        "totalStaticTris": 302652,
+        "totalStaticTris": 311400,
         "signs": 78,
-        "cityVehicles": 0,
+        "cityVehicles": 36,
         "citySolid": 0,
         "campusFixtures": 0,
         "uclFixtures": 89
@@ -3200,8 +3156,8 @@
             "tris": 9044
           },
           "scenery": {
-            "verts": 74051,
-            "tris": 40424
+            "verts": 75155,
+            "tris": 40976
           },
           "urban": {
             "verts": 0,
@@ -3216,8 +3172,8 @@
             "tris": 3430
           },
           "pavement": {
-            "verts": 2964,
-            "tris": 1482
+            "verts": 2988,
+            "tris": 1494
           },
           "water": {
             "verts": 1968,
@@ -3228,7 +3184,7 @@
             "tris": 2
           }
         },
-        "totalStaticTris": 105916,
+        "totalStaticTris": 106480,
         "signs": 16,
         "cityVehicles": 6,
         "citySolid": 0,
@@ -3448,7 +3404,7 @@
     "collisionProbes": {
       "szu": {
         "grid": {
-          "rideTrue": 494,
+          "rideTrue": 671,
           "surfaceTrue": 282,
           "waterTrue": 5,
           "buildingTrue": 31,
@@ -3470,7 +3426,7 @@
       "ucl": {
         "grid": {
           "rideTrue": 659,
-          "surfaceTrue": 983,
+          "surfaceTrue": 986,
           "waterTrue": 0,
           "buildingTrue": 364,
           "elevSum": 0
@@ -3619,14 +3575,14 @@
       "qingyun-lake": {
         "phase": "done",
         "passed": 7,
-        "elapsed": 88606,
+        "elapsed": 88630,
         "medal": "金牌",
         "deviation": 1.032549,
         "progress": 1072.742465,
         "position": [
-          -0.024759,
+          -0.032653,
           0.043,
-          -0.017311
+          -0.004724
         ]
       },
       "shenbu-climb": {
@@ -3659,7 +3615,6 @@
     "trajectories": {
       "bike": {
         "ring": {
-          "stepUs": 75.829,
           "checkpoints": [
             {
               "tick": 119,
@@ -3749,7 +3704,6 @@
           ]
         },
         "shenbu-climb": {
-          "stepUs": 112.514,
           "checkpoints": [
             {
               "tick": 119,
@@ -3841,7 +3795,6 @@
       },
       "trail": {
         "ring": {
-          "stepUs": 40.507,
           "checkpoints": [
             {
               "tick": 119,
@@ -3931,7 +3884,6 @@
           ]
         },
         "shenbu-climb": {
-          "stepUs": 102.278,
           "checkpoints": [
             {
               "tick": 119,
@@ -4023,7 +3975,6 @@
       },
       "ebike": {
         "ring": {
-          "stepUs": 36.381,
           "checkpoints": [
             {
               "tick": 119,
@@ -4113,7 +4064,6 @@
           ]
         },
         "shenbu-climb": {
-          "stepUs": 112.533,
           "checkpoints": [
             {
               "tick": 119,
@@ -4205,7 +4155,6 @@
       },
       "chair": {
         "ring": {
-          "stepUs": 36.423,
           "checkpoints": [
             {
               "tick": 119,
@@ -4261,16 +4210,16 @@
             {
               "tick": 479,
               "pos": [
-                -98.756721,
-                -0.005992,
-                23.556702
+                -98.74855,
+                0.043,
+                23.463699
               ],
-              "speed": 0.452062,
-              "heading": -1.389259,
+              "speed": 1.121114,
+              "heading": -1.340781,
               "energy": 0.44,
-              "travel": 23.113441,
-              "slip": 0.015448,
-              "paved": false,
+              "travel": 23.206883,
+              "slip": 0.010179,
+              "paved": true,
               "gravel": false,
               "puddle": false,
               "skill": "双电机爆发"
@@ -4278,16 +4227,16 @@
             {
               "tick": 599,
               "pos": [
-                -98.759792,
-                -0.006,
-                23.579672
+                -98.759779,
+                0.043,
+                23.47419
               ],
               "speed": -0.012003,
-              "heading": -1.201829,
+              "heading": -1.118252,
               "energy": 0.56,
-              "travel": 23.123596,
-              "slip": 0.000003,
-              "paved": false,
+              "travel": 23.209907,
+              "slip": 0.000002,
+              "paved": true,
               "gravel": false,
               "puddle": false,
               "skill": ""
@@ -4295,7 +4244,6 @@
           ]
         },
         "shenbu-climb": {
-          "stepUs": 108.982,
           "checkpoints": [
             {
               "tick": 119,
