@@ -61,10 +61,6 @@
   .dots { display:flex; gap:4px; user-select:none; }
   .dots i { display:block; width:9px; height:4px; border-radius:4px; background:#e4f4d836; }
   .dots i.passed { background:var(--lime); }
-  .speedometer { position:absolute; bottom:21px; left:21px; padding:10px 15px 13px; min-width:108px; pointer-events:none; }
-  .speedometer strong { color:var(--lime); font:600 clamp(2rem,3.8vw,3.05rem)/1 var(--mono); letter-spacing:-.09em; }
-  .speedometer small { color:#d4decf; font:500 .74rem var(--mono); margin-left:6px; }
-  .speed-mat { display:block; color:#cedac8; margin-bottom:5px; font-size:.76rem; }
   .mini { position:absolute; right:21px; bottom:21px; width:213px; padding:11px 11px 7px; text-align:left; }
   .mini span { display:block; margin:0 2px 7px; color:#e8efdf; font-size:.81rem; }
   .mini canvas { display:block; width:100%; height:112px; border-radius:8px; pointer-events:none; }
@@ -113,7 +109,7 @@
   @media (pointer:coarse) {
     .touch { display:flex; }
     .hints .keys { display:none; }
-    .speedometer,.mini { bottom:78px; }
+    .mini { bottom:78px; }
     .next { bottom:78px; }
     .map-screen { padding-bottom:70px; }
   }
@@ -144,10 +140,6 @@
     .time-checkpoints { gap:7px; margin-top:8px; }
     .dots { gap:3px; }
     .dots i { width:6px; }
-    .speedometer { left:11px; min-width:77px; padding:7px 9px; }
-    .speedometer strong { font-size:1.84rem; }
-    .speedometer small { font-size:.66rem; margin-left:3px; }
-    .speed-mat { margin:0 0 4px; font-size:.69rem; }
     .mini { right:11px; width:120px; padding:6px 5px; border-radius:9px; }
     .mini span { font-size:.7rem; margin-bottom:4px; }
     .mini canvas { height:68px; border-radius:5px; }
@@ -175,24 +167,11 @@
   .split strong { text-align:right; color:#daf0d5; font-size:.75rem; white-space:nowrap; }
   .split strong[data-gap="ahead"] { color:#ddeb9c; }
   .split strong[data-gap="behind"] { color:#f3b6a2; }
-  .drive-gauges { display:grid; gap:5px; margin-top:6px; color:#d0dece; font-size:.69rem; line-height:1.15; }
-  .drive-gauge { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:2px 6px; align-items:baseline; }
-  .drive-gauge-label { overflow-wrap:anywhere; }
-  .drive-gauge-value { font-family:var(--mono); font-variant-numeric:tabular-nums; }
-  .drive-meter { grid-column:1/-1; height:4px; border-radius:8px; overflow:hidden; background:#f4f7e732; }
-  .drive-meter i { width:100%; height:100%; display:block; transform-origin:left; background:#a8d9d6; }
-  .drive-gauge[data-skill-active] .drive-gauge-label { color:var(--lime); }
-  .drive-gauge[data-skill-active] .drive-meter i { background:var(--lime); }
-  .drive-gauge:has([data-load=high]) .drive-gauge-value { color:#f3bc74; }
-  .drive-meter[data-load=high] i { background:#e0a55b; }
-  .drive-gauge:has([data-load=limit]) .drive-gauge-value { color:#ff9e8e; }
-  .drive-meter[data-load=limit] i { background:#ed7967; }
   .references { margin-top:6px; font-size:.73rem; color:#b4cbb9; }
   .references a { color:#d9e7c5; text-underline-offset:3px; }
   @media (max-width:640px) {
     .split { grid-template-columns:1fr; gap:3px; margin-top:6px; padding-top:5px; }
     .split strong { text-align:left; font-size:.71rem; }
-    .drive-gauges { font-size:.62rem; }
     .references { margin-top:3px; }
     .touch button { min-width:48px; font-size:.79rem; }
   }
@@ -205,7 +184,6 @@
   .course-field select:disabled { opacity:.67; cursor:default; }
   .course-field option { color:var(--ink); background:var(--surface); }
   .course-picker::after { content:""; width:6px; height:6px; border:solid #d3e3c8; border-width:0 1.4px 1.4px 0; position:absolute; right:11px; transform:translateY(-2px) rotate(45deg); pointer-events:none; }
-  .brake-hint { color:#f3c387; font-size:.72rem; margin-top:5px; display:block; }
   .map-tools { position:absolute; top:10px; left:10px; display:flex; align-items:flex-start; gap:7px; pointer-events:none; }
   .map-tools .float-button { min-height:34px; padding:0 8px; font-size:.76rem; pointer-events:auto; }
   .map-place { background:#233e31e9; color:#f3f4dc; border:1px solid #e4ecd467; padding:8px 9px; border-radius:7px; font-size:.76rem; box-shadow:0 5px 15px #2d392833; }

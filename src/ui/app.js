@@ -55,7 +55,6 @@ import { createFriendDuelController } from './friend-duel.js';
 import { createMedalTravelController } from './medal-travel.js';
 import { createWorkshopController } from './workshop-ui.js';
 import { createSettingsController } from './settings-dialog.js';
-import { updateDraftHud } from './draft-hud.js';
 import { initCustomSounds, playCustomSound, updateRideAudio } from './audio.js';
 import { getShowMapComparison, renderCampusMap, setShowMapComparison } from './minimap.js';
 import { applyPendingSaveVehicle, bindSaveUi } from './save-sync.js';
@@ -114,7 +113,7 @@ const driverProfile=readDriverProfile();
 const vehicleTunings=savedVehicleTunings();
 const race=new TimeTrial(courses[0],savedBike(),driverProfile.vehicle);
 const ui = Object.fromEntries([
-  'sceneHud','intro','timing','timedTitle','progressLabel','checkpointCount','dots','clock','velocity','surfaceType','courseFacts',
+  'sceneHud','intro','timing','timedTitle','progressLabel','checkpointCount','dots','clock','velocity','surfaceType','roadName','courseFacts',
   'mapScreen','mapToggle','mapText','miniButton','bigMap','miniMap','stationList','mapClock','mapNext','mapLegend',
   'mapRouteBuild','routeBuilderPanel','routeBuilderStatus','routeBuildUndo','routeBuildLoop','routeBuildClear','routeBuildApply','routeBuildCopy','routeBuilderCode',
   'riderTag','chairCheer','sprintKeys','gateTag','next','callout','callTitle','callValue','callDetail','callAction',
@@ -366,9 +365,6 @@ export function updateHud() {
   const trial = race.phase !== 'free' || chasing;
   const event=race.event,gates=event.gates,checkpointCount=gates.length-2;
   const leg=trial?activeStage(event,race.nextGate):null;
-  const bicycle = race.rider.vehicle === 'bike';
-  updateDrivingHud(race.rider);
-  ui.puddleStatus.hidden=!race.rider.inPuddle;
   setRawText(ui.riderTag,driverProfile.name);
   const opponent=race.opponent;
   const cyan = trial ? message`，青色是${opponent ? ghostLabel(opponent) : translate('影子')}` : '';
@@ -407,7 +403,6 @@ export function updateHud() {
     setLanguageAttribute(ui.freeRide,'title',translate(fin?'结束本场并返回自由骑行':(chasing?'退出当前追捕并返回自由骑行':'退出当前比赛并返回自由骑行')));
   }
   ui.pause.disabled=online||race.phase==='done'||(chasing&&!ShadowChase.isRunning());
-  updateDraftHud(ui.draftPill, race.rider.draft);
   const liveRank=race.phase==='race'?(online?onlineRaceRank(performance.now()):aiRank(race)):null;
   ui.onlineRank.hidden=!liveRank;
   if (liveRank) {
@@ -455,11 +450,9 @@ export function updateHud() {
     });
     previousGate = race.nextGate;
   }
-  setText(ui.velocity,String(Math.round(Math.abs(race.rider.speed) * 3.6)));
-  const [x,,z] = race.rider.position;
-  const grade=(worldState.hooks.riderGrade ?? riderGrade)(race.rider.position,race.rider.heading)*100;
-  ui.slopeGrade.hidden=!bicycle;
-  if (bicycle) setRawText(ui.slopeGrade,(grade>.05?'↗ +':grade<-.05?'↘ −':translate('坡度 '))+Math.abs(grade).toFixed(1)+'%');
+  const { rider } = race;
+  const [x,,z] = rider.position;
+  const gradeAt = worldState.hooks.riderGrade ?? race.worldQuery?.riderGrade ?? riderGrade;
   const london=getActiveCampus()==='ucl';
   const outside=getActiveCampus()==='szu'&&!inCampus(x,z)?cityStreetAt(x,z):null;
   const streetName=london?uclWayByPath.get(uclStreetAt(x,z,1.15)):outside?.name;
@@ -473,16 +466,17 @@ export function updateHud() {
       const branch=typeof mountainRoadAt==='function'?mountainRoadAt(x,z,true):null;
       if(branch&&branch.gap<=branch.lane.path.width+2.5) roadLoc=branch.lane.path===mountainUp?'神步山上山道':'神步山下山道';
       else if(typeof bridgeAxis==='function'&&Math.abs(bridgeAxis(x,z))<40&&Math.abs(parkBridgeSide(x,z))<6) roadLoc='九孔伏波桥';
-      else if(race.phase==='free') roadLoc=(typeof nearestCourierLandmark==='function'?nearestCourierLandmark('shunde',x,z,42):null)??(parkPaved(x,z,-2)?'青云湖环线':'顺峰山公园');
-      else if(parkPaved(x,z,-1)) roadLoc='青云湖环线';
+      else roadLoc=(typeof nearestCourierLandmark==='function'?nearestCourierLandmark('shunde',x,z,42):null)??(parkPaved(x,z,-2)?'青云湖环线':'顺峰山公园');
     }
-  } else if(!roadLoc&&race.phase==='free') {
+  } else if(!roadLoc) {
     const near=typeof nearestCourierLandmark==='function'?nearestCourierLandmark(getActiveCampus(),x,z,38):null;
     roadLoc=near??(getActiveCampus()==='szu'&&race.rider.paved?'深大校内道路':null);
   }
-  const surfaceShort=onPavilionWalk?'栈道':!race.rider.paved?(race.rider.surfaceKind==='gravel'?'碎石':'草地'):'柏油';
-  const surfaceFull=!race.rider.paved?(race.rider.surfaceKind==='gravel'?'碎石路面':'草地减速'):'柏油路面';
-  setText(ui.surfaceType,race.phase==='free'?(roadLoc?translate(roadLoc)+' · '+translate(surfaceShort):surfaceFull):(!race.rider.paved?surfaceFull:(roadLoc??'柏油路面')));
+  const surface = onPavilionWalk ? 'plank' : rider.paved ? 'paved' : rider.surfaceKind === 'gravel' ? 'gravel' : 'grass';
+  updateDrivingHud(rider, {
+    grade: gradeAt(rider.position, rider.heading),
+    surface, roadName: roadLoc, wind: windEffectLabel(race, translate),
+  });
   updateCoach();
   const clock = timeLabel(race.elapsed);
   setText(ui.clock,clock);
@@ -499,11 +493,6 @@ export function updateHud() {
       setRawText(ui.liveDelta,message`实时 ${deltaLabel(ld)}`);
       ui.liveDelta.dataset.gap=gapTone(ld);
     }
-  }
-  if(ui.windPill) {
-    const windText=windEffectLabel(race, translate);
-    ui.windPill.hidden=!windText;
-    if(windText) setText(ui.windPill,windText);
   }
   if(ui.courierHud) {
     const nowMs=performance.now();

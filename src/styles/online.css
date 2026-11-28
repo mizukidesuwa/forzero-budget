@@ -30,8 +30,6 @@
   .online-rank { color:#f2f7b8; border-color:#ddeb9c55; }
   .online-latency[hidden],.online-rank[hidden] { display:none; }
   .online-tag { background:#183028d9; border-color:#8fe6c280; color:#e6fff2; }
-  .draft-pill { display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px; background:#1c3c2be8; border:1px solid #88e6aa88; color:#c8ffd6; font:600 .72rem var(--mono); white-space:nowrap; }
-  .draft-pill[hidden] { display:none; }
   .practice-bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:8px; }
   .practice-btn { min-height:24px; padding:2px 7px; border-radius:6px; border:1px solid #ddeb9c55; background:#294131; color:#eef7d5; font-size:.72rem; white-space:nowrap; }
   .practice-btn:hover { background:#36543f; }

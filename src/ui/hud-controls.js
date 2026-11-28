@@ -1,7 +1,10 @@
 import { clamp } from '../core/math.js';
 import { cameraViews, interfaceScale, knownHudScale, knownTouchSize } from '../data/interface.js';
 import { rocketSkill, vehicleSkills } from '../data/vehicle-skills.js';
+import { updateDraftHud } from './draft-hud.js';
 import { getLanguage, message, setLabel, setLanguageAttribute, setText, translate } from './language.js';
+
+const drivingSurfaceLabels = { paved: '柏油路面', gravel: '碎石路面', grass: '草地', plank: '栈道' };
 
 function updateDriveMeter(meter, fill, output, value) {
   const percent = String(value);
@@ -14,7 +17,22 @@ function updateDriveMeter(meter, fill, output, value) {
 export function createDrivingHud(stage, ui) {
   const touchSkill = stage.querySelector('.touch [data-drive="sprint"]');
   let shownSkill, shownLanguage;
-  return function updateDrivingHud(rider) {
+  return function updateDrivingHud(rider, { grade, surface, roadName, wind }) {
+    setText(ui.velocity, String(Math.round(Math.abs(rider.speed) * 3.6)));
+    const tenths = Math.round(grade * 1000);
+    const sign = tenths === 0 ? '' : tenths > 0 ? '+' : '−';
+    setText(ui.slopeGrade, sign + (Math.abs(tenths) / 10).toFixed(1) + '%');
+    if (ui.surfaceType.dataset.surface !== surface) ui.surfaceType.dataset.surface = surface;
+    setLabel(ui.surfaceType, drivingSurfaceLabels[surface]);
+    const location = roadName ? translate(roadName) : '';
+    ui.roadName.hidden = !location;
+    setText(ui.roadName, location);
+    if (ui.roadName.title !== location) setLanguageAttribute(ui.roadName, 'title', location);
+    ui.puddleStatus.hidden = !rider.inPuddle;
+    updateDraftHud(ui.draftPill, rider.draft);
+    ui.windPill.hidden = !wind;
+    setText(ui.windPill, wind);
+
     const rocket = rider.tuning?.rocketBoost;
     const skill = rocket ? rocketSkill : vehicleSkills[rider.vehicle];
     const language = getLanguage();

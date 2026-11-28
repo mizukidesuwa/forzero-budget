@@ -5,6 +5,56 @@
 .stage :is(.timing,.courier-hud) { transform-origin:top left; }
 .stage .speedometer { transform-origin:bottom left; }
 .stage .mini { transform-origin:bottom right; }
+
+.speedometer {
+  --drive-inset-left:21px;
+  --drive-warning:#f3c387;
+  position:absolute; bottom:21px; left:var(--drive-inset-left); width:168px; padding:8px 12px 9px; pointer-events:none;
+}
+.speed-readout { display:flex; align-items:baseline; gap:5px; white-space:nowrap; }
+.speed-readout strong { color:var(--lime); font:600 clamp(2rem,3.8vw,3.05rem)/.96 var(--mono); letter-spacing:-.09em; }
+.speed-readout small { color:#d4decf; font:500 .74rem var(--mono); }
+.drive-road-row {
+  display:grid; grid-template-columns:minmax(0,1fr) auto; gap:5px; align-items:baseline;
+  margin-top:5px; color:#cedac8; font-size:.73rem; line-height:1.25;
+}
+.drive-grade { display:flex; gap:4px; align-items:baseline; white-space:nowrap; }
+.drive-grade output { color:#edebb0; font-family:var(--mono); font-variant-numeric:tabular-nums; font-weight:700; }
+.speed-mat,.drive-road-name { display:block; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.speed-mat[data-surface="grass"] { color:var(--drive-warning); }
+.drive-road-name { margin-top:2px; color:var(--muted); font-size:.68rem; line-height:1.25; }
+.drive-gauges { display:grid; gap:5px; margin-top:6px; color:#d0dece; font-size:.69rem; line-height:1.15; }
+.drive-gauge { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:2px 6px; align-items:baseline; }
+.drive-gauge-label { overflow-wrap:anywhere; }
+.drive-gauge-value { font-family:var(--mono); font-variant-numeric:tabular-nums; }
+.drive-meter { grid-column:1/-1; height:4px; border-radius:8px; overflow:hidden; background:#f4f7e732; }
+.drive-meter i { width:100%; height:100%; display:block; transform-origin:left; background:#a8d9d6; }
+.drive-gauge[data-skill-active] .drive-gauge-label { color:var(--lime); }
+.drive-gauge[data-skill-active] .drive-meter i { background:var(--lime); }
+.drive-gauge:has([data-load=high]) .drive-gauge-value { color:#f3bc74; }
+.drive-meter[data-load=high] i { background:#e0a55b; }
+.drive-gauge:has([data-load=limit]) .drive-gauge-value { color:#ff9e8e; }
+.drive-meter[data-load=limit] i { background:#ed7967; }
+.brake-hint { display:block; margin-top:5px; color:var(--drive-warning); font-size:.72rem; overflow-wrap:anywhere; }
+.speed-badges {
+  position:absolute; left:0; bottom:calc(100% + 5px);
+  display:flex; align-items:center; flex-wrap:wrap; gap:4px; width:max-content;
+  max-width:min(240px,calc((100cqw - var(--drive-inset-left) - 8px) / var(--hud-scale)));
+}
+.drive-status {
+  min-width:0; max-width:100%; padding:2px 7px; border:1px solid var(--line); border-radius:999px;
+  background:#192e22e8; color:#e9f6c8; font-size:.7rem; font-weight:650; line-height:1.2; overflow-wrap:anywhere;
+}
+.drive-status[data-tone="activity"] { border-color:#88e6aa88; background:#1c3c2be8; color:#c8ffd6; }
+.drive-status[data-tone="environment"],.drive-status[data-posture="tuck"] { border-color:#7ce2d488; background:#15302ce8; color:#c8fff5; }
+.drive-status[data-posture="stand"] { border-color:#f0c67488; background:#2e2817e8; color:#ffe6a8; }
+.drive-status[data-tone="warning"] { border-color:#f3a858cc; background:#3a2212f2; color:#ffe6c2; }
+#draftPill { background:linear-gradient(90deg,#347358 var(--draft-charge,0%),#1c3c2be8 0); }
+
+@media (pointer:coarse) {
+  .speedometer { bottom:var(--touch-hud-bottom); }
+}
+
 .route-hud {
   position:absolute; top:var(--hud-info-top); right:var(--hud-info-right);
   display:grid; grid-template-columns:minmax(0,1fr); justify-items:end; gap:4px;
@@ -37,19 +87,19 @@
   .timing .clock { margin:0; font-size:1.44rem; }
   .timing .time-checkpoints { margin-top:3px; font-size:.67rem; line-height:1.15; }
   .timing :is(.readout-title,.dots,.split,.coach-feedback,.exit-feedback,.online-latency) { display:none; }
-  .timing :is(.live-delta,.online-rank,.wind-pill) { margin:3px 0 0; padding:0; border:0; background:none; font-size:.64rem; line-height:1.2; }
+  .timing :is(.live-delta,.online-rank) { margin:3px 0 0; padding:0; border:0; background:none; font-size:.64rem; line-height:1.2; }
 
-  .speedometer { left:8px; width:106px; min-width:0; padding:5px 7px; border-radius:9px; }
-  .speed-mat { display:block; margin:0 0 2px; overflow:hidden; text-overflow:ellipsis; font-size:.66rem; line-height:1.2; }
-  .speedometer strong { font-size:1.52rem; }
-  .speed-readout { gap:3px; flex-wrap:nowrap; white-space:nowrap; }
-  .speedometer small { font-size:.58rem; }
-  .speed-readout .slope-grade { font-size:.60rem; }
+  .speedometer { --drive-inset-left:8px; width:120px; padding:5px 6px; border-radius:9px; }
+  .speed-readout { gap:3px; }
+  .speed-readout strong { font-size:1.52rem; }
+  .speed-readout small { font-size:.58rem; }
+  .drive-road-row { gap:1px; margin-top:4px; font-size:.64rem; }
+  .drive-grade { gap:2px; }
+  .drive-road-name,.brake-hint { font-size:.61rem; }
   .drive-gauges { gap:4px; margin-top:4px; font-size:.61rem; }
   .drive-meter { height:3px; }
-  .speed-badges { gap:3px; bottom:calc(100% + 3px); flex-wrap:nowrap; }
-  .speed-badges :is(.draft-pill,.status-pill) { padding:2px 5px; font-size:.62rem; }
-  .speed-badges:has(#puddleStatus:not([hidden])) :is(#bikePosture,#draftPill) { display:none; }
+  .speed-badges { gap:2px; bottom:calc(100% + 2px); }
+  .drive-status { padding:1px 5px; font-size:.62rem; }
 
   .mini { right:8px; width:92px; padding:4px; border-radius:8px; }
   .mini span { margin:0 0 2px; font-size:.64rem; line-height:1.2; }
@@ -93,11 +143,25 @@
 }
 @media (max-height:500px) and (orientation:landscape) {
   .timing { top:7px; }
+  .speedometer { bottom:10px; }
 }
 @media (max-height:500px) and (orientation:landscape) and (pointer:coarse) {
-  .speedometer { left:var(--touch-side-clear); }
+  .speedometer { --drive-inset-left:var(--touch-side-clear); bottom:8px; }
   .mini { right:var(--touch-side-clear); }
 }
 @media (max-height:400px) and (orientation:landscape) {
   .stage[data-hud-scale="auto"] { --hud-scale:.78; }
+}
+@media (max-height:360px) and (orientation:landscape) {
+  .speed-badges {
+    left:calc(100% + 5px); bottom:0;
+    max-width:min(240px,calc((100cqw - var(--drive-inset-left) - 8px) / var(--hud-scale) - 100% - 5px));
+  }
+}
+@media (max-height:360px) and (orientation:landscape) and (pointer:coarse) {
+  .speed-badges {
+    left:auto; right:calc(100% + 5px);
+    bottom:calc((var(--touch-steer-h) + var(--touch-hit) + var(--touch-bottom) - 4px) / var(--hud-scale));
+    max-width:min(240px,calc((var(--drive-inset-left) - 8px) / var(--hud-scale) - 5px));
+  }
 }

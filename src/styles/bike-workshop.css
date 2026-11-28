@@ -27,16 +27,6 @@
   .workshop-group summary { cursor:pointer; padding:10px 0; color:#dceac9; font-weight:650; }
   #bikeParts .bike-stats:not(.workshop-speeds) { display:none; }
   .bike-stats.workshop-speeds { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,7rem),1fr)); margin:0 0 11px; }
-  .speedometer { overflow:visible; padding:8px 12px 9px; min-width:128px; }
-  .speed-mat { margin-bottom:2px; font-size:.73rem; white-space:nowrap; }
-  .speed-readout { display:flex; align-items:baseline; gap:5px; flex-wrap:wrap; }
-  .speed-readout strong { line-height:.96; }
-  .speed-readout small { margin-left:0; }
-  .speed-readout .slope-grade { display:inline-block; margin-left:3px; font-size:.73rem; }
-  .speed-badges { position:absolute; left:0; bottom:calc(100% + 6px); display:flex; align-items:center; flex-wrap:wrap; gap:5px; width:max-content; max-width:240px; pointer-events:none; }
-  .status-pill.posture-pill { display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px; font-size:.72rem; font-weight:650; border:1px solid #ddeb9c66; background:#192e22e8; color:#e9f6c8; white-space:nowrap; }
-  .posture-pill[data-posture="tuck"] { border-color:#7ce2d488; background:#15302ce8; color:#c8fff5; }
-  .posture-pill[data-posture="stand"] { border-color:#f0c67488; background:#2e2817e8; color:#ffe6a8; }
   .settings-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
   .settings-head-main { min-width:0; }
   .settings-guide-btn { min-height:36px; padding:0 11px; font-size:.82rem; flex:none; }
@@ -78,7 +68,7 @@
   #callout[data-mode="race"] { pointer-events:none; }
   @media (pointer:coarse) {
     .map-screen { padding-bottom:10px; }
-    .speedometer,.mini { bottom:var(--touch-hud-bottom); }
+    .mini { bottom:var(--touch-hud-bottom); }
   }
   @media (max-width:640px) {
     .brand-badge { padding:2px 5px; border-radius:8px; }
@@ -99,15 +89,12 @@
     .action { min-height:44px; padding:0 9px; font-size:.82rem; }
     .course-field { min-height:44px; }
     .course-field select { min-height:42px; }
-    .speedometer { padding:6px 9px 7px; min-width:110px; }
-    .speedometer strong { font-size:1.62rem; }
-    .speed-readout .slope-grade { font-size:.69rem; }
     .next { left:auto; right:11px; bottom:126px; max-width:calc(100% - 178px); padding:5px 8px; font-size:.72rem; text-align:right; }
     #stationList li { flex-wrap:nowrap; flex:none; padding:4px 6px; }
   }
   @media (max-width:640px) and (pointer:coarse) {
     .map-screen { padding-bottom:10px; }
-    .speedometer,.mini { bottom:var(--touch-hud-bottom); }
+    .mini { bottom:var(--touch-hud-bottom); }
     .next { left:auto; right:11px; bottom:calc(var(--touch-hud-bottom) + 104px); max-width:calc(100% - 180px); text-align:right; }
   }
   @media (max-height:500px) {
@@ -134,10 +121,6 @@
     .time-checkpoints { margin-top:5px; gap:6px; font-size:.7rem; }
     .dots i { width:6px; }
     .split { margin-top:5px; padding-top:4px; font-size:.69rem; }
-    .speedometer { left:8px; bottom:10px; padding:6px 9px 7px; min-width:114px; }
-    .speed-mat { font-size:.67rem; margin-bottom:2px; }
-    .speedometer strong { font-size:1.48rem; }
-    .speed-readout .slope-grade { font-size:.67rem; }
     .mini { right:8px; bottom:10px; width:136px; padding:6px 6px 4px; }
     .mini span { font-size:.68rem; margin-bottom:3px; }
     .mini canvas { height:64px; }
@@ -154,7 +137,6 @@
       --touch-gas-base:58px; --touch-sprint-base:42px;
       --touch-inset:8px; --touch-bottom:7px;
     }
-    .speedometer { left:var(--touch-side-clear); bottom:8px; }
     .mini { right:var(--touch-side-clear); bottom:8px; width:126px; }
     .next { bottom:98px; left:50%; right:auto; transform:translateX(-50%); max-width:min(320px,calc(100% - 32px)); text-align:center; }
     #callout[data-mode="count"], #callout[data-mode="race"] { top:42%; padding:12px 20px; }

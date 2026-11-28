@@ -14,7 +14,25 @@ import { defaultRiderSkin } from '../src/data/rider-skins.js';
 import saveRules from '../src/data/shared-rules.cjs';
 import { getCourseVariant } from '../src/race/course-variants.js';
 import { makeGhostFile } from '../src/replay/ghost.js';
-import { buildCustomNetworkRoute, buildRidingScene, coursesByCampus, makeNetworkCourse, networkForCampus, setActiveCampus } from '../src/test-exports.js';
+import { buildCustomNetworkRoute, buildRidingScene, courseGround, coursesByCampus, createWorldQuery, makeNetworkCourse, networkForCampus, setActiveCampus } from '../src/test-exports.js';
+
+function roadHudSample(campus, courseId, gateName) {
+  const course = coursesByCampus[campus].find(item => item.id === courseId);
+  const gate = course.gates.find(item => item.name === gateName);
+  const query = createWorldQuery(campus);
+  const position = courseGround(course, gate.p);
+  const [x, , z] = position;
+  return {
+    position,
+    heading: Math.atan2(gate.f[2], gate.f[0]),
+    paved: query.surfaceAt(x, z),
+    surfaceKind: query.surfaceKindAt(x, z),
+  };
+}
+
+const dujuanStart = roadHudSample('szu', 'dujuan-climb', '立德门内侧');
+const dujuanSlope = roadHudSample('szu', 'dujuan-climb', '坡脚入口');
+const shenbuGravel = roadHudSample('shunde', 'shenbu-climb', '林中折返');
 
 const buildDir = resolve(process.env.FORZERO_BUILD_DIR ?? 'dist-v2');
 const desktop = resolve(process.env.FORZERO_RELEASE_DIR ?? join(buildDir,'desktop'));
@@ -131,6 +149,19 @@ try {
     const labels=['雨地抓地','雨地带刹抓地','雨地直线制动'];
     const poweredParts=()=>Array.from(u.vehSlots.querySelectorAll('select'));
     const choosePowered=(key,value)=>select(u.vehSlots.querySelector('select[name="'+key+'"]'),value);
+    const start=${JSON.stringify(dujuanStart)}, slope=${JSON.stringify(dujuanSlope)};
+    const readRoadHud=(rider,sample,heading=sample.heading)=>{
+      Object.assign(rider,sample,{heading});
+      f.updateHud();
+      return {
+        grade:u.slopeGrade.textContent,
+        surface:u.surfaceType.textContent,
+        visible:u.slopeGrade.getBoundingClientRect().width>0 && u.surfaceType.getBoundingClientRect().width>0,
+        sharedRow:u.slopeGrade.closest('.drive-road-row')===u.surfaceType.closest('.drive-road-row') &&
+          Boolean(u.slopeGrade.closest('.speedometer')),
+      };
+    };
+    const visibleWind=()=>u.windPill.getBoundingClientRect().width>0 && Boolean(u.windPill.closest('.speedometer .speed-badges'));
     const read=panel=>{
       const rows=new Map(Array.from(panel.children,row=>[row.firstElementChild.textContent,row.querySelector('output').textContent]));
       return labels.map(label=>rows.get(label));
@@ -156,6 +187,7 @@ try {
           hud:Boolean(instrument && instrument.contains(u.sprintMeter) && instrument.contains(gripValue) &&
             instrument.contains(gripLabel) && meter.getBoundingClientRect().width>0 && gripLabel.textContent==='抓地余量'),
           responsive:atRest===100 && turning>0 && turning<atRest && gripValue.textContent===turning+'%',
+          road:[readRoadHud(r.rider,slope),readRoadHud(r.rider,slope,slope.heading+Math.PI),readRoadHud(r.rider,start)],
         };
       } finally {
         Object.assign(r,previous);
@@ -166,6 +198,7 @@ try {
     u.bikeButton.click();
     const initialVehicle=u.vehiclePicker.value;
     const initialBudget=u.budgetPicker.value;
+    const {windSpeed,windMode}=f.preferences;
     const bikeParts=[u.bikeTyres,u.bikeGears,u.bikeBrakes,u.bikeFrame,u.bikeSprint];
     const initialBike=bikeParts.map(control=>control.value);
     let initialEbike;
@@ -200,12 +233,19 @@ try {
       const at660=u.budgetReadout.textContent;
       const budgetCleared=u.budgetReadout.dataset.over==='false' && !u.vehSlots.querySelector('[data-over-budget]');
       f.closeSettings();
+      Object.assign(f.preferences,{windSpeed:4,windMode:'steady'});
+      f.updateHud();
+      const freeWind=visibleWind();
       u.startTrial.click();
       const accepted=f.race.phase==='count' && f.race.rider.tuning.parts.thermal==='quickCooling';
+      const timedRoad=readRoadHud(f.race.rider,slope);
+      const timedWind=visibleWind();
       u.bikeButton.click();
       const locked=poweredParts().length===5 && poweredParts().every(control=>control.disabled);
-      return {usedSlick,tractionControl,grass,powered,vehicles,budget:{at710,at660,geometrySaved,rejected,budgetCleared,accepted,locked}};
+      return {usedSlick,tractionControl,grass,powered,vehicles,timedRoad,freeWind,timedWind,
+        budget:{at710,at660,geometrySaved,rejected,budgetCleared,accepted,locked}};
     } finally {
+      Object.assign(f.preferences,{windSpeed,windMode});
       if (f.race.phase!=='free') {
         f.closeSettings();
         u.freeRide.click();
@@ -223,7 +263,7 @@ try {
       f.closeSettings();
     }
   })()`);
-  const { vehicles, budget, ...rainStats } = garage;
+  const { vehicles, budget, timedRoad, freeWind, timedWind, ...rainStats } = garage;
   assert.deepEqual(rainStats, {
     usedSlick:['-48%','-48%','持平'], tractionControl:['+31%','+42%','-5%'],
     grass:true, powered:['+15%','+24%','-3%'],
@@ -236,12 +276,16 @@ try {
     trail: ['tyres','gears','suspension','brakes','traction'],
   };
   assert.deepEqual(vehicles.map(({ vehicle }) => vehicle), ['bike','ebike','chair','trail']);
-  for (const { vehicle, labels, slots, hud, responsive } of vehicles) {
+  const asphalt = grade => ({grade,surface:'柏油路面',visible:true,sharedRow:true});
+  for (const { vehicle, labels, slots, hud, responsive, road } of vehicles) {
     assert.equal(labels.length, sharedStats.length + 2, vehicle + ' garage stat count');
     assert.deepEqual(labels.slice(0, sharedStats.length), sharedStats, vehicle + ' shared garage stats');
     assert.deepEqual(slots, expectedSlots[vehicle], vehicle + ' powered tuning slots');
     assert.ok(hud && responsive, vehicle + ' shared grip HUD did not respond to turning');
+    assert.deepEqual(road, ['+5.5%','−5.5%','0.0%'].map(asphalt), vehicle + ' Dujuan uphill/downhill/flat HUD');
   }
+  assert.deepEqual(timedRoad, asphalt('+5.5%'), 'Timed and free riding share the same surface and grade row');
+  assert.ok(freeWind && timedWind, 'Wind is visible in the main instrument in free and timed riding');
   assert.match(budget.at710, /¥710.*¥700.*¥10/);
   assert.match(budget.at660, /¥660.*¥700/);
   for (const key of ['geometrySaved','rejected','budgetCleared','accepted','locked']) {
@@ -750,29 +794,70 @@ try {
       f.updateHud();
     })()`);
     await wait("__FORZERO__.race.phase==='race' && !__FORZERO__.ui.next.hidden && !__FORZERO__.ui.fpsCounter.hidden", 'Mobile race guidance did not appear');
-    for (const [width,height] of [[320,568],[390,844],[844,390]]) {
+    for (const [width,height,drivingOnly] of [[320,568],[390,844],[844,390],[568,320,true]]) {
       await rpc('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:2,mobile:true},sessionId);
       await wait(`innerWidth===${width}`, 'Mobile viewport did not resize');
       const fit = await evaluate(`(()=>{
-        const f=__FORZERO__, box=element=>element.getBoundingClientRect();
-        const view=box(f.stage), fps=box(f.ui.fpsCounter), next=box(f.ui.next), camera=box(f.ui.cameraToggle),
-          left=box(document.querySelector('.touch-steer')), right=box(document.querySelector('.touch-pedals')),
-          speedometer=box(document.querySelector('.speedometer')), grip=box(document.querySelector('#gripMeter'));
-        return {
-          guidance:fps.width>0 && next.width>0 && fps.top>=next.bottom,
-          routeFits:next.right <= view.right && next.left >= view.left,
-          buttonsFit:left.width>0 && right.width>0 && left.left>=view.left && right.right<=view.right && left.right<=right.left,
-          cameraFits:camera.width>0 && camera.left>=view.left && camera.right<=view.right,
-          gripFits:grip.width>0 && grip.left>=speedometer.left && grip.right<=speedometer.right,
-          bounds:[view.left,view.right,next.left,next.right],
-        };
+        const f=__FORZERO__, u=f.ui, r=f.race, box=element=>element.getBoundingClientRect();
+        const rider=r.rider, campus=f.activeCampus, {windSpeed,windMode}=f.preferences;
+        const sample=${JSON.stringify(shenbuGravel)};
+        const fitsHorizontally=(inner,outer)=>inner.width>0 && inner.left>=outer.left && inner.right<=outer.right;
+        try {
+          f.activeCampus='shunde';
+          Object.assign(f.preferences,{windSpeed:4,windMode:'steady'});
+          r.rider={...rider,...sample,speed:30,inPuddle:true,draft:{charge:.6}};
+          f.updateHud();
+          const view=box(f.stage), fps=box(u.fpsCounter), next=box(u.next), camera=box(u.cameraToggle),
+            left=box(document.querySelector('.touch-steer')), right=box(document.querySelector('.touch-pedals')),
+            speedometer=box(document.querySelector('.speedometer')), grip=box(u.gripMeter),
+            speed=box(document.querySelector('.speed-readout')), road=box(document.querySelector('.drive-road-row')),
+            surface=box(u.surfaceType), grade=box(u.slopeGrade), roadName=document.querySelector('#roadName');
+          return {
+            guidance:fps.width>0 && next.width>0 && fps.top>=next.bottom,
+            routeFits:next.right <= view.right && next.left >= view.left,
+            buttonsFit:left.width>0 && right.width>0 && left.left>=view.left && right.right<=view.right && left.right<=right.left,
+            cameraFits:camera.width>0 && camera.left>=view.left && camera.right<=view.right,
+            gripFits:fitsHorizontally(grip,speedometer),
+            speedFits:u.velocity.textContent==='108' && fitsHorizontally(speed,speedometer),
+            roadFits:u.surfaceType.textContent==='Gravel' && u.slopeGrade.textContent==='+8.2%' &&
+              fitsHorizontally(surface,road) && fitsHorizontally(grade,road) &&
+              (surface.right<=grade.left || grade.right<=surface.left || surface.bottom<=grade.top || grade.bottom<=surface.top),
+            roadNameFits:Boolean(roadName && !roadName.hidden && roadName.textContent==='Shenbu Mountain Ascent' &&
+              fitsHorizontally(box(roadName),speedometer)),
+            statusFits:[u.windPill,u.puddleStatus,u.draftPill].every(element=>!element.hidden &&
+              fitsHorizontally(box(element),view)) && u.windPill.textContent.includes('4.0'),
+            bounds:[view.left,view.right,next.left,next.right],
+          };
+        } finally {
+          r.rider=rider;
+          f.activeCampus=campus;
+          Object.assign(f.preferences,{windSpeed,windMode});
+          f.updateHud();
+        }
       })()`);
-      const { bounds, ...fits } = fit;
-      assert.deepEqual(fits,{guidance:true,routeFits:true,buttonsFit:true,cameraFits:true,gripFits:true},`${width}×${height} at 150%, stage/route bounds ${bounds}`);
+      const { bounds, guidance, routeFits, buttonsFit, cameraFits, ...drivingFit } = fit;
+      const layout = `${width}×${height} at 150%, stage/route bounds ${bounds}`;
+      assert.deepEqual(drivingFit,{gripFits:true,speedFits:true,roadFits:true,roadNameFits:true,statusFits:true},'Driving HUD: '+layout);
+      if (!drivingOnly) assert.deepEqual({guidance,routeFits,buttonsFit,cameraFits},
+        {guidance:true,routeFits:true,buttonsFit:true,cameraFits:true},'Navigation and controls: '+layout);
     }
     const timeOrigin = await evaluate('performance.timeOrigin');
     await rpc('Page.reload',{},sessionId);
     await wait(`performance.timeOrigin!==${timeOrigin} && globalThis.__FORZERO__?.ready===true && __FORZERO__.preferences.hudScale===150 && __FORZERO__.preferences.touchSize===150`, 'Custom scales did not survive reload');
+    const blindHint = await evaluate(`(() => {
+      const { ui, updateHud } = __FORZERO__;
+      const previousMode = ui.raceMode.value;
+      ui.raceMode.value = 'blind';
+      try {
+        ui.startTrial.click();
+        return { hint: ui.blindHint.textContent, bell: ui.touchBell.getBoundingClientRect().width > 0 };
+      } finally {
+        ui.freeRide.click();
+        ui.raceMode.value = previousMode;
+        updateHud();
+      }
+    })()`);
+    assert.deepEqual(blindHint, { hint: 'Night Blind · Tap the bell for direction', bell: true });
     assert.deepEqual(await evaluate('qaErrors'), [], 'mobile errors');
   }
   console.log('Desktop language persistence, race UI and mobile English touch controls passed.');

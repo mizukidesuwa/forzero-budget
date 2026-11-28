@@ -1,5 +1,7 @@
 import { message, translate } from './language.js';
 
+const touchDriving = globalThis.matchMedia?.('(pointer: coarse)');
+
 export function updateChaseHud(ui, chase, timeLabel, mapOpen = false, online = false, paused = false) {
   if (!chase?.active || online) return false;
   if (ui.courierHud) {
@@ -123,7 +125,7 @@ export function updateBlindHud(ui, blind, nowMs, online = false) {
     text = message`注意 · ${translate(blind.hazardLabel)}`;
     ui.blindHint.dataset.alert = 'hazard';
   } else {
-    text = translate('夜骑盲区 · 按 B/H 摇铃听方位');
+    text = translate(touchDriving?.matches ? '夜骑盲区 · 点按摇铃听方位' : '夜骑盲区 · 按 B/H 摇铃听方位');
     delete ui.blindHint.dataset.alert;
   }
   if (ui.blindHint.textContent !== text) ui.blindHint.textContent = text;

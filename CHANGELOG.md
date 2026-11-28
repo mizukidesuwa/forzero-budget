@@ -1,5 +1,11 @@
 # 更新日志（CHANGELOG）
 
+## 2.6.2 — 统一驾驶 HUD 与坡度读数
+
+- 统一四种车型的驾驶 HUD。速度、路面、坡度和道路名使用固定位置，坡度从当前骑行世界查询读取。风况并入驾驶状态区，与积水、尾流及自行车骑姿共用提示样式。手机紧凑布局允许状态并存，夜骑按触屏或键盘显示摇铃提示。关联 `src/ui/hud-controls.js`、`src/ui/app.js`、`src/ui/mode-hud.js` 与 `src/styles/hud-compact.css`。
+- 桌面版优先迁移同级的 2.6.1 存档，同版本优先匹配当前安装包型。关联 `server/server.mjs`、`scripts/verify-save.mjs` 与 `scripts/verify-desktop-start.mjs`。
+- 通过 `npm run lint`、`npm run typecheck`、`npm run build:release` 与 `npm run verify:all -- --skip-build` 的 18 项检查。浏览器覆盖四车型真实正负坡度、平路、自由与计时的共用路况，以及四种手机尺寸下 150% 缩放的驾驶信息和夜骑触控。四人联机、存档迁移和性能验证通过，沿用已发布 v2.6.0 的运行时基线。
+
 ## 2.6.1 — 地形断层与桥面通行修复
 
 - 共享骑行物理在贴地前沿位移检测向上的地形断层。超过 0.40 米的单级断面触发减速和沿边滑移，连续坡面按细分高度样本判断。斜向避让和车辆接触推挤也检查过渡，重叠的桥面与地面分别取高。关联 `src/ride/physics.js`、`src/ride/terrain-transition.js` 与 `src/data/surfaces.js`。

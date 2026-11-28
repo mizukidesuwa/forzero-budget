@@ -1,7 +1,6 @@
 .live-delta { margin-top:4px; font:600 .8rem var(--mono); color:#dce8d4; }
   .live-delta[data-gap="ahead"] { color:#9df3a9; }
   .live-delta[data-gap="behind"] { color:#f8c47a; }
-  .wind-pill { margin-top:6px; padding:4px 9px; border-radius:999px; border:1px solid #9bd8cf52; background:#142b29d9; color:#c8f4ea; font-size:.74rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .courier-hud { position:absolute; left:21px; top:20px; z-index:4; max-width:min(320px,calc(100% - 240px)); padding:10px 14px; border:1px solid #6fe3ba70; border-radius:13px; background:#132a23f0; color:#e6fbf3; box-shadow:0 10px 28px #08151178; }
   .courier-hud strong { display:block; font-size:.92rem; color:#8ef5cf; }
   .courier-hud span { display:block; margin-top:3px; font:500 .78rem var(--mono); color:#d8efe6; }
@@ -30,7 +29,6 @@
     .courier-hud { top:56px; left:11px; max-width:calc(100% - 178px); padding:7px 10px; }
     .courier-hud strong { font-size:.8rem; }
     .courier-hud span { font-size:.7rem; }
-    .wind-pill { font-size:.69rem; padding:3px 7px; }
     .live-delta { font-size:.72rem; }
   }
   @media (max-height:500px) {
@@ -43,11 +41,6 @@
 .map-replay button,.map-replay select { min-height:32px; }
 .map-replay output { font-variant-numeric:tabular-nums; }
 .race-mode select { max-width:10rem; }
-
-#draftPill {
-  background: linear-gradient(90deg, #347358 var(--draft-charge, 0%), #1c3c2be8 0);
-  font-variant-numeric: tabular-nums;
-}
 
 .course-field { max-width:100%; }
 .course-variants { display:inline-flex; gap:.25rem; padding-right:.28rem; flex:none; }

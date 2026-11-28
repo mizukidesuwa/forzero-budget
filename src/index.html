@@ -6,13 +6,13 @@
 <meta name="theme-color" content="#0b0d0f">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 340 340'%3E%3Crect width='340' height='340' rx='52' fill='%230b0d0f'/%3E%3Cg transform='translate(0,116)'%3E%3Cg transform='translate(14,0) skewX(-10)' font-family='Arial Black, Arial, sans-serif'%3E%3Ctext x='10' y='65' font-size='59' font-weight='950' letter-spacing='-2' fill='%23ffffff'%3EFOR%3Ctspan fill='%23ff6433'%3EZERO%3C/tspan%3E:%3C/text%3E%3Ctext x='15' y='96' font-size='26' font-weight='900' letter-spacing='9' fill='%23ff6433'%3EBUDGET%3C/text%3E%3C/g%3E%3C/g%3E%3C/svg%3E">
 <meta name="description" content="FORZERO: BUDGET（有限竞速：地贫线）— 在深圳大学、伦敦与顺峰山公园之间自由骑行与计时竞速。">
-<title>FORZERO: BUDGET · 有限竞速：地贫线 2.6.1</title>
+<title>FORZERO: BUDGET · 有限竞速：地贫线 2.6.2</title>
 <!-- @style -->
 </head>
 <body>
 <main class="shell">
   <header class="masthead">
-    <div class="identity"><span class="brand-badge" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 108"><g transform="translate(14,0) skewX(-10)" font-family="Arial Black, Arial, sans-serif"><text x="10" y="65" font-size="59" font-weight="950" letter-spacing="-2" fill="#FFFFFF">FOR<tspan fill="#FF6433">ZERO</tspan>:</text><text x="15" y="96" font-size="26" font-weight="900" letter-spacing="9" fill="#FF6433">BUDGET</text></g></svg></span><div><strong class="brand-zh">有限竞速：地贫线</strong><small lang="en">FORZERO: BUDGET · 2.6.1</small></div></div>
+    <div class="identity"><span class="brand-badge" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 108"><g transform="translate(14,0) skewX(-10)" font-family="Arial Black, Arial, sans-serif"><text x="10" y="65" font-size="59" font-weight="950" letter-spacing="-2" fill="#FFFFFF">FOR<tspan fill="#FF6433">ZERO</tspan>:</text><text x="15" y="96" font-size="26" font-weight="900" letter-spacing="9" fill="#FF6433">BUDGET</text></g></svg></span><div><strong class="brand-zh">有限竞速：地贫线</strong><small lang="en">FORZERO: BUDGET · 2.6.2</small></div></div>
     <div class="location" id="campusName">深圳大学 · 粤海校区</div>
   </header>
   <section class="stage" tabindex="0" id="stage" data-phase="free" aria-label="FORZERO: BUDGET 有限竞速：地贫线">
@@ -33,13 +33,18 @@
         <div class="time-checkpoints"><span><span id="progressLabel">检查点</span> <b id="checkpointCount" aria-live="polite">0 / 7</b></span><span class="dots" id="dots" aria-hidden="true"></span></div>
         <div class="split"><span id="ghostName"></span><strong id="splitGap"></strong></div>
         <div class="live-delta" id="liveDelta" hidden></div>
-        <div class="wind-pill" id="windPill" hidden></div>
         <div class="coach-feedback" id="sectorFeedback" aria-live="polite" hidden><span id="sectorLabel"></span><strong id="sectorGap"></strong></div>
         <output class="exit-feedback" id="exitFeedback" hidden></output>
         <output id="onlineRank" class="online-rank" hidden></output>
         <output id="onlineLatency" class="online-latency" hidden></output>
       </section>
-      <div class="speedometer"><div class="speed-badges" id="speedBadges"><span id="bikePosture" class="status-pill posture-pill" hidden></span><span id="draftPill" class="draft-pill" hidden>尾流充能</span><span id="puddleStatus" class="draft-pill" hidden>积水打滑</span></div><span class="speed-mat" id="surfaceType">柏油路面</span><div class="speed-readout"><strong id="velocity">0</strong><small>km/h</small><span id="slopeGrade" class="slope-grade" hidden></span></div>
+      <div class="speedometer">
+        <div class="speed-readout"><strong id="velocity">0</strong><small>km/h</small></div>
+        <div class="drive-road-row">
+          <span class="speed-mat" id="surfaceType" data-surface="paved">柏油路面</span>
+          <div class="drive-grade"><span id="slopeLabel">坡度</span> <output id="slopeGrade" aria-labelledby="slopeLabel" aria-live="off">0.0%</output></div>
+        </div>
+        <span class="drive-road-name" id="roadName" hidden></span>
         <div class="drive-gauges">
           <div class="drive-gauge">
             <span class="drive-gauge-label" id="gripLabel">抓地余量</span><span class="drive-gauge-value" id="gripValue" aria-hidden="true">100%</span>
@@ -51,6 +56,12 @@
           </div>
         </div>
         <span class="brake-hint" id="brakeHint" hidden></span>
+        <div class="speed-badges">
+          <span class="drive-status" id="puddleStatus" data-tone="warning" hidden>积水</span>
+          <span class="drive-status" id="draftPill" data-tone="activity" hidden>尾流充能</span>
+          <span class="drive-status" id="bikePosture" data-tone="activity" hidden></span>
+          <span class="drive-status" id="windPill" data-tone="environment" hidden></span>
+        </div>
       </div>
       <div class="courier-hud" id="courierHud" hidden><strong id="courierTitle"></strong><span id="courierDetail"></span></div>
       <div class="hud-navigation">
@@ -197,7 +208,7 @@
         <section class="guide-card">
           <h3>姿态与破风</h3>
           <ul>
-            <li>高速巡航自动进入「伏身破风」（降风阻、提极速），坡道低速或冲刺触发「起身摇车」（提爆发力）；仅在触发时显示于速度表上方。</li>
+            <li>高速巡航自动进入「伏身破风」（降风阻、提极速），坡道低速或冲刺触发「起身摇车」（提爆发力），触发时显示在驾驶仪表旁。</li>
             <li>紧跟前方 AI 或联机对手 2–12 米可触发「尾流破风」，降低空气阻力并加快冲刺耐力回复。</li>
           </ul>
         </section>

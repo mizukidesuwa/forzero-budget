@@ -7,7 +7,6 @@
   #seedStatus { margin:10px 0 0; min-height:2em; }
   .travel { color:#d6f0ed; border-color:#76bbb878; white-space:nowrap; }
   .stage[data-campus="ucl"] + .bar .course-field label { color:#e8d9fb; }
-  .slope-grade { display:block; font-size:.77rem; font-weight:700; color:#edebb0; white-space:nowrap; }
   .elevation-panel { margin:3px 0 8px; min-width:0; }
   .elevation-panel figcaption { font-size:.79rem; color:#dbe5bf; margin:0 0 4px; }
   .elevation-panel canvas { display:block; width:100%; height:auto; max-height:66px; border-radius:6px; }
