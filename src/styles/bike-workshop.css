@@ -64,11 +64,8 @@
   #mapScreen:not([hidden]) ~ .touch,
   #callout:not([hidden])[data-mode="paused"] ~ .touch,
   #callout:not([hidden])[data-mode="done"] ~ .touch { display:none !important; }
-  #callout[data-mode="count"],
-  #callout[data-mode="race"] { pointer-events:none; }
   @media (pointer:coarse) {
     .map-screen { padding-bottom:10px; }
-    .mini { bottom:var(--touch-hud-bottom); }
   }
   @media (max-width:640px) {
     .brand-badge { padding:2px 5px; border-radius:8px; }
@@ -89,13 +86,7 @@
     .action { min-height:44px; padding:0 9px; font-size:.82rem; }
     .course-field { min-height:44px; }
     .course-field select { min-height:42px; }
-    .next { left:auto; right:11px; bottom:126px; max-width:calc(100% - 178px); padding:5px 8px; font-size:.72rem; text-align:right; }
     #stationList li { flex-wrap:nowrap; flex:none; padding:4px 6px; }
-  }
-  @media (max-width:640px) and (pointer:coarse) {
-    .map-screen { padding-bottom:10px; }
-    .mini { bottom:var(--touch-hud-bottom); }
-    .next { left:auto; right:11px; bottom:calc(var(--touch-hud-bottom) + 104px); max-width:calc(100% - 180px); text-align:right; }
   }
   @media (max-height:500px) {
     .shell { padding:0 10px 6px; }
@@ -116,15 +107,6 @@
     .intro h1 { font-size:1.18rem; }
     .intro .brief { display:none; }
     .measure { display:none; }
-    .timing { top:8px; left:8px; min-width:168px; padding:7px 10px 8px; }
-    .timing .clock { font-size:1.42rem; margin-top:2px; }
-    .time-checkpoints { margin-top:5px; gap:6px; font-size:.7rem; }
-    .dots i { width:6px; }
-    .split { margin-top:5px; padding-top:4px; font-size:.69rem; }
-    .mini { right:8px; bottom:10px; width:136px; padding:6px 6px 4px; }
-    .mini span { font-size:.68rem; margin-bottom:3px; }
-    .mini canvas { height:64px; }
-    .next { bottom:10px; left:50%; right:auto; transform:translateX(-50%); max-width:calc(100% - 330px); padding:6px 10px; font-size:.74rem; text-align:center; }
     .bar { padding-top:6px; gap:6px; }
     .bar .action,.course-field { min-height:38px; font-size:.78rem; }
     .course-field select { min-height:36px; font-size:.78rem; }
@@ -137,9 +119,6 @@
       --touch-gas-base:58px; --touch-sprint-base:42px;
       --touch-inset:8px; --touch-bottom:7px;
     }
-    .mini { right:var(--touch-side-clear); bottom:8px; width:126px; }
-    .next { bottom:98px; left:50%; right:auto; transform:translateX(-50%); max-width:min(320px,calc(100% - 32px)); text-align:center; }
-    #callout[data-mode="count"], #callout[data-mode="race"] { top:42%; padding:12px 20px; }
   }
   .workshop-budget { margin:8px 0 12px; }
   .workshop-budget [data-over="true"],.mod-warning { color:#ffb4b0; }

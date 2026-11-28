@@ -134,9 +134,6 @@ export function createMapControls({
     updateMapZoom();
     ui.sceneHud.hidden = show;
     ui.mapScreen.hidden = !show;
-    const chaseCallout = ShadowChase.active && (ShadowChase.phase === 'headstart' || ShadowChase.phase === 'caught' || ShadowChase.phase === 'escaped');
-    ui.callout.hidden = show || !(chaseCallout || race.paused || race.phase === 'count' || race.phase === 'done' || (race.phase === 'race' && race.elapsed < 610));
-    ui.callout.dataset.mode = race.paused ? 'paused' : ShadowChase.active ? (ShadowChase.isRunning() ? 'count' : 'done') : race.phase;
     ui.mapToggle.setAttribute('aria-pressed', String(show));
     setText(ui.mapText, show ? (race.phase === 'done' || (ShadowChase.active && !ShadowChase.isRunning()) ? '返回结算' : '返回骑行') : '俯视地图');
     if (show) {

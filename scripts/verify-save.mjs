@@ -79,6 +79,8 @@ try {
   const v257Dir = join(temp, 'forzero-budget-2.5.7', 'save');
   const v260Dir = join(temp, 'forzero-budget-2.6.0', 'save');
   const v261Dir = join(temp, 'forzero-budget-2.6.1', 'save');
+  const v262Dir = join(temp, 'forzero-budget-2.6.2', 'save');
+  const v262PortableDir = join(temp, 'forzero-budget-windows-x64-2.6.2', 'save');
   const newDir = join(temp, `forzero-budget-${version}`);
   await mkdir(previousDir, { recursive: true });
   await mkdir(v232Dir, { recursive: true });
@@ -96,6 +98,8 @@ try {
   await mkdir(v257Dir, { recursive: true });
   await mkdir(v260Dir, { recursive: true });
   await mkdir(v261Dir, { recursive: true });
+  await mkdir(v262Dir, { recursive: true });
+  await mkdir(v262PortableDir, { recursive: true });
   await mkdir(oldDir, { recursive: true });
   await mkdir(v200Dir, { recursive: true });
   await mkdir(legacyDir, { recursive: true });
@@ -189,10 +193,23 @@ try {
   assert.deepEqual((await requestSave(createAppShell, saveDir, previous)).data, v260);
   await writeFile(v261File, JSON.stringify(v261));
   assert.deepEqual((await requestSave(createAppShell, saveDir, previous)).data, v261);
-  assert.equal((await requestSave(createAppShell, saveDir, previous, 'POST', v261)).status, 200);
+  const v262 = fixture('2.6.2 QA', '2026-11-28T02:20:00.000Z');
+  const v262Portable = fixture('2.6.2 Windows QA', '2026-11-28T02:21:00.000Z');
+  const v262File = join(v262Dir, 'player-data.json');
+  const v262PortableFile = join(v262PortableDir, 'player-data.json');
+  await writeFile(v262File, '{damaged');
+  await writeFile(v262PortableFile, '{damaged');
+  assert.deepEqual((await requestSave(createAppShell, saveDir, previous)).data, v261, 'A damaged pair must fall back to 2.6.1');
+  await writeFile(v262PortableFile, JSON.stringify(v262Portable));
+  assert.deepEqual((await requestSave(createAppShell, saveDir, previous)).data, v262Portable, 'The other package form of 2.6.2 takes priority over 2.6.1');
+  await writeFile(v262File, JSON.stringify(v262));
+  assert.deepEqual((await requestSave(createAppShell, saveDir, previous)).data, v262, 'Matching package form takes priority within 2.6.2');
+  assert.equal((await requestSave(createAppShell, saveDir, previous, 'POST', v262)).status, 200);
   const migrated = (await requestSave(createAppShell, saveDir, [])).data;
-  assert.deepEqual(migrated.storage, v261.storage);
-  assert.deepEqual(migrated.friends, v261.friends ?? []);
+  assert.deepEqual(migrated.storage, v262.storage);
+  assert.deepEqual(migrated.friends, v262.friends ?? []);
+  assert.deepEqual(JSON.parse(await readFile(v262File, 'utf8')), v262);
+  assert.deepEqual(JSON.parse(await readFile(v262PortableFile, 'utf8')), v262Portable);
   assert.deepEqual(JSON.parse(await readFile(v261File, 'utf8')), v261);
   assert.deepEqual(JSON.parse(await readFile(v260File, 'utf8')), v260);
   assert.deepEqual(JSON.parse(await readFile(v257File, 'utf8')), v257);
@@ -209,6 +226,8 @@ try {
   assert.deepEqual(JSON.parse(await readFile(v233File, 'utf8')), v233);
   assert.deepEqual(JSON.parse(await readFile(v232File, 'utf8')), v232);
   assert.deepEqual(JSON.parse(await readFile(priorFile, 'utf8')), prior);
+  await rm(v262File);
+  await rm(v262PortableFile);
   await rm(v261File);
   await rm(v260File);
   await rm(v257File);
@@ -236,7 +255,7 @@ try {
   await writeFile(current, '{damaged current');
   assert.equal((await requestSave(createAppShell, saveDir, previous, 'POST', expected)).status, 409);
   assert.equal(await readFile(current, 'utf8'), '{damaged current');
-  console.log('Save migration through 2.6.1, earlier fallbacks and damaged save protection passed.');
+  console.log('Save migration through 2.6.2, package form preference, earlier fallbacks and damaged save protection passed.');
 } finally {
   await rm(temp, { recursive: true, force: true });
 }

@@ -12,6 +12,7 @@
 | `src/ui/language.js`、`src/ui/presentation-text.js`、`src/data/english-text.js` | 设置语言选择、界面词条和动态文案。翻译应用于界面与俯视地图文字。路线身份、记录键及场景招牌沿用原数据 | `npm run verify:hygiene`、`node scripts/verify-browser.mjs`、`node scripts/verify-four-player.mjs --drive` |
 | `src/ui/app.js`、`friend-duel.js`、`medal-travel.js`、`workshop-ui.js`、`settings-dialog.js` | 主舞台、模块装配与帧循环调度、友人对战弹窗、勋章/三站旅行与海拔图、车库/预算/皮肤导入 UI、二级设置面板 | `npm run build`、`npm run verify:hygiene`、`node scripts/verify-browser.mjs` |
 | `src/data/interface.js`、`src/ui/hud-controls.js`、`src/render/ride-camera.js` | 共用驾驶仪表（车速、路况、坡度、抓地、技能与状态）、HUD / 触屏按钮缩放、全屏视角控制与三档镜头 | `node scripts/verify-browser.mjs`、`node scripts/verify-save.mjs` |
+| `src/ui/scene-hud.js`、`src/ui/race-hud.js`、`src/ui/mode-hud.js`、`src/styles/hud-compact.css` | 骑行时的计时与任务、导航与警告、阶段提示共用布局与渲染入口。玩法模块提供显示状态 | `node scripts/verify-browser.mjs`、`node scripts/verify-four-player.mjs` |
 | `src/data/vehicles.js`、`parts.js`、`surfaces.js` | `src/ride/vehicles.js`、`physics.js` 组装四车型五槽调校。动力车技能槽只作用于原车技能，火箭沿用独立短爆发 | `node scripts/verify-data.mjs`、`node scripts/verify-browser.mjs` |
 | `src/data/shared-rules.cjs`、`server/shared-rules.cjs` | 联机捉人、路线规则/路网快照与皮肤限制单源真源（双端复用） | `npm run lint`、`node scripts/verify-data.mjs`、`node server/verify.mjs` |
 | `src/data/routes.js`、`src/race/seed-code.js`、`src/race/route-code.js`、`src/race/route-key.js`、`src/race/route-validation.js` | 版本化 fixed/seed/network RouteRef、R1 编码、网络 revision/边链校验、canonical key 和环境键（`seed-code`/`route-code`/`route-key` 已启用 `// @ts-check` + JSDoc 契约） | `npm run typecheck`、`node scripts/verify-data.mjs`、路线编码回环和网络重建探针 |
@@ -35,17 +36,17 @@
 
 > 历史交付与早期架构见 [HISTORY.md](HISTORY.md)；版本流水见 [CHANGELOG.md](CHANGELOG.md)；1.8.6 车流见本地归档 `szu-litchi-dev/ride-update/1.8.6-traffic.md`。巨型 `perf-*.json`、截图与旧包已归档至 `D:\szubikeGPT-archive\`。
 
-## 1. 2.6.2 构建产物与本地版
+## 1. 2.6.3 构建产物与本地版
 
 - Windows 便携版构建需要同一个官方 Node.js 22 Windows x64 归档内的 `node.exe` 和完整的 `LICENSE`。将 `FORZERO_NODE_EXE` 指向解压后的二进制，再执行 `npm run build:release:win`。构建器默认从二进制同目录读取 `LICENSE`，也可通过 `FORZERO_NODE_LICENSE` 指定该归档里的许可文件。
 - 性能检查默认只测当前构建，报告写入 `dist-v2/hardware-perf.verify.json`。当前预算为硬件渲染 p95 120 ms、软件渲染 p95 250 ms、JS 堆峰值 640 MiB 和浏览器进程内存峰值 3 GiB。需要历史硬件对比时，再给 `scripts/verify-performance.mjs` 传入 `--baseline=<目录>`。目录内需有历史桌面版的 `index.html`。
-- `npm run build:release` 生成轻量 `dist-v2/desktop/`、`dist-v2/forzero-budget-2.6.2.zip` 和 `dist-v2/forzero-budget-mobile-2.6.2.html`。执行 `npm run build:release:win`（或 `-- --bundle-node`）额外生成内置便携 `runtime/node.exe` 的 Windows 免安装版 **`dist-v2/forzero-budget-windows-x64-2.6.2.zip`**。
-- `npm run release:stage` 将可分发归档和校验清单（`SHA256SUMS.txt`、`MANIFEST.json`、`RELEASE-NOTES.md`）暂存到 `dist-v2/release/v2.6.2/`。`npm run release:github` 按 `AGENTS.md` 生成拆分式上传目录 `github-upload-2.6.2/repo/`（纯净源码树）与 `github-upload-2.6.2/release-assets/`（发行附件与 `RELEASE-NOTES.md`）。
+- `npm run build:release` 生成轻量 `dist-v2/desktop/`、`dist-v2/forzero-budget-2.6.3.zip` 和 `dist-v2/forzero-budget-mobile-2.6.3.html`。执行 `npm run build:release:win`（或 `-- --bundle-node`）额外生成内置便携 `runtime/node.exe` 的 Windows 免安装版 **`dist-v2/forzero-budget-windows-x64-2.6.3.zip`**。
+- `npm run release:stage` 将可分发归档和校验清单（`SHA256SUMS.txt`、`MANIFEST.json`、`RELEASE-NOTES.md`）暂存到 `dist-v2/release/v2.6.3/`。`npm run release:github` 按 `AGENTS.md` 生成拆分式上传目录 `github-upload-2.6.3/repo/`（纯净源码树）与 `github-upload-2.6.3/release-assets/`（发行附件与 `RELEASE-NOTES.md`）。
 - GitHub 导出先校验候选源码，再在隔离副本中运行 `npm ci` 和 `npm test`。验证通过后才替换旧导出，测试生成的依赖和构建文件留在隔离目录。
 - `.github/workflows/ci.yml` 在 `main` 推送、PR 和 `v*` 标签上运行 Windows 和 Ubuntu 校验及 Chrome 桌面、手机和四客户端联机验收。通过后，`main` 可部署 Pages，版本标签可进入 Release。Release 在 Windows 上按本次构建清单暂存附件，解压并用包内 Node.js 验收启动，再上传附件。
 - `dist-v2/build-manifest.json` 指定本次构建的手机 HTML 和发行附件及其校验值。浏览器验收 `node scripts/verify-browser.mjs` 和手机预览 `node scripts/serve-phone.mjs` 从该清单选择手机文件。手动指定其他构建时使用 `FORZERO_BUILD_DIR`，或通过 `FORZERO_MOBILE_HTML` 提供明确文件。
 - 本地 `szu-litchi-dev/` 已移除；公开 GitHub 仓库与发行产物不再携带历史 1.x 构建链。
-- 2.6.2 桌面版优先读取同级轻量版或 Windows 免安装版目录中的 `2.6.1` 存档，再依次尝试 `2.6.0`、`2.5.7`、`2.5.6`、`2.5.5`、`2.5.4`、`2.5.3`、`2.5.2`、`2.5.1.1`、`2.5.1`、`2.5.0`、`2.4.0`、`2.3.4` 及前序存档。手机单文件可通过游戏设置导出和导入备份。
+- 2.6.3 桌面版优先读取同级轻量版或 Windows 免安装版目录中的 `2.6.2` 存档，再依次尝试 `2.6.1`、`2.6.0`、`2.5.7`、`2.5.6`、`2.5.5`、`2.5.4`、`2.5.3`、`2.5.2`、`2.5.1.1`、`2.5.1`、`2.5.0`、`2.4.0`、`2.3.4` 及前序存档。手机单文件可通过游戏设置导出和导入备份。
 
 ### 2.3.1 归档路径
 

@@ -292,6 +292,80 @@ try {
     assert.equal(budget[key], true, 'Five-slot powered workshop ' + key);
   }
 
+  const hudModes = await evaluate(`(()=>{
+    const {race:r,ui:u,updateHud}=__FORZERO__;
+    const previousMode=u.raceMode.value;
+    const visible=element=>element.getClientRects().length>0;
+    const state=()=>({
+      driving:[u.velocity,u.slopeGrade,u.gripMeter,u.sprintMeter].every(visible),
+      timing:visible(u.timing),
+      activity:visible(u.activityHud)?u.activityHud.dataset.mode:null,
+      callout:visible(u.callout)?u.callout.dataset.mode:null,
+      warning:visible(u.routeWarning)?u.routeWarning.textContent:null,
+    });
+    try {
+      const free=state();
+      u.courierButton.click();
+      const courier=state();
+      const courierTitle=u.activityTitle.textContent;
+      u.raceMode.value='solo';
+      u.startTrial.click();
+      const countdown=state();
+      const ticks=r.countdownTicks;
+      for (let i=0;i<ticks;i++) r.step();
+      updateHud();
+      const next=u.next.textContent;
+
+      // Cross a future checkpoint while the current one is still outstanding.
+      const gate=r.event.gates[r.nextGate+1];
+      const before=r.rider.position;
+      const at=offset=>gate.p.map((axis,index)=>axis+gate.f[index]*offset+(index===1?(gate.rise??0):0));
+      r.rider.position=at(.5);
+      r.recordCheckpoint(at(-.5));
+      r.rider.position=before;
+      updateHud();
+      const missed={flag:r.missedGate,warning:u.routeWarning.textContent,
+        both:visible(u.next)&&visible(u.routeWarning),sameRoute:next===u.next.textContent};
+      u.recover.click();
+      const rejoined={warning:u.routeWarning.textContent,both:visible(u.next)&&visible(u.routeWarning)};
+      u.freeRide.click();
+      u.raceMode.value='chase';
+      u.startTrial.click();
+      const chase=state();
+      const chaseTitle=u.activityTitle.textContent;
+      u.pause.click();
+      const paused=state();
+      u.mapToggle.click();
+      const mapHidesCallout=!visible(u.callout)&&visible(u.mapScreen);
+      u.mapToggle.click();
+      const resumedCallout=state();
+      u.freeRide.click();
+      return {free,courier,courierTitle,countdown,missed,rejoined,chase,chaseTitle,paused,
+        mapHidesCallout,resumedCallout,after:state()};
+    } finally {
+      if (!u.mapScreen.hidden) u.mapToggle.click();
+      u.raceMode.value=previousMode;
+      updateHud();
+    }
+  })()`);
+  const emptyHud = {driving:true,timing:false,activity:null,callout:null,warning:null};
+  assert.deepEqual(hudModes.free, emptyHud);
+  assert.deepEqual(hudModes.courier, {...emptyHud,activity:'courier'});
+  assert.match(hudModes.courierTitle, /^闪送目标/);
+  assert.deepEqual(hudModes.countdown, {...emptyHud,timing:true,callout:'count'});
+  assert.match(hudModes.missed.warning, /漏过检查点.*按 F/);
+  assert.ok(hudModes.missed.flag && hudModes.missed.both && hudModes.missed.sameRoute,
+    'Missed checkpoint warning must coexist with the unchanged route');
+  assert.match(hudModes.rejoined.warning, /已回到赛道/);
+  assert.ok(hudModes.rejoined.both, 'Rejoin penalty must coexist with route guidance');
+  assert.deepEqual(hudModes.chase, {...emptyHud,activity:'shadow-chase',callout:'count'});
+  assert.match(hudModes.chaseTitle, /^影子追捕/);
+  assert.deepEqual(hudModes.paused, {...hudModes.chase,callout:'paused'});
+  assert.ok(hudModes.mapHidesCallout, 'Map must hide the paused chase callout');
+  assert.deepEqual(hudModes.resumedCallout, hudModes.paused, 'Closing the map restores the current callout');
+  assert.deepEqual(hudModes.after, emptyHud, 'Returning to free ride clears the previous mode');
+  console.log('Shared HUD passed mode switching, route warnings and paused chase map transitions.');
+
   await evaluate(`(()=>{
     const f=__FORZERO__,u=f.ui,r=f.race;
     const originalCourse=u.coursePicker.value;
@@ -794,20 +868,22 @@ try {
       f.updateHud();
     })()`);
     await wait("__FORZERO__.race.phase==='race' && !__FORZERO__.ui.next.hidden && !__FORZERO__.ui.fpsCounter.hidden", 'Mobile race guidance did not appear');
-    for (const [width,height,drivingOnly] of [[320,568],[390,844],[844,390],[568,320,true]]) {
+    for (const [width,height] of [[320,568],[390,844],[844,390],[568,320]]) {
       await rpc('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:2,mobile:true},sessionId);
       await wait(`innerWidth===${width}`, 'Mobile viewport did not resize');
       const fit = await evaluate(`(()=>{
         const f=__FORZERO__, u=f.ui, r=f.race, box=element=>element.getBoundingClientRect();
         const rider=r.rider, campus=f.activeCampus, {windSpeed,windMode}=f.preferences;
+        const missedGate=r.missedGate;
         const sample=${JSON.stringify(shenbuGravel)};
         const fitsHorizontally=(inner,outer)=>inner.width>0 && inner.left>=outer.left && inner.right<=outer.right;
         try {
           f.activeCampus='shunde';
           Object.assign(f.preferences,{windSpeed:4,windMode:'steady'});
           r.rider={...rider,...sample,speed:30,inPuddle:true,draft:{charge:.6}};
+          r.missedGate=true;
           f.updateHud();
-          const view=box(f.stage), fps=box(u.fpsCounter), next=box(u.next), camera=box(u.cameraToggle),
+          const view=box(f.stage), fps=box(u.fpsCounter), next=box(u.next), warning=box(u.routeWarning), camera=box(u.cameraToggle),
             left=box(document.querySelector('.touch-steer')), right=box(document.querySelector('.touch-pedals')),
             speedometer=box(document.querySelector('.speedometer')), grip=box(u.gripMeter),
             speed=box(document.querySelector('.speed-readout')), road=box(document.querySelector('.drive-road-row')),
@@ -826,19 +902,25 @@ try {
               fitsHorizontally(box(roadName),speedometer)),
             statusFits:[u.windPill,u.puddleStatus,u.draftPill].every(element=>!element.hidden &&
               fitsHorizontally(box(element),view)) && u.windPill.textContent.includes('4.0'),
-            bounds:[view.left,view.right,next.left,next.right],
+            warningFits:fitsHorizontally(warning,view) && warning.top>=view.top && warning.bottom<=view.bottom &&
+              next.height>0 && (warning.bottom<=next.top || next.bottom<=warning.top),
+            touchRecovery:u.routeWarning.textContent,
+            bounds:[view,next,warning].map(({left,right,top,bottom})=>[left,right,top,bottom]),
           };
         } finally {
           r.rider=rider;
+          r.missedGate=missedGate;
           f.activeCampus=campus;
           Object.assign(f.preferences,{windSpeed,windMode});
           f.updateHud();
         }
       })()`);
-      const { bounds, guidance, routeFits, buttonsFit, cameraFits, ...drivingFit } = fit;
-      const layout = `${width}×${height} at 150%, stage/route bounds ${bounds}`;
+      const { bounds, guidance, routeFits, buttonsFit, cameraFits, warningFits, touchRecovery, ...drivingFit } = fit;
+      const layout = `${width}×${height} at 150%, stage/route/warning bounds ${JSON.stringify(bounds)}`;
       assert.deepEqual(drivingFit,{gripFits:true,speedFits:true,roadFits:true,roadNameFits:true,statusFits:true},'Driving HUD: '+layout);
-      if (!drivingOnly) assert.deepEqual({guidance,routeFits,buttonsFit,cameraFits},
+      assert.ok(warningFits,'Route warning and next checkpoint: '+layout);
+      assert.match(touchRecovery,/Rejoin in Settings/,'Touch route recovery: '+layout);
+      assert.deepEqual({guidance,routeFits,buttonsFit,cameraFits},
         {guidance:true,routeFits:true,buttonsFit:true,cameraFits:true},'Navigation and controls: '+layout);
     }
     const timeOrigin = await evaluate('performance.timeOrigin');
@@ -850,14 +932,25 @@ try {
       ui.raceMode.value = 'blind';
       try {
         ui.startTrial.click();
-        return { hint: ui.blindHint.textContent, bell: ui.touchBell.getBoundingClientRect().width > 0 };
+        return { hint: ui.blindHint.textContent, bell: ui.touchBell.getBoundingClientRect().width > 0,
+          tone:ui.blindHint.dataset.tone,timing:!ui.timing.hidden,objective:!ui.activityHud.hidden };
       } finally {
         ui.freeRide.click();
         ui.raceMode.value = previousMode;
         updateHud();
       }
     })()`);
-    assert.deepEqual(blindHint, { hint: 'Night Blind · Tap the bell for direction', bell: true });
+    assert.deepEqual(blindHint, { hint: 'Night Blind · Tap the bell for direction', bell: true,
+      tone:'info',timing:true,objective:false });
+    const mobileCourier = await evaluate(`(()=>{
+      const {ui,stage}=__FORZERO__;
+      ui.courierButton.click();
+      const card=ui.activityHud.getBoundingClientRect(),view=stage.getBoundingClientRect();
+      return {mode:ui.activityHud.dataset.mode,timing:!ui.timing.hidden,night:!ui.blindHint.hidden,
+        fits:card.width>0 && card.left>=view.left && card.right<=view.right &&
+          card.top>=view.top && card.bottom<=view.bottom};
+    })()`);
+    assert.deepEqual(mobileCourier,{mode:'courier',timing:false,night:false,fits:true});
     assert.deepEqual(await evaluate('qaErrors'), [], 'mobile errors');
   }
   console.log('Desktop language persistence, race UI and mobile English touch controls passed.');

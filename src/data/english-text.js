@@ -443,6 +443,7 @@ export const englishText = {
   "{0}，已强制遣返赛道 · 加 2 秒": "{0} · Returned to the Course · +2 s",
   "已回到赛道 · 加 2 秒": "Rejoined Course · +2 s",
   "漏过检查点 {0}（{1}）· 按 F 回到赛道": "Missed Checkpoint {0} ({1}) · Press F to Rejoin",
+  "漏过检查点 {0} · 在设置中返回赛道": "Missed CP {0} · Rejoin in Settings",
   "已过起点 · 计时开始": "Crossed the Start · Timer Running",
   "通过检查点 {0} · {1}{2}": "Checkpoint {0} · {1}{2}",
   "已暂停": "Paused",

@@ -8,7 +8,7 @@ import { BlindNav } from '../race/blind-nav.js';
 import { knownLaunchMode } from '../data/modes.js';
 import { raceLaunchOptions } from '../race/launch-options.js';
 import { raceReviewRows } from '../race/race-review.js';
-import { liveDeltaMs, trialMedal, vehicleBenchmark } from '../race/records.js';
+import { liveDeltaMs, vehicleBenchmark } from '../race/records.js';
 import { aiRank } from '../race/rivals.js';
 import { TimeTrial } from '../race/time-trial.js';
 import { currentWeather, drawRainOverlay, getActiveWeatherId, knownWeather, setActiveWeather } from '../render/atmosphere.js';
@@ -48,7 +48,9 @@ import { draftRenderSpan } from '../ride/drafting.js';
 import { interfaceScale, knownCameraView, knownHudScale, knownTouchSize } from '../data/interface.js';
 import { skinForProfile, skinAllowedOnVehicle } from '../ride/rider-skin.js';
 import { installRaceOptions, updateRaceOptions } from './race-options.js';
-import { updateBlindHud, updateChaseHud, updateOnlineChaseHud } from './mode-hud.js';
+import { getBlindHud, getChaseHud, getCourierHud, getOnlineChaseHud } from './mode-hud.js';
+import { describeCheckpoint, describeRaceCallout, describeRaceNavigation } from './race-hud.js';
+import { createSceneHud } from './scene-hud.js';
 import { createSeedDialogController } from './seed-dialog.js';
 import { createMapControls } from './map-controls.js';
 import { createFriendDuelController } from './friend-duel.js';
@@ -63,7 +65,7 @@ import {
   checkpointLabel, courseDescription, courseTitle, initLanguage, message,
   setLanguageAttribute, setLabel as setText, setText as setRawText, translate,
 } from './language.js';
-import { courierSummary, deltaLabel, feedbackLabel, ghostLabel } from './presentation-text.js';
+import { deltaLabel, feedbackLabel, gapTone, ghostLabel, signedSeconds } from './presentation-text.js';
 
 export function timeLabel(ms) {
   const centiseconds = Math.max(0,Math.floor(ms/10 + 1e-8));
@@ -75,6 +77,7 @@ const byId = id => document.getElementById(id);
 const stage = byId('stage');
 const canvas = byId('world');
 const motion = matchMedia('(prefers-reduced-motion: reduce)');
+const touchDriving = matchMedia('(pointer: coarse)');
 
 export const PREF_KEY='szu-litchi-display-1';
 const defaultPreferences={resolution:'auto',aa:'auto',ghost:true,brakeLine:true,weather:'day',sound:true,collision:false,traffic:'sparse',touchSize:interfaceScale.normal,hudScale:'auto',cameraView:'third',windSpeed:0,windDir:0,fps:true};
@@ -116,7 +119,7 @@ const ui = Object.fromEntries([
   'sceneHud','intro','timing','timedTitle','progressLabel','checkpointCount','dots','clock','velocity','surfaceType','roadName','courseFacts',
   'mapScreen','mapToggle','mapText','miniButton','bigMap','miniMap','stationList','mapClock','mapNext','mapLegend',
   'mapRouteBuild','routeBuilderPanel','routeBuilderStatus','routeBuildUndo','routeBuildLoop','routeBuildClear','routeBuildApply','routeBuildCopy','routeBuilderCode',
-  'riderTag','chairCheer','sprintKeys','gateTag','next','callout','callTitle','callValue','callDetail','callAction',
+  'riderTag','chairCheer','sprintKeys','gateTag','next','routeWarning','callout','callTitle','callValue','callDetail','callAction',
   'ghostName','splitGap','goldGoal','sprintFill','sprintMeter','sprintHint','sprintValue','gripMeter','gripFill','gripValue',
   'sectorFeedback','sectorLabel','sectorGap','exitFeedback','raceReview','reviewReference',
   'slopeGrade','elevationPanel','elevationStats','elevationChart',
@@ -132,7 +135,7 @@ const ui = Object.fromEntries([
   'onlineBudget','onlineBlind','onlineWindMode','onlineLobbyBudget','onlineLobbyBlind','onlineLobbyWindMode','budgetPicker','budgetReadout','budgetHighlight','budgetNotice','soloRulesStatus','raceMode','aiOptions','aiDifficulty','aiWins','courseVariants','courseDirection','courseLaps','mapReplay','replayPlay','replaySpeed','replaySeek','replayDetail','settingsWindMode','puddleStatus','bikePresets','bikePresetName','bikeSprintSpeed','bikeGravel','bikeStyles','bikeAbility','bikePosture',
   'bikeFrame','frameNote','bikeSprint','sprintNote','motorTuning','vehSlots',
   'vehTopSpeed','vehGravel','vehGrass','vehAbility','saveExport','saveImport','saveFile','saveStatus',
-  'liveDelta','windPill','courierHud','courierTitle','courierDetail','courierTag','courierButton',
+  'liveDelta','windPill','activityHud','activityTitle','activityDetail','courierTag','courierButton',
   'blindHint','touchBell',
   'medalButton','medalDialog','medalClose','medalSummary','medalUnlocks','medalListSzu','medalListUcl',
   'settingsSound','settingsCollision','settingsTraffic','settingsTouchSize','settingsTouchSizeValue','settingsHudScale','settingsHudScaleValue','settingsHudAuto','settingsGuideBtn','guideSettings','onlineTraffic','onlineLobbyTraffic','friendMultiBar','friendMultiCount','friendMultiPlay',
@@ -147,6 +150,7 @@ const ui = Object.fromEntries([
   'startTrial','freeRide','pause','best','expand','cameraToggle','cameraModeTag','notice','travel','travelDialog','travelStation','travelChoices','travelClose','campusName','mapTitle','szuReferences','uclReference','fpsCounter'
 ].map(name => [name,byId(name)]));
 const updateDrivingHud = createDrivingHud(stage, ui);
+const sceneHud = createSceneHud(ui);
 worldState.driverProfile = driverProfile;
 worldState.vehicleTunings = vehicleTunings;
 worldState.race = race;
@@ -164,6 +168,7 @@ const mapRows = [], dotLights = [];
 let mapOpen=false, zoomMap=false, ready=false, priorTimestamp, cameraRevision=0;
 let pendingCampus=null, uclRouteVisible=false;
 let previousPhase = null, previousPaused = null, previousGate = -1, previousLaunchMode = null, previousChasePhase = null;
+let previousOnlineChasing = false;
 let fpsTime = 0, fpsFrames = 0;
 
 function updateFps(now) {
@@ -255,15 +260,6 @@ function rebuildCourseHud() {
   if (typeof renderMapStationExtras === 'function') renderMapStationExtras();
 }
 
-function gapTone(delta) {
-  return delta === null || Math.abs(delta) < 23 ? '' : delta < 0 ? 'ahead' : 'behind';
-}
-
-function signedSeconds(delta) {
-  if (Math.abs(delta) < 5) return '0.00';
-  return (delta < 0 ? '−' : '+') + (Math.abs(delta) / 1000).toFixed(2);
-}
-
 function updateCoach() {
   const running = race.phase === 'race' && !race.paused && race.onGuide;
   const track = race.event;
@@ -353,6 +349,8 @@ function populateRaceReview() {
 export function updateHud() {
   applyPendingSaveVehicle();
   updateTravelButton();
+  const now = performance.now();
+  const campus = getActiveCampus();
   const online = Boolean(getOnlineRoom());
   if (online && (ShadowChase.active || BlindNav.active)) {
     ShadowChase.stop();
@@ -360,9 +358,14 @@ export function updateHud() {
     BlindNav.setEnabled(false);
   }
   const chasing = !online && ShadowChase.active;
-  const onlineChaseView = online ? getOnlineChaseView(performance.now()) : null;
+  const onlineChaseView = online ? getOnlineChaseView(now) : null;
   const onlineChasing = Boolean(onlineChaseView?.snap?.active);
   const trial = race.phase !== 'free' || chasing;
+  const timed = trial && !chasing && !onlineChasing;
+  const freeRiding = !trial && !onlineChasing;
+  const enteringFinish = previousPhase !== 'done';
+  const chaseHud = chasing ? getChaseHud(ShadowChase, timeLabel, race.paused) : getOnlineChaseHud(onlineChaseView, timeLabel);
+  const activity = chaseHud?.activity ?? (!online && freeRiding ? getCourierHud(CampusCourier, race.rider, campus, now) : null);
   const event=race.event,gates=event.gates,checkpointCount=gates.length-2;
   const leg=trial?activeStage(event,race.nextGate):null;
   setRawText(ui.riderTag,driverProfile.name);
@@ -376,9 +379,9 @@ export function updateHud() {
     setRawText(ui.friendReady,(totalGhosts>1?message`${label} 等 ${totalGhosts} 条影子`:label)+' · '+timeLabel(opponent.time)+' · '+
       translate(vehicleChoices[opponent.vehicle].name)+' · '+courseTitle(event));
   }
-  ui.friendExport.hidden=race.phase!=='done'||!race.lastRun||race.lastRun.unranked||Boolean(race.practice);
-  ui.reviewMapButton.hidden=race.phase!=='done'||!race.lastRun||Boolean(race.practice);
-  ui.practiceExit.hidden=!race.practice;
+  ui.friendExport.hidden=!timed||race.phase!=='done'||!race.lastRun||race.lastRun.unranked||Boolean(race.practice);
+  ui.reviewMapButton.hidden=!timed||race.phase!=='done'||!race.lastRun||Boolean(race.practice);
+  ui.practiceExit.hidden=chasing||onlineChasing||!race.practice;
   const launchMode = knownLaunchMode(ui.raceMode?.value);
   ui.seedButton.hidden=getActiveCampus()==='shunde';
   ui.onlineButton.disabled=!online&&(pendingCampus||race.phase==='race'||race.phase==='count'||ShadowChase.isRunning());
@@ -403,31 +406,21 @@ export function updateHud() {
     setLanguageAttribute(ui.freeRide,'title',translate(fin?'结束本场并返回自由骑行':(chasing?'退出当前追捕并返回自由骑行':'退出当前比赛并返回自由骑行')));
   }
   ui.pause.disabled=online||race.phase==='done'||(chasing&&!ShadowChase.isRunning());
-  const liveRank=race.phase==='race'?(online?onlineRaceRank(performance.now()):aiRank(race)):null;
+  const liveRank=timed&&race.phase==='race'?(online?onlineRaceRank(now):aiRank(race)):null;
   ui.onlineRank.hidden=!liveRank;
   if (liveRank) {
     const gap = liveRank.gapMeters ? message` · 落后 ${liveRank.gapMeters} 米` : liveRank.rank===1 ? translate(' · 领跑') : '';
     setRawText(ui.onlineRank,message`第 ${liveRank.rank} / ${liveRank.total} 名`+gap);
   }
-  if (previousPhase !== race.phase || previousPaused !== race.paused || previousChasePhase !== ShadowChase.phase || previousLaunchMode !== launchMode || (onlineChasing !== Boolean(ui.courierHud?.dataset?.onlineChase))) {
-    if (ui.courierHud) {
-      if (onlineChasing) ui.courierHud.dataset.onlineChase = '1';
-      else delete ui.courierHud.dataset.onlineChase;
-    }
+  if (previousPhase !== race.phase || previousPaused !== race.paused || previousChasePhase !== ShadowChase.phase || previousLaunchMode !== launchMode || onlineChasing !== previousOnlineChasing) {
     stage.dataset.phase = chasing ? (ShadowChase.isRunning() ? 'race' : 'done') : onlineChasing ? 'race' : race.phase;
-    ui.intro.hidden = trial || onlineChasing || race.moved || (typeof CampusCourier !== 'undefined' && (CampusCourier.active || performance.now() < CampusCourier.summaryUntil));
-    ui.timing.hidden = !trial || chasing || onlineChasing;
-    ui.stationList.hidden = (!trial || chasing || onlineChasing) && !mapOpen;
+    ui.intro.hidden = !freeRiding || race.moved || Boolean(activity);
+    ui.stationList.hidden = !timed && !mapOpen;
     if (mapOpen) renderMapStationExtras();
     setText(ui.mapCourse,trial ? courseTitle(event) : '校内外道路');
 
     updateMapZoom();
     ui.freeRide.setAttribute('aria-pressed', String(!trial));
-    const hasReview = !chasing && race.phase === 'done' && !race.practice;
-    ui.raceReview.hidden = !hasReview;
-    ui.callout.classList.toggle('has-review', hasReview);
-    if (hasReview && previousPhase !== 'done') populateRaceReview();
-
     setText(ui.startTrial,chasing?(ShadowChase.isRunning()?'重新追捕':'再追一次'):race.phase==='done'?'再跑一次':trial?'重新开始':launchMode==='chase'?'开始追捕':launchMode==='blind'?'开始夜骑盲区':opponent?'开始对战':event.stages?'开始耐力赛':'开始计时赛');
     setText(ui.pause,race.paused ? '继续' : '暂停');
     ui.pause.setAttribute('aria-pressed',String(race.paused));
@@ -435,8 +428,9 @@ export function updateHud() {
     previousPaused = race.paused;
     previousChasePhase = ShadowChase.phase;
     previousLaunchMode = launchMode;
+    previousOnlineChasing = onlineChasing;
   }
-  if (!trial && (race.moved || (typeof CampusCourier !== 'undefined' && (CampusCourier.active || performance.now() < CampusCourier.summaryUntil)))) ui.intro.hidden = true;
+  if (freeRiding && (race.moved || activity)) ui.intro.hidden = true;
   if (previousGate !== race.nextGate) {
     if (BlindNav.active && race.phase === 'race') BlindNav.clearBellPulse();
     const passed = clamp(race.nextGate - 1,0,checkpointCount);
@@ -494,122 +488,34 @@ export function updateHud() {
       ui.liveDelta.dataset.gap=gapTone(ld);
     }
   }
-  if(ui.courierHud) {
-    const nowMs=performance.now();
-    const showCourier=!online&&!trial&&(CampusCourier.active||nowMs<CampusCourier.summaryUntil);
-    ui.courierHud.hidden=!showCourier;
-    if(CampusCourier.active&&CampusCourier.target) {
-      const dx=CampusCourier.target.p[0]-race.rider.position[0],dz=CampusCourier.target.p[2]-race.rider.position[2];
-      const distM=Math.round(Math.hypot(dx,dz));
-      const bearing=Math.round((Math.atan2(dz,dx)-race.rider.heading)/(Math.PI/4));
-      const arrow=['↑','↗','→','↘','↓','↙','←','↖'][((bearing%8)+8)%8];
-      const flashMsg=nowMs<CampusCourier.summaryUntil?' · '+courierSummary(CampusCourier.summaryText):'';
-      setRawText(ui.courierTitle,message`闪送目标 · ${translate(CampusCourier.target.name)}（${translate(CampusCourier.target.district)}）`);
-      setRawText(ui.courierDetail,message`余 ${Math.ceil(CampusCourier.remaining)}s · ${arrow} ${distM}m · 连单 ${CampusCourier.streak} · 探索 ${CampusCourier.discoveredCount(getActiveCampus())}/10${flashMsg}`);
-    } else if (nowMs<CampusCourier.summaryUntil) {
-      setText(ui.courierTitle,'校园闪送');
-      setRawText(ui.courierDetail,courierSummary(CampusCourier.summaryText));
-    }
-  }
   const routeProgress=leg&&race.phase==='race'?race.progressEstimate:0;
   const remaining=race.phase==='done'?0:Math.max(0,event.length-routeProgress);
   const remainingLabel=remaining>=1000?message`${(remaining/1000).toFixed(2)} 公里`:message`${Math.ceil(remaining)} 米`;
   const timedName=race.practice?message`区间单练 · ${checkpointLabel(race.practice.name)}`:
     translate(online?'联机竞速':opponent?'友人对战':london?(leg?'伦敦耐力赛':'伦敦特别赛'):(leg?'耐力赛':'计时赛'));
   setRawText(ui.timedTitle,leg&&race.onGuide?message`${timedName} · 余 ${remainingLabel}`:timedName);
-  const current = gates[race.nextGate];
-  const freeHazard=!trial&&race.freeHazardNotice&&performance.now()<race.freeHazardNotice.until;
-  ui.next.hidden = (!trial || !current || race.phase === 'count') && !freeHazard;
-  if (current && trial) {
-    const remains=leg&&race.onGuide?Math.max(0,Math.round(current.distance-routeProgress)):
-      Math.round(Math.hypot(current.p[0]-race.rider.position[0],current.p[2]-race.rider.position[2]));
-    const label=current.index===0?'起点':current.index===gates.length-1?'终点':'下一站';
-    const heading=checkpointLabel(leg?.name ?? label)+' · '+checkpointLabel(current.name);
-    setRawText(ui.next,heading+' · '+message`${remains} 米`);
-    setRawText(ui.mapNext,heading);
-  } else {
-    setText(ui.mapNext,race.phase==='done'?'完赛':streetName ?? (getActiveCampus()==='shunde'?'旅行站位于牌坊广场':london?'旅行站位于 Gower Street 校门旁':'沿校门可接入校外公路'));
-  }
-  if(freeHazard) {
-    setText(ui.next,race.freeHazardNotice.text);
-    ui.next.dataset.alert='missed';
-  } else if(race.phase==='race'&&race.elapsed-race.lastRejoin<1250) {
-    setText(ui.next,race.rejoinReason?message`${translate(race.rejoinReason)}，已强制遣返赛道 · 加 2 秒`:'已回到赛道 · 加 2 秒');
-    if (race.rejoinReason) ui.next.dataset.alert='missed';
-    else delete ui.next.dataset.alert;
-  } else if (race.phase==='race'&&current&&race.missedGate) {
-    setRawText(ui.next,message`漏过检查点 ${translate(current.number)}（${checkpointLabel(current.name)}）· 按 F 回到赛道`);
-    ui.next.dataset.alert='missed';
-  } else {
-    delete ui.next.dataset.alert;
-  }
-  if (chasing && updateChaseHud(ui, ShadowChase, timeLabel, mapOpen, online, race.paused)) {
-    updateBlindHud(ui, BlindNav, performance.now(), online);
-    return;
-  }
-  if (onlineChasing && updateOnlineChaseHud(ui, onlineChaseView, timeLabel, mapOpen)) {
-    updateBlindHud(ui, BlindNav, performance.now(), online);
-    return;
-  }
-  const gatePassAge = race.lastGatePass ? race.elapsed - race.lastGatePass.at : Infinity;
-  const showGateFlash = !mapOpen && race.phase === 'race' && gatePassAge < 1450;
-  ui.gateFlash.hidden = !showGateFlash;
-  ui.timing.classList.toggle('gate-pop', !mapOpen && race.phase === 'race' && gatePassAge < 520);
-  if (showGateFlash) {
-    if (race.lastGatePass.index === 0) {
-      setText(ui.gateFlash, '已过起点 · 计时开始');
-      ui.gateFlash.dataset.gap = 'even';
-    } else {
-      const gap = race.lastGatePass.sectorDelta ?? race.lastGatePass.delta;
-      const gapStr = gap === null || gap === undefined ? '' : ' · ' + message`${signedSeconds(gap)} 秒`;
-      setRawText(ui.gateFlash, message`通过检查点 ${translate(race.lastGatePass.number)} · ${checkpointLabel(race.lastGatePass.name)}${gapStr}`);
-      ui.gateFlash.dataset.gap = gapTone(gap);
-    }
-  }
-  ui.callout.hidden = mapOpen || !(race.paused || race.phase === 'count' || race.phase === 'done' || (race.phase === 'race' && race.elapsed < 610));
-  ui.callout.dataset.mode = race.paused ? 'paused' : race.phase;
-  if (race.paused) {
-    setText(ui.callTitle,'已暂停');
-    setText(ui.callValue,'');
-    ui.callDetail.hidden = true;
-    ui.callAction.hidden = false;
-    setText(ui.callAction,'继续骑行');
-  } else if (race.phase === 'done') {
-    setText(ui.callTitle,'完赛');
-    setText(ui.callValue,clock);
-    const ai=aiRank(race);
-    const rank=ai?message`第 ${ai.rank} / ${ai.total} 名`:translate(trialMedal(race));
-    if (race.blindRun && !race.blindResult) {
+  const touch = touchDriving.matches;
+  const navigation = describeRaceNavigation(race, { timed, freeRiding, now, touch });
+  if (navigation.mapHint) setRawText(ui.mapNext, navigation.mapHint);
+  else setText(ui.mapNext, race.phase === 'done' ? '完赛' : streetName ??
+    (campus === 'shunde' ? '旅行站位于牌坊广场' : london ? '旅行站位于 Gower Street 校门旁' : '沿校门可接入校外公路'));
+  let blindNote = '';
+  if (timed && race.phase === 'done' && race.blindRun) {
+    if (!race.blindResult) {
       race.blindResult = BlindNav.recordClear(race.event, race.rider.vehicle, race.elapsed, Boolean(soloBudget(race).illegal || race.rivals?.length));
     }
-    const pBest=race.practice?race.practiceBest.get(race.practice.key):null;
-    const blindNote=race.blindRun?`${translate('夜骑盲区完赛')} · ${race.blindResult?.isBest?translate('刷新盲区最佳'):race.blindResult?.bestMs?message`盲区最佳 ${timeLabel(race.blindResult.bestMs)}`:''}`:'';
-    const record=race.practice?(race.record?translate('刷新本段最佳'):message`本段最佳 ${timeLabel(pBest)}`):
-      race.blindRun?blindNote:
-      online||race.record||race.best===null?translate(online?'房间成绩':race.record?'刷新个人最佳':'挑战完成'):message`个人最佳 ${timeLabel(race.best)}`;
-    let duel=opponent?friendResult(opponent,race.elapsed):'';
-    if (opponent && race.extraOpponents?.length) {
-      const beatCount = [opponent, ...race.extraOpponents].filter(op => race.elapsed < op.time).length;
-      duel = message`${duel}（击败 ${beatCount}/${1 + race.extraOpponents.length}）`;
-    }
-    const result = race.blindRun?record:race.unranked?translate('娱乐改装 · 不计榜'):ai?
-      (race.aiWinCount===null?translate('AI 独立成绩'):message`AI 夺冠 · 累计 ${race.aiWinCount} 胜`):record;
-    setRawText(ui.callDetail,[duel,rank,result].filter(Boolean).join(' · '));
-    ui.callDetail.hidden = false;
-    ui.callAction.hidden = online;
-    setText(ui.callAction,race.practice?'再练本段':'再跑一次');
-  } else if (!ui.callout.hidden) {
-    const count = race.phase === 'count' ? Math.ceil(race.countdown) : 0;
-    setText(ui.callTitle,count > 0 ? '计时赛即将开始' : '');
-    setText(ui.callValue,count > 0 ? String(count) : '出发');
-    const showUnranked=count>0&&race.unranked;
-    ui.callDetail.hidden=!showUnranked;
-    setText(ui.callDetail,showUnranked?'娱乐改装 · 本场不计榜':'');
-    ui.callAction.hidden = true;
+    const record = race.blindResult?.isBest ? translate('刷新盲区最佳') :
+      race.blindResult?.bestMs ? message`盲区最佳 ${timeLabel(race.blindResult.bestMs)}` : '';
+    blindNote = [translate('夜骑盲区完赛'), record].filter(Boolean).join(' · ');
   }
-  ui.callValue.classList.toggle('count-number',!race.paused && race.phase !== 'done');
-  updateBlindHud(ui, BlindNav, performance.now(), online);
-
+  const callout = chaseHud ? chaseHud.callout : describeRaceCallout(race, { clock, online, blindNote, timeLabel, friendResult });
+  if (callout?.review && (enteringFinish || ui.raceReview.hidden)) populateRaceReview();
+  sceneHud.render({
+    panel: timed ? { mode: 'timed' } : activity,
+    route: navigation.route, warning: chaseHud?.warning || navigation.warning,
+    ...describeCheckpoint(race, timed && !mapOpen),
+    blind: getBlindHud(BlindNav, now, online, touch), callout,
+  });
 }
 
 const mapControls = createMapControls({
@@ -621,7 +527,7 @@ const mapControls = createMapControls({
   updateElevationMap,
   renderMapStationExtras: () => renderMapStationExtras(),
   getMapOpen: () => mapOpen,
-  setMapOpen: v => { mapOpen = Boolean(v); },
+  setMapOpen: v => { mapOpen = Boolean(v); sceneHud.setMapOpen(mapOpen); },
   getZoomMap: () => zoomMap,
   setZoomMap: v => { zoomMap = Boolean(v); },
   getUclRouteVisible: () => uclRouteVisible,
@@ -1643,7 +1549,7 @@ export function getAppBridge() {
     getSettingsOpen: () => settingsOpen,
     setSettingsOpen: v => { settingsOpen = Boolean(v); },
     getMapOpen: () => mapOpen,
-    setMapOpen: v => { mapOpen = Boolean(v); },
+    setMapOpen: v => { mapOpen = Boolean(v); sceneHud.setMapOpen(mapOpen); },
   };
 }
 

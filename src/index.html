@@ -6,13 +6,13 @@
 <meta name="theme-color" content="#0b0d0f">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 340 340'%3E%3Crect width='340' height='340' rx='52' fill='%230b0d0f'/%3E%3Cg transform='translate(0,116)'%3E%3Cg transform='translate(14,0) skewX(-10)' font-family='Arial Black, Arial, sans-serif'%3E%3Ctext x='10' y='65' font-size='59' font-weight='950' letter-spacing='-2' fill='%23ffffff'%3EFOR%3Ctspan fill='%23ff6433'%3EZERO%3C/tspan%3E:%3C/text%3E%3Ctext x='15' y='96' font-size='26' font-weight='900' letter-spacing='9' fill='%23ff6433'%3EBUDGET%3C/text%3E%3C/g%3E%3C/g%3E%3C/svg%3E">
 <meta name="description" content="FORZERO: BUDGET（有限竞速：地贫线）— 在深圳大学、伦敦与顺峰山公园之间自由骑行与计时竞速。">
-<title>FORZERO: BUDGET · 有限竞速：地贫线 2.6.2</title>
+<title>FORZERO: BUDGET · 有限竞速：地贫线 2.6.3</title>
 <!-- @style -->
 </head>
 <body>
 <main class="shell">
   <header class="masthead">
-    <div class="identity"><span class="brand-badge" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 108"><g transform="translate(14,0) skewX(-10)" font-family="Arial Black, Arial, sans-serif"><text x="10" y="65" font-size="59" font-weight="950" letter-spacing="-2" fill="#FFFFFF">FOR<tspan fill="#FF6433">ZERO</tspan>:</text><text x="15" y="96" font-size="26" font-weight="900" letter-spacing="9" fill="#FF6433">BUDGET</text></g></svg></span><div><strong class="brand-zh">有限竞速：地贫线</strong><small lang="en">FORZERO: BUDGET · 2.6.2</small></div></div>
+    <div class="identity"><span class="brand-badge" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 108"><g transform="translate(14,0) skewX(-10)" font-family="Arial Black, Arial, sans-serif"><text x="10" y="65" font-size="59" font-weight="950" letter-spacing="-2" fill="#FFFFFF">FOR<tspan fill="#FF6433">ZERO</tspan>:</text><text x="15" y="96" font-size="26" font-weight="900" letter-spacing="9" fill="#FF6433">BUDGET</text></g></svg></span><div><strong class="brand-zh">有限竞速：地贫线</strong><small lang="en">FORZERO: BUDGET · 2.6.3</small></div></div>
     <div class="location" id="campusName">深圳大学 · 粤海校区</div>
   </header>
   <section class="stage" tabindex="0" id="stage" data-phase="free" aria-label="FORZERO: BUDGET 有限竞速：地贫线">
@@ -27,18 +27,24 @@
         <p class="brief" id="courseBrief"></p>
         <span class="measure" id="courseFacts"></span><span class="measure" id="goldGoal"></span>
       </div>
-      <section class="timing" id="timing" aria-label="比赛用时" hidden>
-        <span class="readout-title" id="timedTitle">计时赛</span>
-        <output class="clock" id="clock">00:00.00</output>
-        <div class="time-checkpoints"><span><span id="progressLabel">检查点</span> <b id="checkpointCount" aria-live="polite">0 / 7</b></span><span class="dots" id="dots" aria-hidden="true"></span></div>
-        <div class="split"><span id="ghostName"></span><strong id="splitGap"></strong></div>
-        <div class="live-delta" id="liveDelta" hidden></div>
-        <div class="coach-feedback" id="sectorFeedback" aria-live="polite" hidden><span id="sectorLabel"></span><strong id="sectorGap"></strong></div>
-        <output class="exit-feedback" id="exitFeedback" hidden></output>
-        <output id="onlineRank" class="online-rank" hidden></output>
-        <output id="onlineLatency" class="online-latency" hidden></output>
-      </section>
-      <div class="speedometer">
+      <div class="hud-activity">
+        <section class="hud-panel timing" id="timing" aria-label="比赛用时" hidden>
+          <span class="hud-title" id="timedTitle">计时赛</span>
+          <output class="clock" id="clock">00:00.00</output>
+          <div class="time-checkpoints"><span><span id="progressLabel">检查点</span> <b id="checkpointCount" aria-live="polite">0 / 7</b></span><span class="dots" id="dots" aria-hidden="true"></span></div>
+          <div class="split"><span id="ghostName"></span><strong id="splitGap"></strong></div>
+          <div class="live-delta" id="liveDelta" hidden></div>
+          <div class="coach-feedback" id="sectorFeedback" aria-live="polite" hidden><span id="sectorLabel"></span><strong id="sectorGap"></strong></div>
+          <output class="exit-feedback" id="exitFeedback" hidden></output>
+          <output id="onlineRank" class="online-rank" hidden></output>
+          <output id="onlineLatency" class="online-latency" hidden></output>
+        </section>
+        <section class="hud-panel activity-panel" id="activityHud" aria-labelledby="activityTitle" hidden>
+          <strong class="hud-title" id="activityTitle"></strong>
+          <span class="activity-detail" id="activityDetail"></span>
+        </section>
+      </div>
+      <div class="hud-panel speedometer">
         <div class="speed-readout"><strong id="velocity">0</strong><small>km/h</small></div>
         <div class="drive-road-row">
           <span class="speed-mat" id="surfaceType" data-surface="paved">柏油路面</span>
@@ -63,15 +69,15 @@
           <span class="drive-status" id="windPill" data-tone="environment" hidden></span>
         </div>
       </div>
-      <div class="courier-hud" id="courierHud" hidden><strong id="courierTitle"></strong><span id="courierDetail"></span></div>
       <div class="hud-navigation">
-      <div class="route-hud">
-        <div class="next" id="next" hidden></div>
-        <div class="gate-flash" id="gateFlash" aria-live="polite" hidden></div>
-        <output id="blindHint" class="blind-hint" role="status" hidden></output>
-        <output id="fpsCounter" class="fps-counter" aria-live="off" hidden>FPS --</output>
-      </div>
-      <button id="miniButton" class="mini" type="button" aria-label="打开俯视地图"><span>校园小地图</span><canvas id="miniMap" width="382" height="228" aria-hidden="true"></canvas></button>
+        <div class="route-hud">
+          <div class="hud-message" id="routeWarning" data-tone="warning" role="status" hidden></div>
+          <div class="hud-message next" id="next" hidden></div>
+          <output class="hud-message blind-hint" id="blindHint" role="status" hidden></output>
+          <div class="hud-message gate-flash" id="gateFlash" aria-live="polite" hidden></div>
+          <output id="fpsCounter" class="fps-counter" aria-live="off" hidden>FPS --</output>
+        </div>
+        <button id="miniButton" class="hud-panel mini" type="button" aria-label="打开俯视地图"><span>校园小地图</span><canvas id="miniMap" width="382" height="228" aria-hidden="true"></canvas></button>
       </div>
       <div class="rider-tag" id="riderTag" hidden>player</div>
       <div class="rider-tag friend-tag" id="friendTag" hidden></div>
@@ -117,7 +123,7 @@
       <button class="float-button settings-button" id="settingsButton" type="button" aria-haspopup="dialog" aria-controls="settingsDialog"><i aria-hidden="true"></i>设置</button>
       <button class="float-button icon" id="expand" type="button" aria-label="全屏" title="全屏"><i class="corners" aria-hidden="true"></i></button>
     </div>
-    <div class="callout" id="callout" hidden>
+    <div class="hud-panel callout" id="callout" hidden>
       <strong id="callTitle"></strong><p id="callValue"></p><small id="callDetail" hidden></small>
       <div class="race-review" id="raceReview" role="region" aria-label="完赛复盘" tabindex="0" hidden>
         <div class="corner-review" id="cornerReview" hidden>

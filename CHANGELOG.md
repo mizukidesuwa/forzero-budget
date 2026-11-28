@@ -1,5 +1,12 @@
 # 更新日志（CHANGELOG）
 
+## 2.6.3 — 统一骑行界面与玩法提示
+
+- 驾驶仪表跨车型和玩法保持同一位置。计时、校园闪送、影子追捕、联机捉人共用左上状态区，导航、警告、检查点反馈和夜骑提示各有位置。漏过检查点和回归赛道的提示可与下一站同时显示，手机横竖屏沿用相同的信息顺序。关联 `src/index.html` 与 `src/styles/hud-compact.css`。
+- 玩法提供计时、任务、警告和阶段提示的显示状态，`src/ui/scene-hud.js` 统一控制显隐和内容。切换玩法清除前一模式的提示，开关俯视地图沿用当前的倒计时、暂停或结算状态。关联 `src/ui/race-hud.js`、`src/ui/mode-hud.js` 与 `src/ui/map-controls.js`。
+- 桌面版优先迁移同级的 2.6.2 存档，按当前安装包型匹配，并在存档损坏时继续尝试可用备份。关联 `server/server.mjs`、`scripts/verify-save.mjs` 与 `scripts/verify-desktop-start.mjs`。
+- 通过 `npm run lint`、`npm run typecheck`、`npm run build:release` 与 `npm run verify:all -- --skip-build` 的 18 项检查。覆盖计时、闪送、追捕和夜骑的切换，地图开关与暂停提示，四种手机尺寸下 150% 缩放，以及真实联机捉人和离房清理。运行时快照基线沿用已发布 v2.6.0。
+
 ## 2.6.2 — 统一驾驶 HUD 与坡度读数
 
 - 统一四种车型的驾驶 HUD。速度、路面、坡度和道路名使用固定位置，坡度从当前骑行世界查询读取。风况并入驾驶状态区，与积水、尾流及自行车骑姿共用提示样式。手机紧凑布局允许状态并存，夜骑按触屏或键盘显示摇铃提示。关联 `src/ui/hud-controls.js`、`src/ui/app.js`、`src/ui/mode-hud.js` 与 `src/styles/hud-compact.css`。

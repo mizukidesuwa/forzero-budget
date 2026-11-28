@@ -12,6 +12,15 @@ export function deltaLabel(delta) {
   return `${seconds} s ${delta < 0 ? 'ahead' : 'behind'}`;
 }
 
+export function gapTone(delta) {
+  return delta === null || Math.abs(delta) < 23 ? '' : delta < 0 ? 'ahead' : 'behind';
+}
+
+export function signedSeconds(delta) {
+  if (Math.abs(delta) < 5) return '0.00';
+  return (delta < 0 ? '−' : '+') + (Math.abs(delta) / 1000).toFixed(2);
+}
+
 export function feedbackLabel(source) {
   const match = /^(.+) (\d+\.\d) 秒$/.exec(source);
   return match ? message`${translate(match[1])} ${match[2]} 秒` : translate(source);

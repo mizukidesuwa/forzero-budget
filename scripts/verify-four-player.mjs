@@ -312,6 +312,48 @@ try {
   const staleFinish = await pages[0].evalPage(`(async()=>{const s=__FORZERO__.onlineRoom;const r=await fetch(s.url+'/command?id='+s.id,{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+s.token},body:JSON.stringify({action:'finish',round:1,roundId:${JSON.stringify(original.roundId)},ms:35000})});return r.ok})()`);
   assert.equal(staleFinish,false,'A delayed finish for round 1 must not settle the next match');
   console.log('PASS: same-course BO1 rematch restarted every browser and rejected a previous finish');
+
+  await Promise.all(pages.map(page=>page.evalPage('__FORZERO__.ui.onlineLeave.click()')));
+  await wait(host, '!__FORZERO__.onlineRoom', 'host left the rematch');
+  await wait(guest, '!__FORZERO__.onlineRoom', 'guest left the rematch');
+  await host.evalPage(`(()=>{
+    const u=__FORZERO__.ui;
+    u.onlineButton.click();
+    u.onlineFormat.value='chase';
+    u.onlineTuningTime.value='0';
+    u.onlineCreate.click();
+  })()`);
+  await wait(host, "__FORZERO__.onlineRoom?.state.format==='chase' && __FORZERO__.onlineRoom.clockReady", 'create chase room');
+  const chaseCode = await host.evalPage('__FORZERO__.onlineRoom.state.code');
+  await guest.evalPage(`(()=>{
+    const u=__FORZERO__.ui;
+    u.onlineButton.click();
+    u.onlineCodeInput.value=${JSON.stringify(chaseCode)};
+    u.onlineJoinForm.requestSubmit();
+  })()`);
+  for (const page of [host, guest]) {
+    await wait(page, "__FORZERO__.onlineRoom?.state.format==='chase' && !__FORZERO__.ui.onlineReady.disabled", 'chase ready button');
+    await page.evalPage('__FORZERO__.ui.onlineReady.click()');
+    await wait(page, '__FORZERO__.onlineRoom.state.players.find(p=>p.id===__FORZERO__.onlineRoom.id)?.ready', 'chase readiness');
+  }
+  await wait(host, '!__FORZERO__.ui.onlineStart.disabled', 'start chase');
+  await host.evalPage('__FORZERO__.ui.onlineStart.click()');
+  await Promise.all([host,guest].map(page=>wait(page,`(()=>{
+    const {onlineRoom,ui}=__FORZERO__;
+    return onlineRoom.state.phase==='race' && onlineRoom.state.round?.chase?.hunterId &&
+      !ui.activityHud.hidden && ui.activityHud.dataset.mode==='online-chase' &&
+      ui.timing.hidden && ui.next.hidden && ui.routeWarning.hidden && ui.blindHint.hidden;
+  })()`,'online chase activity replaces the timing panel',20_000)));
+  assert.match(await host.evalPage('__FORZERO__.ui.activityTitle.textContent'),/^联机捉人/);
+  assert.match(await guest.evalPage('__FORZERO__.ui.activityTitle.textContent'),/^Online Chase/);
+  await Promise.all([host,guest].map(async page=>{
+    await page.evalPage('__FORZERO__.ui.onlineLeave.click()');
+    await wait(page,`(()=>{
+      const {onlineRoom,race,ui}=__FORZERO__;
+      return !onlineRoom && race.phase==='free' && ui.activityHud.hidden && ui.timing.hidden && ui.callout.hidden;
+    })()`,'leaving chase clears the previous HUD',20_000);
+  }));
+  console.log('PASS: the online chase round shows its localized activity and clears it on leaving');
 } finally {
   if (browser) await browser.close();
   server.closeAllConnections?.();
