@@ -1,5 +1,11 @@
 # 更新日志（CHANGELOG）
 
+## 2.6.5 — 桌面存档跨端口与浏览器恢复
+
+- 桌面启动器在同一安装的 `save/player-data.pending.json` 持久化待写个人进度。桌面导入等启动器确认后再显示成功，旧正式保存响应挂起时仍可登记新进度。换端口或浏览器配置重开时先合并待写进度，正式保存完成后按修订清理。关联 `src/ui/save-sync.js`、`src/data/interface.js` 与 `server/server.mjs`。
+- 桌面版优先迁移同级的 2.6.4 存档，同版本优先匹配当前安装包型，两份 2.6.4 存档都损坏时尝试 2.6.3。关联 `server/server.mjs`、`scripts/verify-save.mjs` 与 `scripts/verify-desktop-start.mjs`。
+- 通过 `npm run lint`、`npm run typecheck`、`npm run build:release` 和 `npm run verify:all -- --skip-build` 的 18 项检查。真实 Chrome 验证了在正式存档仍为 2 单、旧响应挂起时导入 134 单，关闭页面并换端口或使用全新浏览器上下文后恢复 134 单并补写正式存档。覆盖旧修订回执、失败重试及后续 135 单的正常恢复。沿用 v2.6.0 运行时基线。
+
 ## 2.6.4 — 竞速环境、桌面存档与联机发车修复
 
 - 计时、区间单练、夜骑盲区和单人影子追捕在倒计时或发车时冻结天气、风速风向、阵风模式与种子、车流和碰撞。赛中调整设置在下一场生效，物理与完赛记录使用同一份环境。关联 `src/world/ride-environment.js`、`src/world/environment.js`、`src/race/time-trial.js` 与 `src/ride/physics.js`。

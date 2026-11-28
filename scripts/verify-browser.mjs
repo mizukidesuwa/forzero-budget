@@ -783,23 +783,17 @@ try {
     const driver = 'szu-litchi-driver-1';
     const explorerKey = 'szu-litchi-explorer-1';
     const explorerProgress = totalDeliveries => JSON.stringify({ totalDeliveries, bestStreak: 1, discovered: {szu:[],ucl:[],shunde:[]} });
-    const makeInstall = async (name, progress = {}) => {
-      const saveDir = join(temp,name);
-      const file = join(saveDir,'player-data.json');
-      const instanceId = createHash('sha256').update(saveDir).digest('hex');
-      const snapshot = {
-        format:'litchi-save',version:1,updatedAt:'2000-01-01T00:00:00Z',
-        storage:{[driver]:JSON.stringify({name}), ...progress},
-        friends:[{score:{campus:archiveCourse.campus,courseId:archiveCourse.id,layout:archiveCourse.layout,
-          name,vehicle:archiveRider.vehicle,time:archiveRun.time},replay:JSON.stringify(fixtures.szu.ghost)}],
-      };
-      await mkdir(saveDir);
-      await writeFile(file,JSON.stringify(snapshot));
+    function makeSaveShell(install) {
+      const { saveDir, instanceId } = install;
       const shell = createAppShell({assets,saveDir,instanceId,bootTimeoutMs:0,idleMs:0});
-      const install = {file,instanceId,shell,blockWrites:false,holdNextSave:false,heldSave:null};
       const [handleRequest] = shell.server.listeners('request');
       shell.server.off('request',handleRequest);
       shell.server.on('request',(req,res)=>{
+        if (req.method==='POST' && req.url==='/app/save/pending' && install.blockPending) {
+          req.resume();
+          res.writeHead(500,{'content-type':'application/json'}).end('{"error":"QA pending write failed"}');
+          return;
+        }
         if (req.method==='POST' && req.url==='/app/save') {
           if (install.blockWrites) {
             req.resume();
@@ -819,6 +813,22 @@ try {
         }
         handleRequest(req,res);
       });
+      return shell;
+    }
+    const makeInstall = async (name, progress = {}) => {
+      const saveDir = join(temp,name);
+      const file = join(saveDir,'player-data.json');
+      const instanceId = createHash('sha256').update(saveDir).digest('hex');
+      const snapshot = {
+        format:'litchi-save',version:1,updatedAt:'2000-01-01T00:00:00Z',
+        storage:{[driver]:JSON.stringify({name}), ...progress},
+        friends:[{score:{campus:archiveCourse.campus,courseId:archiveCourse.id,layout:archiveCourse.layout,
+          name,vehicle:archiveRider.vehicle,time:archiveRun.time},replay:JSON.stringify(fixtures.szu.ghost)}],
+      };
+      await mkdir(saveDir);
+      await writeFile(file,JSON.stringify(snapshot));
+      const install = {saveDir,file,instanceId,shell:null,blockWrites:false,blockPending:false,holdNextSave:false,heldSave:null};
+      install.shell = makeSaveShell(install);
       return install;
     };
     const loadSave = async install => JSON.parse(await readFile(install.file,'utf8'));
@@ -840,24 +850,39 @@ try {
       await once(shell.server,'listening');
       return shell.server.address().port;
     }
-    async function verifySaveHandoff(closeBeforeAck) {
-      const name = closeBeforeAck ? 'Close before save acknowledgement' : 'Older save acknowledged after import';
+    async function verifySaveHandoff(closeBeforeAck, restart = null) {
+      const name = restart ?? (closeBeforeAck ? 'Close before save acknowledgement' : 'Older save acknowledged after import');
       const install = await makeInstall(name, { [explorerKey]: explorerProgress(1) });
       const tabs = new Set();
+      const shells = new Set([install.shell]);
+      let browserContextId;
       const diskDeliveries = async () => JSON.parse((await loadSave(install)).storage[explorerKey]).totalDeliveries;
       const browserDeliveries = `(async()=>JSON.parse((await __FORZERO__.buildSaveSnapshot()).storage[${JSON.stringify(explorerKey)}]).totalDeliveries)()`;
+      const pendingFile = join(install.saveDir,'player-data.pending.json');
+      const pendingSaveOnDisk = () => readFile(pendingFile,'utf8').then(JSON.parse, error => {
+        if (error.code !== 'ENOENT') throw error;
+        return null;
+      });
+      const launcherSave = async url => {
+        const response = await fetch(`${url}app/save`);
+        assert.equal(response.status,200);
+        const saved = await response.json();
+        assert.equal(saved.instanceId,install.instanceId,`${name}: launcher must recover the same installation`);
+        return saved;
+      };
       async function closeTab(targetId) {
         const result = await rpc('Target.closeTarget',{targetId});
         assert.equal(result.success,true);
         tabs.delete(targetId);
       }
       async function openTab(url, expectedStatus) {
-        const { targetId } = await rpc('Target.createTarget',{url:'about:blank'});
+        const { targetId } = await rpc('Target.createTarget',{url:'about:blank', ...(browserContextId && {browserContextId})});
         tabs.add(targetId);
         const { sessionId: tabSession } = await rpc('Target.attachToTarget',{targetId,flatten:true});
         await rpc('Page.enable',{},tabSession);
         await rpc('Page.addScriptToEvaluateOnNewDocument',{source:`
           globalThis.qaSaveStatuses = [];
+          globalThis.qaExplorerAtDocumentStart = localStorage.getItem(${JSON.stringify(`forzero-install:${install.instanceId}:${explorerKey}`)});
           const requestSave = fetch.bind(globalThis);
           globalThis.fetch = async (url, options) => {
             const response = await requestSave(url, options);
@@ -871,7 +896,7 @@ try {
           `${name}: browser did not hydrate and attempt a save`,tabSession);
         return { targetId, tabSession };
       }
-      async function importDeliveries(tab, count) {
+      async function importDeliveries(tab, count, status = '存档已导入') {
         const backup = {format:'litchi-save',version:1,storage:{[explorerKey]:explorerProgress(count)}};
         await evaluate(`(()=>{
           const f=__FORZERO__, upload=new DataTransfer();
@@ -880,12 +905,12 @@ try {
           f.ui.saveFile.files=upload.files;
           f.ui.saveFile.dispatchEvent(new Event('change'));
         })()`,tab.tabSession);
-        await wait(`(async()=>__FORZERO__.ui.saveStatus.textContent.startsWith('存档已导入') && (await ${browserDeliveries})===${count})()`,
+        await wait(`(async()=>__FORZERO__.ui.saveStatus.textContent.startsWith(${JSON.stringify(status)}) && (await ${browserDeliveries})===${count})()`,
           `${name}: the UI did not confirm the ${count}-delivery import`,tab.tabSession);
       }
       try {
         const port = await start(install.shell,0);
-        const url = `http://127.0.0.1:${port}/`;
+        let url = `http://127.0.0.1:${port}/`;
         const tab = await openTab(url,200);
         assert.equal(await evaluate(browserDeliveries,tab.tabSession),1);
         const acknowledged = await evaluate('qaSaveStatuses.length',tab.tabSession);
@@ -901,21 +926,57 @@ try {
         assert.equal(await evaluate('qaSaveStatuses.length',tab.tabSession),acknowledged);
         install.blockWrites = true;
         await importDeliveries(tab,134);
+        const staged = restart ? await launcherSave(url) : null;
+        const persisted = restart ? await pendingSaveOnDisk() : null;
         if (!closeBeforeAck) {
           install.heldSave.release();
           await wait(`qaSaveStatuses.slice(${acknowledged}).includes(200)`,`${name}: the older acknowledgement did not reach Chrome`,tab.tabSession);
         }
+        if (restart) assert.equal(await evaluate(`qaSaveStatuses.slice(${acknowledged}).includes(200)`,tab.tabSession),false,
+          `${name}: the old save response must still be held when closing the tab`);
         await closeTab(tab.targetId);
         install.heldSave.release();
         assert.equal(await diskDeliveries(),2);
+        let recovered;
+        if (restart) {
+          const original = install.shell, replacement = makeSaveShell(install);
+          shells.add(replacement);
+          if (restart === 'Different port') {
+            // Reserve another port while the original is still bound, then stop the original before navigating.
+            const nextPort = await start(replacement,0);
+            assert.notEqual(nextPort,port);
+            await original.shutdown();
+            url = `http://127.0.0.1:${nextPort}/`;
+          } else {
+            await original.shutdown();
+            await start(replacement,port);
+            ({ browserContextId } = await rpc('Target.createBrowserContext',{disposeOnDetach:true}));
+          }
+          install.shell = replacement;
+          recovered = await launcherSave(url);
+        }
         const reopened = await openTab(url,500);
+        if (restart) assert.equal(await evaluate('qaExplorerAtDocumentStart',reopened.tabSession),null,
+          `${name}: reopened browser must have no installation progress before hydration`);
         assert.equal(await evaluate(browserDeliveries,reopened.tabSession),134,
           `${name}: reopening must preserve the locally confirmed import even while disk still contains 2 deliveries`);
+        if (restart) {
+          assert.equal(typeof staged.pendingRevision,'string',`${name}: launcher must persist pending progress before closing`);
+          assert.equal(JSON.parse(staged.data.storage[explorerKey]).totalDeliveries,134);
+          assert.equal(JSON.parse(persisted?.storage?.[explorerKey] ?? 'null')?.totalDeliveries,134,
+            `${name}: the launcher must hold a durable pending copy next to the canonical file`);
+          assert.equal(recovered.pendingRevision,staged.pendingRevision,`${name}: launcher restart lost the pending revision`);
+          assert.equal(JSON.parse(recovered.data.storage[explorerKey]).totalDeliveries,134);
+        }
         assert.equal(await diskDeliveries(),2);
         install.blockWrites = false;
         await wait('qaSaveStatuses.includes(200)',`${name}: reopened page did not resume the pending save`,reopened.tabSession);
         assert.equal(await diskDeliveries(),134,`${name}: recovery must also reach the desktop save file`);
-        if (closeBeforeAck) {
+        if (restart) {
+          assert.equal((await launcherSave(url)).pendingRevision,null,`${name}: successful canonical save should clear the pending revision`);
+          console.log(`${name} ${port} -> ${new URL(url).port}: fresh browser storage, canonical 2, recovered and committed 134.`);
+        }
+        if (closeBeforeAck && restart !== 'Fresh browser context') {
           await closeTab(reopened.targetId);
           const later = await loadSave(install);
           later.storage[explorerKey] = explorerProgress(135);
@@ -923,14 +984,28 @@ try {
             'Content-Type':'application/json', 'X-Forzero-Installation':install.instanceId,
           }, body:JSON.stringify(later)});
           assert.equal(response.status,200);
+          if (restart) {
+            const originalPort = makeSaveShell(install);
+            shells.add(originalPort);
+            await install.shell.shutdown();
+            await start(originalPort,port);
+            url = `http://127.0.0.1:${port}/`;
+          }
           const subsequent = await openTab(url,200);
           assert.equal(await evaluate(browserDeliveries,subsequent.tabSession),135,
             'The acknowledged browser revision must not override a later authoritative disk save');
+          if (restart) {
+            install.blockPending = install.blockWrites = true;
+            await importDeliveries(subsequent,136,'存档已在此浏览器生效，启动器暂未保存，正在重试。');
+            assert.equal(await diskDeliveries(),135,`${name}: rejected pending write must not advance the canonical save`);
+            assert.equal((await launcherSave(url)).pendingRevision,null,`${name}: rejected pending write must not advertise recovery`);
+          }
         }
       } finally {
         install.heldSave?.release();
         await Promise.allSettled([...tabs].map(closeTab));
-        await install.shell.shutdown();
+        if (browserContextId) await rpc('Target.disposeBrowserContext',{browserContextId});
+        await Promise.all([...shells].map(shell => shell.shutdown()));
       }
     }
     async function openInstall(url, name) {
@@ -959,7 +1034,10 @@ try {
     try {
       await verifySaveHandoff(true);
       await verifySaveHandoff(false);
+      await verifySaveHandoff(true,'Different port');
+      await verifySaveHandoff(true,'Fresh browser context');
       console.log('Desktop progress survived tab close with a held or outdated save acknowledgement.');
+      console.log('Launcher recovery retained 134 deliveries across a port change and a fresh browser context, then committed them to disk.');
       first = await makeInstall('Driver A');
       second = await makeInstall('Driver B');
       const port = await start(first.shell,0);

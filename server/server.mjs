@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
-import { mkdir, readdir, readFile, realpath, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, realpath, rename, unlink, writeFile } from 'node:fs/promises';
 import { networkInterfaces } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -792,7 +792,7 @@ async function listenWithFallback(server,host,requestedPort,allowFallback) {
 
 const gameVersion = (page,assets) => /(?:FORZERO:\s*BUDGET[^<]*?|荔园环骑)\s+([0-9.]+)<\/title>/.exec(String(assets?.['/index.html']?.body??page))?.[1]??null;
 
-const desktopSaveVersions = ['2.6.3','2.6.2','2.6.1','2.6.0','2.5.7','2.5.6','2.5.5','2.5.4','2.5.3','2.5.2','2.5.1.1','2.5.1','2.5.0','2.4.0','2.3.4','2.3.3.1','2.3.3','2.3.2','2.3.1',
+const desktopSaveVersions = ['2.6.4','2.6.3','2.6.2','2.6.1','2.6.0','2.5.7','2.5.6','2.5.5','2.5.4','2.5.3','2.5.2','2.5.1.1','2.5.1','2.5.0','2.4.0','2.3.4','2.3.3.1','2.3.3','2.3.2','2.3.1',
   '2.1.0','2.0.0','1.9.1.1','1.9.1','1.9.0','1.8.8','1.8.7','1.8.6','1.8.5','1.8.1'];
 const legacySaveVersions = ['1.8.0','1.7.0','1.6.6','1.6.5','1.6.4','1.6.3','1.6.2','1.6.1','1.6.0','1.5.0'];
 
@@ -825,11 +825,12 @@ export function createAppShell({page,assets,soundDir,saveDir,instanceId=null,pre
   let shutdownTimer = null, bootTimer = null;
 
   const saveFilePath = saveDir ? fileURLToPath(new URL('player-data.json', pathToFileURL(saveDir + '/'))) : null;
-  const saveTmpPath = saveFilePath ? saveFilePath + '.tmp' : null;
+  const pendingFilePath = saveDir ? join(saveDir, 'player-data.pending.json') : null;
+  const saveRevisionPattern = /^[a-f0-9-]{36}$/;
   function saveTag(data) {
     if (!data) return '"empty"';
     const { desktopSaveRevision } = data;
-    const revision = typeof desktopSaveRevision === 'string' && /^[a-f0-9-]{36}$/.test(desktopSaveRevision)
+    const revision = typeof desktopSaveRevision === 'string' && saveRevisionPattern.test(desktopSaveRevision)
       ? desktopSaveRevision : createHash('sha256').update(JSON.stringify(data)).digest('hex');
     return `"${revision}"`;
   }
@@ -857,28 +858,103 @@ export function createAppShell({page,assets,soundDir,saveDir,instanceId=null,pre
     }
     return null;
   }
-  async function writeSaveFile(incoming, expectedTag) {
-    if (!saveFilePath) return saveTag(null);
-    const op = saveOp.then(async () => {
-      const prev = await readSaveFile();
-      if (expectedTag !== undefined && expectedTag !== saveTag(prev)) {
-        throw new RoomError('桌面存档已经更新，正在重新同步。',412);
+  function validStoragePatch(storage) {
+    return storage && typeof storage==='object' && !Array.isArray(storage) &&
+      Object.values(storage).every(value=>value===null || typeof value==='string');
+  }
+  async function readPendingSave(saved) {
+    if (!pendingFilePath) return null;
+    try {
+      const pending = JSON.parse(await readFile(pendingFilePath,'utf8'));
+      if (pending?.version!==1 || typeof pending.revision!=='string' || !saveRevisionPattern.test(pending.revision) ||
+          typeof pending.updatedAt!=='string' || !validStoragePatch(pending.storage)) throw new SyntaxError('Invalid pending save');
+      return pending.revision===saved?.desktopAppliedPendingRevision ? null : pending;
+    } catch (error) {
+      if (error.code==='ENOENT') return null;
+      if (error instanceof SyntaxError) throw new RoomError('本地待写存档已损坏，原文件已保留。',409);
+      throw error;
+    }
+  }
+  async function readSaveState() {
+    const saved = await readSaveFile();
+    const pending = await readPendingSave(saved);
+    return {saved,pending,tag:pending?'"'+pending.revision+'"':saveTag(saved)};
+  }
+  function mergePendingStorage(storage, patch) {
+    const merged = Object.assign(Object.create(null),storage);
+    for (const [key,value] of Object.entries(patch)) {
+      if (value===null) delete merged[key];
+      else merged[key] = value;
+    }
+    return merged;
+  }
+  function visibleSave({saved,pending}) {
+    const data = pending ? {
+      format:'litchi-save',version:1,updatedAt:pending.updatedAt,
+      storage:mergePendingStorage(saved?.storage,pending.storage),friends:saved?.friends ?? [],
+    } : saved && {...saved};
+    if (data) {
+      delete data.desktopSaveRevision;
+      delete data.desktopAppliedPendingRevision;
+    }
+    return data;
+  }
+  function queueSave(operation) {
+    const op = saveOp.then(operation);
+    saveOp = op.catch(()=>{});
+    return op;
+  }
+  function checkSaveTag(expectedTag, actualTag, required) {
+    if ((required || expectedTag!==undefined) && expectedTag!==actualTag) {
+      throw new RoomError('桌面存档已经更新，正在重新同步。',412);
+    }
+  }
+  async function replaceSaveFile(target, text) {
+    const temporary = target + '.tmp';
+    await writeFile(temporary,text,{encoding:'utf8',flush:true});
+    await rename(temporary,target);
+  }
+  function writePendingSave(patch, expectedTag) {
+    if (!pendingFilePath) throw new RoomError('当前桌面实例无法写入待存档。',409);
+    if (closing) throw new RoomError('游戏正在退出。',503);
+    return queueSave(async()=>{
+      const {saved,pending,tag} = await readSaveState();
+      checkSaveTag(expectedTag,tag,true);
+      const next = {version:1,revision:randomUUID(),updatedAt:new Date().toISOString(),
+        storage:{...pending?.storage,...patch.storage}};
+      const text = JSON.stringify(next);
+      const personal = {...visibleSave({saved,pending:next}),friends:null};
+      if (Buffer.byteLength(text)>sharedRules.MAX_SAVE_BYTES || Buffer.byteLength(JSON.stringify(personal))>sharedRules.MAX_SAVE_BYTES) {
+        throw new RoomError('存档过大。',413);
       }
       await mkdir(saveDir, { recursive: true });
+      await replaceSaveFile(pendingFilePath,text);
+      return '"'+next.revision+'"';
+    });
+  }
+  function writeSaveFile(incoming, expectedTag) {
+    if (!saveFilePath) return saveTag(null);
+    if (closing) throw new RoomError('游戏正在退出。',503);
+    return queueSave(async()=>{
+      const {saved:prev,pending,tag} = await readSaveState();
+      checkSaveTag(expectedTag,tag,Boolean(pending));
+      const storage = incoming.storage ?? prev?.storage ?? {};
+      const desktopAppliedPendingRevision = pending?.revision ?? prev?.desktopAppliedPendingRevision;
       const merged = {
         format: 'litchi-save',
         version: 1,
         desktopSaveRevision: randomUUID(),
+        ...(desktopAppliedPendingRevision && {desktopAppliedPendingRevision}),
         updatedAt: typeof incoming.updatedAt==='string' ? incoming.updatedAt : new Date().toISOString(),
-        storage: typeof incoming.storage==='object' && incoming.storage ? incoming.storage : (prev?.storage ?? {}),
+        storage: pending ? mergePendingStorage(storage,pending.storage) : storage,
         friends: Array.isArray(incoming.friends) ? incoming.friends : (Array.isArray(prev?.friends) ? prev.friends : []),
       };
-      await writeFile(saveTmpPath, JSON.stringify(merged, null, 2), 'utf8');
-      await rename(saveTmpPath, saveFilePath);
+      await mkdir(saveDir, { recursive: true });
+      await replaceSaveFile(saveFilePath,JSON.stringify(merged,null,2));
+      // The committed receipt makes this cleanup safe to retry after a restart.
+      if (pending) await unlink(pendingFilePath).catch(()=>{});
       return saveTag(merged);
     });
-    saveOp = op.catch(() => {});
-    return op;
   }
 
   const sameLocalOrigin = req=>{
@@ -987,13 +1063,13 @@ export function createAppShell({page,assets,soundDir,saveDir,instanceId=null,pre
         return;
       }
       if (req.method==='GET' && pathname==='/app/save') {
-        const saved = await readSaveFile();
-        const data = saved && { ...saved };
-        if (data) delete data.desktopSaveRevision;
-        localJson(res,200,{instanceId,exists:Boolean(saved),data},{ETag:saveTag(saved)});
+        const state = await queueSave(readSaveState);
+        const data = visibleSave(state);
+        localJson(res,200,{instanceId,exists:Boolean(data),data,
+          pendingRevision:state.pending?.revision ?? null,pendingKeys:Object.keys(state.pending?.storage ?? {})},{ETag:state.tag});
         return;
       }
-      if (req.method==='POST' && pathname==='/app/save') {
+      if (req.method==='POST' && (pathname==='/app/save' || pathname==='/app/save/pending')) {
         if (!sameLocalOrigin(req)) throw new RoomError('仅允许本机游戏页面操作。',403);
         if (instanceId && req.headers['x-forzero-installation']!==instanceId) {
           req.resume();
@@ -1013,8 +1089,12 @@ export function createAppShell({page,assets,soundDir,saveDir,instanceId=null,pre
         let body;
         try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
         catch { throw new RoomError('存档格式错误。',400); }
-        if (!validSave(body)) throw new RoomError('存档格式或版本不兼容。',400);
-        const tag = await writeSaveFile(body,req.headers['if-match']);
+        const pending = pathname==='/app/save/pending';
+        if (pending ? body?.version!==1 || !validStoragePatch(body.storage) : !validSave(body)) {
+          throw new RoomError('存档格式或版本不兼容。',400);
+        }
+        const tag = pending ? await writePendingSave(body,req.headers['if-match'])
+          : await writeSaveFile(body,req.headers['if-match']);
         localJson(res,200,{ok:true},{ETag:tag});
         return;
       }

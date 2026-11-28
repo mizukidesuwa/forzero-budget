@@ -29,7 +29,7 @@
 | `src/data/modes.js`、`src/race/chase.js`、`src/race/online-chase.js`、`src/race/blind-nav.js`、`src/ui/mode-hud.js` | 单人影子追捕、联机捉人与夜骑盲区规则常量、纯状态机与 HUD 渲染（`online-chase.js` 已启用 `// @ts-check` + JSDoc 契约） | `npm run typecheck`、`node scripts/verify-route-builder-chase.mjs`、`node scripts/verify-chase-blind.mjs`、`node scripts/verify-esm-parity.mjs`、`node scripts/verify-browser.mjs` |
 | `jsconfig.json`、`eslint.config.mjs`、`scripts/build.mjs`、`scripts/verify-hygiene.mjs`、`scripts/verify-all.mjs`、`scripts/stage-release.mjs` | 渐进式 JSDoc `@ts-check` 类型门禁、ESLint AST 检查（`no-undef` 等）、esbuild 0.28.2、`metafile` 体积汇报、静态门禁、分层验收编排、校验暂存与 GitHub 分包上传（`--github`） | `npm run lint`、`npm run typecheck`、`npm test`、`npm run verify:e2e`、`npm run verify:all`、`npm run build:release`、`npm run release:stage`、`npm run release:github` |
 | `server/server.mjs`、`server/room-rules.cjs`、`server/route-rules.cjs`、`src/online/client.js` | 桌面实例和存档迁移、联机发车前复核参赛者与轮次身份、房规与 canonical 路线 profile | `node scripts/verify-save.mjs`、`node scripts/verify-desktop-start.mjs`、`node server/verify.mjs`、`node scripts/verify-four-player.mjs` |
-| `src/core/browser-storage.js`、`src/core/desktop-save-journal.js`、`src/ui/save-sync.js`、`src/race/time-trial.js`、`src/replay/ghost.js` | 桌面安装的浏览器存档与友人档案隔离、待写个人存档跨页面恢复和磁盘修订核对、个人最佳缓存、路线工坊影子与布局校验 | `node scripts/verify-save.mjs`、`node scripts/verify-browser.mjs`、`node scripts/verify-chase-blind.mjs`、`node scripts/verify-route-builder-chase.mjs` |
+| `src/core/browser-storage.js`、`src/core/desktop-save-journal.js`、`src/ui/save-sync.js`、`server/server.mjs`、`src/race/time-trial.js`、`src/replay/ghost.js` | 桌面安装的存档隔离、启动器在 `save/player-data.pending.json` 持久化待写个人进度、跨端口与浏览器恢复、磁盘修订核对、个人最佳与影子布局校验 | `node scripts/verify-save.mjs`、`node scripts/verify-browser.mjs`、`node scripts/verify-chase-blind.mjs`、`node scripts/verify-route-builder-chase.mjs` |
 | `src/race/launch-options.js`、`src/race/race-review.js`、`src/ui/app.js` | 单机与房间发车选项、完赛复盘赛段和单练结果 | `npm run typecheck`、`node scripts/verify-browser.mjs`、`node scripts/verify-four-player.mjs --network-only` |
 | `scripts/build-manifest.mjs`、`scripts/stage-release.mjs`、`scripts/verify-release-staging.mjs` | 本次构建的手机文件和发行附件清单、暂存校验与 GitHub 导出保护 | `npm test`、`node scripts/verify-release-staging.mjs` |
 
@@ -37,17 +37,17 @@
 
 > 历史交付与早期架构见 [HISTORY.md](HISTORY.md)；版本流水见 [CHANGELOG.md](CHANGELOG.md)；1.8.6 车流见本地归档 `szu-litchi-dev/ride-update/1.8.6-traffic.md`。巨型 `perf-*.json`、截图与旧包已归档至 `D:\szubikeGPT-archive\`。
 
-## 1. 2.6.4 构建产物与本地版
+## 1. 2.6.5 构建产物与本地版
 
 - Windows 便携版构建需要同一个官方 Node.js 22 Windows x64 归档内的 `node.exe` 和完整的 `LICENSE`。将 `FORZERO_NODE_EXE` 指向解压后的二进制，再执行 `npm run build:release:win`。构建器默认从二进制同目录读取 `LICENSE`，也可通过 `FORZERO_NODE_LICENSE` 指定该归档里的许可文件。
 - 性能检查默认只测当前构建，报告写入 `dist-v2/hardware-perf.verify.json`。当前预算为硬件渲染 p95 120 ms、软件渲染 p95 250 ms、JS 堆峰值 640 MiB 和浏览器进程内存峰值 3 GiB。需要历史硬件对比时，再给 `scripts/verify-performance.mjs` 传入 `--baseline=<目录>`。目录内需有历史桌面版的 `index.html`。
-- `npm run build:release` 生成轻量 `dist-v2/desktop/`、`dist-v2/forzero-budget-2.6.4.zip` 和 `dist-v2/forzero-budget-mobile-2.6.4.html`。执行 `npm run build:release:win`（或 `-- --bundle-node`）额外生成内置便携 `runtime/node.exe` 的 Windows 免安装版 **`dist-v2/forzero-budget-windows-x64-2.6.4.zip`**。
-- `npm run release:stage` 将可分发归档和校验清单（`SHA256SUMS.txt`、`MANIFEST.json`、`RELEASE-NOTES.md`）暂存到 `dist-v2/release/v2.6.4/`。`npm run release:github` 按 `AGENTS.md` 生成拆分式上传目录 `github-upload-2.6.4/repo/`（纯净源码树）与 `github-upload-2.6.4/release-assets/`（发行附件与 `RELEASE-NOTES.md`）。
+- `npm run build:release` 生成轻量 `dist-v2/desktop/`、`dist-v2/forzero-budget-2.6.5.zip` 和 `dist-v2/forzero-budget-mobile-2.6.5.html`。执行 `npm run build:release:win`（或 `-- --bundle-node`）额外生成内置便携 `runtime/node.exe` 的 Windows 免安装版 **`dist-v2/forzero-budget-windows-x64-2.6.5.zip`**。
+- `npm run release:stage` 将可分发归档和校验清单（`SHA256SUMS.txt`、`MANIFEST.json`、`RELEASE-NOTES.md`）暂存到 `dist-v2/release/v2.6.5/`。`npm run release:github` 按 `AGENTS.md` 生成拆分式上传目录 `github-upload-2.6.5/repo/`（纯净源码树）与 `github-upload-2.6.5/release-assets/`（发行附件与 `RELEASE-NOTES.md`）。
 - GitHub 导出先校验候选源码，再在隔离副本中运行 `npm ci` 和 `npm test`。验证通过后才替换旧导出，测试生成的依赖和构建文件留在隔离目录。
 - `.github/workflows/ci.yml` 在 `main` 推送、PR 和 `v*` 标签上运行 Windows 和 Ubuntu 校验及 Chrome 桌面、手机和四客户端联机验收。通过后，`main` 可部署 Pages，版本标签可进入 Release。Release 在 Windows 上按本次构建清单暂存附件，解压并用包内 Node.js 验收启动，再上传附件。
 - `dist-v2/build-manifest.json` 指定本次构建的手机 HTML 和发行附件及其校验值。浏览器验收 `node scripts/verify-browser.mjs` 和手机预览 `node scripts/serve-phone.mjs` 从该清单选择手机文件。手动指定其他构建时使用 `FORZERO_BUILD_DIR`，或通过 `FORZERO_MOBILE_HTML` 提供明确文件。
 - 本地 `szu-litchi-dev/` 已移除；公开 GitHub 仓库与发行产物不再携带历史 1.x 构建链。
-- 2.6.4 桌面版优先读取同级轻量版或 Windows 免安装版目录中的 `2.6.3` 存档，再依次尝试 `2.6.2`、`2.6.1`、`2.6.0`、`2.5.7`、`2.5.6`、`2.5.5`、`2.5.4`、`2.5.3`、`2.5.2`、`2.5.1.1`、`2.5.1`、`2.5.0`、`2.4.0`、`2.3.4` 及前序存档。手机单文件可通过游戏设置导出和导入备份。
+- 2.6.5 桌面版优先读取同级轻量版或 Windows 免安装版目录中的 `2.6.4` 存档，再依次尝试 `2.6.3`、`2.6.2`、`2.6.1`、`2.6.0`、`2.5.7`、`2.5.6`、`2.5.5`、`2.5.4`、`2.5.3`、`2.5.2`、`2.5.1.1`、`2.5.1`、`2.5.0`、`2.4.0`、`2.3.4` 及前序存档。手机单文件可通过游戏设置导出和导入备份。
 
 ### 2.3.1 归档路径
 

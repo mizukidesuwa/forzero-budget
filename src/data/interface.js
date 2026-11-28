@@ -1,6 +1,6 @@
 export const interfaceScale = Object.freeze({ min: 50, max: 150, step: 5, normal: 100 });
 
-export const desktopSaveTiming = Object.freeze({ debounceMs: 400, retryMs: 5000, timeoutMs: 8000 });
+export const desktopSaveTiming = Object.freeze({ debounceMs: 400, retryMs: 5000, timeoutMs: 8000, pendingConflictRetries: 3 });
 
 export const cameraViews = Object.freeze({
   third: { tag: '3P', label: '第三人称' },

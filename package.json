@@ -1,6 +1,6 @@
 {
   "name": "forzero-budget",
-  "version": "2.6.4",
+  "version": "2.6.5",
   "private": true,
   "description": "FORZERO: BUDGET (有限竞速：地贫线) build tooling",
   "scripts": {
