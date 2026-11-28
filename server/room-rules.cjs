@@ -4,6 +4,16 @@ const {ONLINE_CHASE_RULES}=require('./shared-rules.cjs');
 const ALL_ROUND_VEHICLES = Object.freeze(['bike','ebike','chair','trail']);
 const ROOM_ROUNDS = {bo1:1,bo3:3,league:5,random:3,triathlon:ALL_ROUND_VEHICLES.length,chase:ONLINE_CHASE_RULES.rounds};
 
+/** @param {{stream?: {destroyed?: boolean, writableEnded?: boolean} | null}} player */
+function roomPlayerOnline({stream}) {
+  return Boolean(stream && !stream.destroyed && !stream.writableEnded);
+}
+
+/** @param {{players: Map<string, Parameters<typeof roomPlayerOnline>[0]>}} room */
+function roomRosterOnline(room) {
+  return room.players.size >= 2 && [...room.players.values()].every(roomPlayerOnline);
+}
+
 function lockRoomVehicle(room) {
   if (room.format === 'triathlon') {
     room.vehicleRule = ALL_ROUND_VEHICLES[Math.min(room.history.length, ALL_ROUND_VEHICLES.length - 1)];
@@ -178,11 +188,11 @@ function beginTuning(room,now) {
 /**
  * @param {{ format: string, phase: string, roster?: { id: string }[], players: Map<string, { id: string }>,
  *   history: { chase?: { hunterId: string } }[] }} room
+ * @param {{ id: string }[]} [roster]
  * @returns {string | null}
  */
-function nextChaseHunterId(room) {
+function nextChaseHunterId(room, roster = room.roster?.length ? room.roster : [...room.players.values()]) {
   if (room.format !== 'chase' || room.phase === 'done') return null;
-  const roster = room.roster?.length ? room.roster : [...room.players.values()];
   const previous = roster.findIndex(player => player.id === room.history.at(-1)?.chase?.hunterId);
   for (let offset = 1; offset <= roster.length; offset++) {
     const { id } = roster[(previous + offset) % roster.length];
@@ -191,25 +201,30 @@ function nextChaseHunterId(room) {
   return null;
 }
 
+/** @returns {{kind: 'connections' | 'budget', message: string} | null} */
 function beginRoomRound(room,now) {
+  const players = [...room.players.values()];
+  const roster = room.phase==='lobby' || !room.roster?.length || room.history.length===0
+    ? players.map(({id,name})=>({id,name})) : room.roster;
+  const isChase = room.format === 'chase';
+  const hunterId = nextChaseHunterId(room,roster);
+  if (!roomRosterOnline(room) || (isChase && (!hunterId || !roster.some(({id})=>id!==hunterId&&room.players.has(id))))) {
+    return {kind:'connections',message:'等待骑手重连后再发车。'};
+  }
   lockRoomVehicle(room);
   const blocked=roomBudgetProblems(room);
   if(blocked.length) {
     if(room.tuning) room.tuning.endsAt=null;
-    return blocked;
+    return {kind:'budget',message:blocked.map(({name,reason})=>name+'：'+reason).join('；')};
   }
-  if (room.phase==='lobby' || !room.roster?.length || room.history.length===0) {
-    room.roster = [...room.players.values()].map(({id,name})=>({id,name}));
-  }
+  room.roster = roster;
   const budget=room.tuning?.budget??tuning190.budgetLimit(room.budget);
   const blindSeed=room.blind?room.tuning?.seed??null:null;
   room.tuning = null;
   const goAt = now+5000;
-  const isChase = room.format === 'chase';
-  const hunterId = nextChaseHunterId(room);
   const number = room.history.length+1;
   room.roundSerial = (room.roundSerial ?? 0) + 1;
-  const poseNumber = [...room.players.values()].every(player=>player.roundIdentity) ? room.roundSerial & 0xffff : number;
+  const poseNumber = players.every(player=>player.roundIdentity) ? room.roundSerial & 0xffff : number;
   room.round = {number,id:`${room.matchId}:${number}`,poseNumber,goAt,deadline:goAt+(isChase?ONLINE_CHASE_RULES.durationMs:20*60_000),
     trafficSeed:randomBytes(4).readUInt32LE(),
     windSeed:randomBytes(4).readUInt32LE(),windMode:room.windMode,budget,blindSeed,
@@ -222,13 +237,13 @@ function beginRoomRound(room,now) {
         settledReason: null,
       },
     } : {}),
-    builds:Object.fromEntries([...room.players.values()].map(player=>[player.id,{
+    builds:Object.fromEntries(players.map(player=>[player.id,{
       vehicle:roomVehicle(room,player),parts:roomParts(room,player)
     }])),
     results:room.roster.filter(player=>!room.players.has(player.id)).map(({id})=>isChase?{id,ms:null,retired:true}:{id,ms:null})};
   room.phase = 'race';
-  return [];
+  return null;
 }
 
 module.exports = {ROOM_ROUNDS,ALL_ROUND_VEHICLES,ONLINE_CHASE_RULES,lockRoomVehicle,tally,settle,settleChaseRound,tagChaseRunner,retire,beginTuning,beginRoomRound,nextChaseHunterId,
-  roomVehicle,roomParts,roomBuildProblem,roomBudgetProblems,blindBudget};
+  roomVehicle,roomParts,roomBuildProblem,roomBudgetProblems,blindBudget,roomPlayerOnline,roomRosterOnline};

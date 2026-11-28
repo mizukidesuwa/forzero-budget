@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { createHash, createHmac, randomBytes } from 'node:crypto';
+import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { mkdir, readdir, readFile, realpath, rename, writeFile } from 'node:fs/promises';
 import { networkInterfaces } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
@@ -12,7 +12,7 @@ import routeRules from './route-rules.cjs';
 import sharedRules from './shared-rules.cjs';
 
 const {ROOM_ROUNDS,ALL_ROUND_VEHICLES,lockRoomVehicle,tally,settle,settleChaseRound,tagChaseRunner,retire,beginTuning,beginRoomRound,nextChaseHunterId,
-  roomVehicle,roomParts,roomBuildProblem,roomBudgetProblems,blindBudget} = rules;
+  roomVehicle,roomParts,roomBuildProblem,roomBudgetProblems,blindBudget,roomPlayerOnline,roomRosterOnline} = rules;
 
 const LIMIT = 4;
 const ROOM_LIMIT = 500;
@@ -412,8 +412,8 @@ function roomState(room) {
     budget:room.budget,blind:room.blind,budgetProblems:roomBudgetProblems(room),
     tuningSeconds:room.tuningSeconds??0,collision:Boolean(room.collision),traffic:room.traffic??'sparse',tuning:room.tuning??null,
     players:Array.from(room.players.values(),player=>{
-      const {id,name,ready,stream,raceProgress,paint,skinId,skinVersion,skinSpec,skinSpecHash,vehicle,look,bike}=player;
-      return {id,name,ready,online:Boolean(stream),raceProgress,paint,skinId,skinVersion,skinSpec,skinSpecHash,vehicle,look,bike,
+      const {id,name,ready,raceProgress,paint,skinId,skinVersion,skinSpec,skinSpecHash,vehicle,look,bike}=player;
+      return {id,name,ready,online:roomPlayerOnline(player),raceProgress,paint,skinId,skinVersion,skinSpec,skinSpecHash,vehicle,look,bike,
         tuning:roomVehicle(room,player)==='bike'?{}:roomParts(room,player)};
     }),
     roundsTotal:ROOM_ROUNDS[room.format],
@@ -445,6 +445,10 @@ function isCurrentRound(room,player,body) {
     (body.roundId===room.round.id || (body.roundId===undefined && !player.roundIdentity));
 }
 
+function allRoomPlayersReady(room) {
+  return [...room.players.values()].every(player=>player.ready);
+}
+
 function applyCommand(room,player,body) {
   if (((body?.action==='ready' && body.ready===true) || body?.action==='start' || body?.action==='skipTuning') &&
       ((body.routeCode!==undefined && body.routeCode!==room.route.code) ||
@@ -459,10 +463,7 @@ function applyCommand(room,player,body) {
         if(why) throw new RoomError(why+'，请先在车库调整。');
       }
       player.ready = body.ready===true;
-      if (room.phase==='tuning') {
-        const onlinePlayers = [...room.players.values()].filter(item=>item.stream);
-        if (onlinePlayers.length && onlinePlayers.every(item=>item.ready)) beginRoomRound(room,Date.now());
-      }
+      if (room.phase==='tuning' && allRoomPlayersReady(room)) beginRoomRound(room,Date.now());
       break;
     case 'profile': {
       if (room.phase==='race') throw new RoomError('比赛中无法更换配置。');
@@ -520,8 +521,11 @@ function applyCommand(room,player,body) {
       lockRoomVehicle(room);
       if (room.phase==='tuning') {
         room.tuning.budget=room.blind?blindBudget(room.tuning.seed,room.budget):tuning190.budgetLimit(room.budget);
-        if ((room.tuningSeconds??0)===0&&!room.blind) beginRoomRound(room,Date.now());
-        else if (body.tuningSeconds!==undefined) {
+        if ((room.tuningSeconds??0)===0&&!room.blind) {
+          const now = Date.now();
+          room.tuning.endsAt = now;
+          beginRoomRound(room,now);
+        } else if (body.tuningSeconds!==undefined) {
           const seconds=room.tuningSeconds||30;
           Object.assign(room.tuning,{seconds,endsAt:Date.now()+seconds*1000});
         }
@@ -532,19 +536,18 @@ function applyCommand(room,player,body) {
     }
     case 'start': {
       if (room.host!==player.id || (room.phase!=='lobby' && room.phase!=='between')) throw new RoomError('当前无法发车。');
-      const players = [...room.players.values()];
-      if (players.length<2 || players.some(item=>!item.ready||!item.stream)) throw new RoomError('至少两人，且所有骑手都需准备。');
+      if (!roomRosterOnline(room) || !allRoomPlayersReady(room)) throw new RoomError('至少两人，且所有骑手都需准备。');
       if ((room.tuningSeconds??0)>0||room.blind) beginTuning(room,Date.now());
       else {
-        const blocked=beginRoomRound(room,Date.now());
-        if(blocked.length) throw new RoomError(blocked.map(({name,reason})=>name+'：'+reason).join('；'));
+        const block=beginRoomRound(room,Date.now());
+        if(block) throw new RoomError(block.message);
       }
       break;
     }
     case 'skipTuning': {
       if (room.host!==player.id || room.phase!=='tuning') throw new RoomError('当前不在改装倒计时阶段。');
-      const blocked=beginRoomRound(room,Date.now());
-      if(blocked.length) throw new RoomError(blocked.map(({name,reason})=>name+'：'+reason).join('；'));
+      const block=beginRoomRound(room,Date.now());
+      if(block) throw new RoomError(block.message);
       break;
     }
     case 'finish':
@@ -647,9 +650,11 @@ export function createRideServer({page,assets,soundDir,iceServers=[{urls:'stun:s
         if (!player.stream && player.expires<=now) removePlayer(room,player);
       }
       if (!room.players.size) { rooms.delete(code); continue; }
-      if (room.phase==='tuning' && Number.isFinite(room.tuning?.endsAt) && now>=room.tuning.endsAt) {
-        beginRoomRound(room,now);
-        publish(room);
+      const endsAt = room.tuning?.endsAt;
+      const tuningExpired = Number.isFinite(endsAt) && now>=endsAt;
+      if (room.phase==='tuning' && roomRosterOnline(room) && (tuningExpired || allRoomPlayersReady(room))) {
+        const block = beginRoomRound(room,now);
+        if (!block || room.tuning?.endsAt!==endsAt) publish(room);
       }
       if (room.phase==='race' && now>=room.round.deadline) {
         if (room.format==='chase') settleChaseRound(room,true);
@@ -787,7 +792,7 @@ async function listenWithFallback(server,host,requestedPort,allowFallback) {
 
 const gameVersion = (page,assets) => /(?:FORZERO:\s*BUDGET[^<]*?|荔园环骑)\s+([0-9.]+)<\/title>/.exec(String(assets?.['/index.html']?.body??page))?.[1]??null;
 
-const desktopSaveVersions = ['2.6.2','2.6.1','2.6.0','2.5.7','2.5.6','2.5.5','2.5.4','2.5.3','2.5.2','2.5.1.1','2.5.1','2.5.0','2.4.0','2.3.4','2.3.3.1','2.3.3','2.3.2','2.3.1',
+const desktopSaveVersions = ['2.6.3','2.6.2','2.6.1','2.6.0','2.5.7','2.5.6','2.5.5','2.5.4','2.5.3','2.5.2','2.5.1.1','2.5.1','2.5.0','2.4.0','2.3.4','2.3.3.1','2.3.3','2.3.2','2.3.1',
   '2.1.0','2.0.0','1.9.1.1','1.9.1','1.9.0','1.8.8','1.8.7','1.8.6','1.8.5','1.8.1'];
 const legacySaveVersions = ['1.8.0','1.7.0','1.6.6','1.6.5','1.6.4','1.6.3','1.6.2','1.6.1','1.6.0','1.5.0'];
 
@@ -821,6 +826,13 @@ export function createAppShell({page,assets,soundDir,saveDir,instanceId=null,pre
 
   const saveFilePath = saveDir ? fileURLToPath(new URL('player-data.json', pathToFileURL(saveDir + '/'))) : null;
   const saveTmpPath = saveFilePath ? saveFilePath + '.tmp' : null;
+  function saveTag(data) {
+    if (!data) return '"empty"';
+    const { desktopSaveRevision } = data;
+    const revision = typeof desktopSaveRevision === 'string' && /^[a-f0-9-]{36}$/.test(desktopSaveRevision)
+      ? desktopSaveRevision : createHash('sha256').update(JSON.stringify(data)).digest('hex');
+    return `"${revision}"`;
+  }
   function validSave(data) {
     return data?.format==='litchi-save' && data.version===1 &&
       data.storage && typeof data.storage==='object' && !Array.isArray(data.storage);
@@ -845,20 +857,25 @@ export function createAppShell({page,assets,soundDir,saveDir,instanceId=null,pre
     }
     return null;
   }
-  async function writeSaveFile(incoming) {
-    if (!saveFilePath) return;
+  async function writeSaveFile(incoming, expectedTag) {
+    if (!saveFilePath) return saveTag(null);
     const op = saveOp.then(async () => {
-      await mkdir(saveDir, { recursive: true });
       const prev = await readSaveFile();
+      if (expectedTag !== undefined && expectedTag !== saveTag(prev)) {
+        throw new RoomError('桌面存档已经更新，正在重新同步。',412);
+      }
+      await mkdir(saveDir, { recursive: true });
       const merged = {
         format: 'litchi-save',
         version: 1,
+        desktopSaveRevision: randomUUID(),
         updatedAt: typeof incoming.updatedAt==='string' ? incoming.updatedAt : new Date().toISOString(),
         storage: typeof incoming.storage==='object' && incoming.storage ? incoming.storage : (prev?.storage ?? {}),
         friends: Array.isArray(incoming.friends) ? incoming.friends : (Array.isArray(prev?.friends) ? prev.friends : []),
       };
       await writeFile(saveTmpPath, JSON.stringify(merged, null, 2), 'utf8');
       await rename(saveTmpPath, saveFilePath);
+      return saveTag(merged);
     });
     saveOp = op.catch(() => {});
     return op;
@@ -871,8 +888,8 @@ export function createAppShell({page,assets,soundDir,saveDir,instanceId=null,pre
     const port = typeof bound==='object'&&bound ? bound.port : '';
     return origin===`http://127.0.0.1:${port}` || origin===`http://localhost:${port}`;
   };
-  const localJson = (res,status,data)=>{
-    res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});
+  const localJson = (res,status,data,headers)=>{
+    res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store',...headers});
     res.end(JSON.stringify(data));
   };
   const hostInfo = ()=>({
@@ -970,8 +987,10 @@ export function createAppShell({page,assets,soundDir,saveDir,instanceId=null,pre
         return;
       }
       if (req.method==='GET' && pathname==='/app/save') {
-        const data = await readSaveFile();
-        localJson(res,200,{instanceId,exists:Boolean(data),data});
+        const saved = await readSaveFile();
+        const data = saved && { ...saved };
+        if (data) delete data.desktopSaveRevision;
+        localJson(res,200,{instanceId,exists:Boolean(saved),data},{ETag:saveTag(saved)});
         return;
       }
       if (req.method==='POST' && pathname==='/app/save') {
@@ -995,8 +1014,8 @@ export function createAppShell({page,assets,soundDir,saveDir,instanceId=null,pre
         try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
         catch { throw new RoomError('存档格式错误。',400); }
         if (!validSave(body)) throw new RoomError('存档格式或版本不兼容。',400);
-        await writeSaveFile(body);
-        localJson(res,200,{ok:true});
+        const tag = await writeSaveFile(body,req.headers['if-match']);
+        localJson(res,200,{ok:true},{ETag:tag});
         return;
       }
       throw new RoomError('找不到此页面。',404);

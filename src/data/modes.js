@@ -39,6 +39,7 @@ export const chaseRules = Object.freeze({
 
 export const blindNavRules = Object.freeze({
   storageKey: 'forzero-blind-v1',
+  weather: 'night',
   bellCooldownMs: 2000,
   bellPulseMs: 3500,
   hazardCooldownMs: 3500,

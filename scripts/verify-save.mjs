@@ -42,19 +42,19 @@ assert.throws(()=>encodeSaveSnapshot({...saved,storage:{'szu-litchi-test':'骑'.
 const temp = await mkdtemp(join(tmpdir(), 'forzero-save-check-'));
 class Response extends Writable {
   chunks = [];
-  writeHead(status) { this.status = status; return this; }
+  writeHead(status, headers) { this.status = status; this.headers = headers; return this; }
   _write(chunk, _encoding, callback) { this.chunks.push(chunk); callback(); }
 }
-async function requestSave(createAppShell, saveDir, previousSaveFile, method = 'GET', body) {
+async function requestSave(createAppShell, saveDir, previousSaveFile, method = 'GET', body, headers = {}) {
   const shell = createAppShell({ page: Buffer.from('test'), saveDir, previousSaveFile, bootTimeoutMs: 0 });
   const req = Readable.from(body ? [Buffer.from(JSON.stringify(body))] : []);
-  Object.assign(req, { method, url: '/app/save', headers: {} });
+  Object.assign(req, { method, url: '/app/save', headers });
   const res = new Response();
   try {
     const done = new Promise(resolve => res.once('finish', resolve));
     shell.server.emit('request', req, res);
     await done;
-    return { status: res.status, ...JSON.parse(Buffer.concat(res.chunks).toString()) };
+    return { status: res.status, tag: res.headers.ETag, ...JSON.parse(Buffer.concat(res.chunks).toString()) };
   } finally {
     await shell.shutdown();
   }
@@ -81,6 +81,8 @@ try {
   const v261Dir = join(temp, 'forzero-budget-2.6.1', 'save');
   const v262Dir = join(temp, 'forzero-budget-2.6.2', 'save');
   const v262PortableDir = join(temp, 'forzero-budget-windows-x64-2.6.2', 'save');
+  const v263Dir = join(temp, 'forzero-budget-2.6.3', 'save');
+  const v263PortableDir = join(temp, 'forzero-budget-windows-x64-2.6.3', 'save');
   const newDir = join(temp, `forzero-budget-${version}`);
   await mkdir(previousDir, { recursive: true });
   await mkdir(v232Dir, { recursive: true });
@@ -100,6 +102,8 @@ try {
   await mkdir(v261Dir, { recursive: true });
   await mkdir(v262Dir, { recursive: true });
   await mkdir(v262PortableDir, { recursive: true });
+  await mkdir(v263Dir, { recursive: true });
+  await mkdir(v263PortableDir, { recursive: true });
   await mkdir(oldDir, { recursive: true });
   await mkdir(v200Dir, { recursive: true });
   await mkdir(legacyDir, { recursive: true });
@@ -116,6 +120,21 @@ try {
   const serverPath = join(newDir, 'server.mjs');
   const serverUrl = pathToFileURL(serverPath).href;
   const { createAppShell, previousDesktopSaveFiles } = await import(serverUrl);
+  const revisionDir = join(temp, 'revision-tests');
+  const emptyRevision = await requestSave(createAppShell, revisionDir, []);
+  assert.ok(emptyRevision.tag, 'A directory without a save has a revision');
+  const firstWrite = await requestSave(createAppShell, revisionDir, [], 'POST', expected, { 'if-match': emptyRevision.tag });
+  assert.equal(firstWrite.status, 200);
+  assert.notEqual(firstWrite.tag, emptyRevision.tag);
+  const restoredRevision = await requestSave(createAppShell, revisionDir, []);
+  assert.deepEqual(restoredRevision.data, expected, 'Desktop revisions stay out of portable save data');
+  assert.equal(restoredRevision.tag, firstWrite.tag, 'Revision remains stable after reopening the server');
+  const latestWrite = await requestSave(createAppShell, revisionDir, [], 'POST', v200, { 'if-match': restoredRevision.tag });
+  assert.equal(latestWrite.status, 200);
+  assert.notEqual(latestWrite.tag, firstWrite.tag);
+  const supersededWrite = await requestSave(createAppShell, revisionDir, [], 'POST', expected, { 'if-match': firstWrite.tag });
+  assert.equal(supersededWrite.status, 412, 'An older upload cannot overwrite an acknowledged newer revision');
+  assert.deepEqual((await requestSave(createAppShell, revisionDir, [])).data, v200);
   const previous = previousDesktopSaveFiles(new URL(serverUrl),version);
   const saveDir = join(newDir, 'save');
   const control = await requestSave(createAppShell, saveDir, [pathToFileURL(backup)]);
@@ -204,10 +223,23 @@ try {
   assert.deepEqual((await requestSave(createAppShell, saveDir, previous)).data, v262Portable, 'The other package form of 2.6.2 takes priority over 2.6.1');
   await writeFile(v262File, JSON.stringify(v262));
   assert.deepEqual((await requestSave(createAppShell, saveDir, previous)).data, v262, 'Matching package form takes priority within 2.6.2');
-  assert.equal((await requestSave(createAppShell, saveDir, previous, 'POST', v262)).status, 200);
+  const v263 = fixture('2.6.3 QA', '2026-11-28T03:40:00.000Z');
+  const v263Portable = fixture('2.6.3 Windows QA', '2026-11-28T03:41:00.000Z');
+  const v263File = join(v263Dir, 'player-data.json');
+  const v263PortableFile = join(v263PortableDir, 'player-data.json');
+  await writeFile(v263File, '{damaged');
+  await writeFile(v263PortableFile, '{damaged');
+  assert.deepEqual((await requestSave(createAppShell, saveDir, previous)).data, v262, 'A damaged 2.6.3 pair must fall back to 2.6.2');
+  await writeFile(v263PortableFile, JSON.stringify(v263Portable));
+  assert.deepEqual((await requestSave(createAppShell, saveDir, previous)).data, v263Portable, 'The other package form of 2.6.3 takes priority over 2.6.2');
+  await writeFile(v263File, JSON.stringify(v263));
+  assert.deepEqual((await requestSave(createAppShell, saveDir, previous)).data, v263, 'Matching package form takes priority within 2.6.3');
+  assert.equal((await requestSave(createAppShell, saveDir, previous, 'POST', v263)).status, 200);
   const migrated = (await requestSave(createAppShell, saveDir, [])).data;
-  assert.deepEqual(migrated.storage, v262.storage);
-  assert.deepEqual(migrated.friends, v262.friends ?? []);
+  assert.deepEqual(migrated.storage, v263.storage);
+  assert.deepEqual(migrated.friends, v263.friends ?? []);
+  assert.deepEqual(JSON.parse(await readFile(v263File, 'utf8')), v263);
+  assert.deepEqual(JSON.parse(await readFile(v263PortableFile, 'utf8')), v263Portable);
   assert.deepEqual(JSON.parse(await readFile(v262File, 'utf8')), v262);
   assert.deepEqual(JSON.parse(await readFile(v262PortableFile, 'utf8')), v262Portable);
   assert.deepEqual(JSON.parse(await readFile(v261File, 'utf8')), v261);
@@ -226,6 +258,8 @@ try {
   assert.deepEqual(JSON.parse(await readFile(v233File, 'utf8')), v233);
   assert.deepEqual(JSON.parse(await readFile(v232File, 'utf8')), v232);
   assert.deepEqual(JSON.parse(await readFile(priorFile, 'utf8')), prior);
+  await rm(v263File);
+  await rm(v263PortableFile);
   await rm(v262File);
   await rm(v262PortableFile);
   await rm(v261File);
@@ -255,7 +289,7 @@ try {
   await writeFile(current, '{damaged current');
   assert.equal((await requestSave(createAppShell, saveDir, previous, 'POST', expected)).status, 409);
   assert.equal(await readFile(current, 'utf8'), '{damaged current');
-  console.log('Save migration through 2.6.2, package form preference, earlier fallbacks and damaged save protection passed.');
+  console.log('Save migration through 2.6.3, package form preference, earlier fallbacks and damaged save protection passed.');
 } finally {
   await rm(temp, { recursive: true, force: true });
 }

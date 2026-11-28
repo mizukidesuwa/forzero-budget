@@ -14,7 +14,8 @@ import { defaultRiderSkin } from '../src/data/rider-skins.js';
 import saveRules from '../src/data/shared-rules.cjs';
 import { getCourseVariant } from '../src/race/course-variants.js';
 import { makeGhostFile } from '../src/replay/ghost.js';
-import { buildCustomNetworkRoute, buildRidingScene, courseGround, coursesByCampus, createWorldQuery, makeNetworkCourse, networkForCampus, setActiveCampus } from '../src/test-exports.js';
+import { buildCustomNetworkRoute, buildRidingScene, captureRideEnvironment, courseGround, coursesByCampus, createWorldQuery,
+  getPreferences, makeNetworkCourse, networkForCampus, raceEnvironmentKey, setActiveCampus, setPreferences } from '../src/test-exports.js';
 
 function roadHudSample(campus, courseId, gateName) {
   const course = coursesByCampus[campus].find(item => item.id === courseId);
@@ -33,6 +34,16 @@ function roadHudSample(campus, courseId, gateName) {
 const dujuanStart = roadHudSample('szu', 'dujuan-climb', '立德门内侧');
 const dujuanSlope = roadHudSample('szu', 'dujuan-climb', '坡脚入口');
 const shenbuGravel = roadHudSample('shunde', 'shenbu-climb', '林中折返');
+
+function environmentGhost(event, run, profile, { windSpeed = 0, trafficSeed } = {}) {
+  const previous = getPreferences();
+  setPreferences({ ...previous, weather:'day', traffic:'sparse', collision:false, windSpeed, windDir:0, windMode:'steady' });
+  try {
+    const settings = captureRideEnvironment(event);
+    const environment = raceEnvironmentKey(event, { ...settings, trafficSeed: trafficSeed ?? settings.trafficSeed });
+    return makeGhostFile(event,{ ...run, environment },profile);
+  } finally { setPreferences(previous); }
+}
 
 const buildDir = resolve(process.env.FORZERO_BUILD_DIR ?? 'dist-v2');
 const desktop = resolve(process.env.FORZERO_RELEASE_DIR ?? join(buildDir,'desktop'));
@@ -64,15 +75,15 @@ try {
   const nav = await rpc('Page.navigate', { url: pathToFileURL(join(desktop, 'index.html')).href }, sessionId);
   assert.ok(!nav.errorText, nav.errorText);
 
-  async function evaluate(expression) {
-    const result = await rpc('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, sessionId);
+  async function evaluate(expression, targetSession = sessionId) {
+    const result = await rpc('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, targetSession);
     if (result.exceptionDetails) throw Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text);
     return result.result.value;
   }
 
-  async function wait(expression, label) {
+  async function wait(expression, label, targetSession = sessionId) {
     const until = Date.now() + 35_000;
-    while (!await evaluate(expression)) {
+    while (!await evaluate(expression, targetSession)) {
       if (Date.now() >= until) throw Error(label);
       await delay(100);
     }
@@ -292,6 +303,55 @@ try {
     assert.equal(budget[key], true, 'Five-slot powered workshop ' + key);
   }
 
+  const environment = await evaluate(`(()=>{
+    const f=__FORZERO__, u=f.ui, r=f.race;
+    const controls=[[u.settingsWeather,'weather'],[u.settingsWindSpeed,'windSpeed'],
+      [u.settingsWindMode,'windMode'],[u.settingsWindDir,'windDir']];
+    const saved=localStorage.getItem(f.PREF_KEY);
+    const settings=controls.map(([,key])=>f.preferences[key]);
+    const change=(control,value)=>{control.value=String(value);control.dispatchEvent(new Event('change'));};
+    const edit=values=>{
+      f.openSettings();
+      controls.forEach(([control],index)=>change(control,values[index]));
+      f.closeSettings();
+      f.updateHud();
+    };
+    const snapshot=()=>({phase:r.phase,environment:r.environmentKey,wind:u.windPill.hidden?'':u.windPill.textContent,
+      dry:u.weatherOverlay.hidden});
+    try {
+      edit(['day',0,'steady',0]);
+      u.startTrial.click();
+      const initial=snapshot();
+      edit(['rain',9,'steady',0]);
+      const countdown=snapshot();
+      const ticks=r.countdownTicks;
+      for(let i=0;i<ticks;i++) r.step();
+      edit(['rain',15,'steady',0]);
+      r.rider.heading=Math.PI;
+      r.step({gas:false,brake:false,left:false,right:false,sprint:false});
+      f.updateHud();
+      const racing=snapshot(), headwind=r.feedbackStats.headwindLoad;
+      u.freeRide.click();
+      u.startTrial.click();
+      f.updateHud();
+      return {initial,countdown,racing,headwind,next:snapshot()};
+    } finally {
+      if(r.phase!=='free') u.freeRide.click();
+      edit(settings);
+      if(saved===null) localStorage.removeItem(f.PREF_KEY);
+      else localStorage.setItem(f.PREF_KEY,saved);
+    }
+  })()`);
+  assert.deepEqual(environment.initial,{phase:'count',environment:environment.initial.environment,wind:'',dry:true});
+  assert.ok(environment.initial.environment, 'Time trial did not capture an environment identity');
+  assert.deepEqual(environment.countdown,environment.initial,'Settings reconfigured the live countdown environment');
+  assert.deepEqual(environment.racing,{...environment.initial,phase:'race'},'Settings affected live race weather or wind');
+  assert.equal(environment.headwind,0,'Mid-race physics used the next race’s headwind');
+  assert.equal(environment.next.phase,'count');
+  assert.notEqual(environment.next.environment,environment.initial.environment);
+  assert.match(environment.next.wind,/15\.0/);
+  assert.equal(environment.next.dry,false,'The next launch did not use the saved rain setting');
+
   const hudModes = await evaluate(`(()=>{
     const {race:r,ui:u,updateHud}=__FORZERO__;
     const previousMode=u.raceMode.value;
@@ -449,7 +509,7 @@ try {
     finishBackupTrial(120000);
     r.start();
     f.openSettings();
-    const key=f.checkpointRecordKey(r.event, r.rider.vehicle);
+    const key=f.checkpointRecordKey(r.event, r.rider.vehicle, r.environmentKey);
     const previous=JSON.parse(localStorage.getItem(key));
     const restored={...previous, time:100000, splits:previous.splits.map(t=>t*5/6),
       samples:previous.samples.map(([t,...pose])=>[t*5/6,...pose])};
@@ -469,7 +529,7 @@ try {
   await evaluate('finishBackupTrial(110000);__FORZERO__.closeSettings()');
   assert.deepEqual(await evaluate(`(()=>{
     const f=__FORZERO__,r=f.race;
-    return [r.record,JSON.parse(localStorage.getItem(f.checkpointRecordKey(r.event,r.rider.vehicle))).time,r.rider.bike.tyres];
+    return [r.record,JSON.parse(localStorage.getItem(f.checkpointRecordKey(r.event,r.rider.vehicle,r.environmentKey))).time,r.rider.bike.tyres];
   })()`), [false, 100000, 'stock']);
   await evaluate('__FORZERO__.ui.freeRide.click()');
   await wait("__FORZERO__.race.phase==='free' && __FORZERO__.race.rider.bike.tyres==='traction'", 'Restored tyres did not apply after returning to free ride');
@@ -526,13 +586,65 @@ try {
   await evaluate("window.dispatchEvent(new KeyboardEvent('keydown',{code:'KeyV'}));__FORZERO__.ui.expand.click()");
   await wait("!document.fullscreenElement&&!__FORZERO__.stage.classList.contains('expanded')", 'Stage did not leave fullscreen');
   assert.equal(await evaluate('__FORZERO__.stage.dataset.cameraView'), 'third');
+
+  await evaluate(`(()=>{
+    const f=__FORZERO__,u=f.ui;
+    f.openSettings();
+    for (const [control,value] of [[u.settingsWeather,'day'],[u.settingsTraffic,'sparse'],
+      [u.settingsWindSpeed,'0'],[u.settingsWindDir,'0'],[u.settingsWindMode,'steady']]) {
+      control.value=value;control.dispatchEvent(new Event('change'));
+    }
+    u.settingsCollision.checked=false;u.settingsCollision.dispatchEvent(new Event('change'));
+    f.closeSettings();
+  })()`);
+  const calmCourse = coursesByCampus.szu.find(event=>event.id===fixtures.szu.ghost.course.id);
+  const windyGhost = environmentGhost(calmCourse,{...fixtures.szu.ghost.run,vehicle:fixtures.szu.ghost.rider.vehicle},
+    {...fixtures.szu.ghost.rider,name:'Wind QA'},{ windSpeed:15 });
+  await uploadGhost(windyGhost);
+  await wait(`__FORZERO__.ui.friendStatus.textContent==='Ghost conditions differ from the current settings. The ghost was archived.'`,
+    'Different wind did not report an incompatible ghost');
+  assert.deepEqual(await evaluate(`(async()=>{
+    const f=__FORZERO__, saved=await f.buildSaveSnapshot(), archived=saved.friends.some(({score})=>score.name===${JSON.stringify(windyGhost.rider.name)});
+    return {archived, opponent:f.race.opponent, phase:f.race.phase};
+  })()`),{archived:true,opponent:null,phase:'free'},'Different wind file entered live comparison');
+  await evaluate('__FORZERO__.ui.friendClose.click()');
+
   for (const campus of ['szu', 'ucl', 'shunde']) {
     const ghost = fixtures[campus].ghost;
     await uploadGhost(ghost);
-    await wait(`__FORZERO__.activeCampus===${JSON.stringify(campus)} && __FORZERO__.race.event.id===${JSON.stringify(ghost.course.id)} && __FORZERO__.race.opponent?.name===${JSON.stringify(ghost.rider.name)} && !__FORZERO__.ui.friendDialog.open`, `${campus} ghost import or map travel failed`);
+    await wait(`__FORZERO__.ui.friendStatus.textContent==='Ghost conditions are unverified. The ghost was archived.'`,
+      `${campus} unverified ghost did not report archive status`);
+    const archive = await evaluate(`(async()=>{
+      const f=__FORZERO__, saved=await f.buildSaveSnapshot();
+      const archived=saved.friends.find(({score})=>score.campus===${JSON.stringify(campus)} && score.name===${JSON.stringify(ghost.rider.name)});
+      return {layout:archived?JSON.parse(archived.replay).course.layout:null,opponent:f.race.opponent?.name??null};
+    })()`);
+    assert.equal(archive.layout,ghost.course.layout,`${campus} unverified ghost replay did not survive archival`);
+    assert.notEqual(archive.opponent,ghost.rider.name,`${campus} unverified ghost entered live comparison`);
+    await evaluate('__FORZERO__.ui.friendClose.click()');
+    const legacyEvent = coursesByCampus[campus].find(event=>event.id===ghost.course.id);
+    const verified = environmentGhost(legacyEvent,{...ghost.run,vehicle:ghost.rider.vehicle},{...ghost.rider,name:`Verified ${campus} QA`});
+    await uploadGhost(verified);
+    await wait(`__FORZERO__.activeCampus===${JSON.stringify(campus)} && __FORZERO__.race.event.id===${JSON.stringify(ghost.course.id)} && __FORZERO__.race.opponent?.name===${JSON.stringify(verified.rider.name)} && !__FORZERO__.ui.friendDialog.open`, `${campus} matching ghost import or map travel failed`);
     assert.equal(await evaluate('__FORZERO__.race.opponent.time'), ghost.run.time);
+    assert.equal(await evaluate('__FORZERO__.race.opponent.environment'),verified.course.environment);
     assert.equal(await evaluate(`/[\\p{Script=Han}]/u.test(__FORZERO__.ui.courseBrief.textContent + __FORZERO__.ui.stationList.textContent + __FORZERO__.ui.campusName.textContent)`), false, `${campus} course copy or checkpoint names`);
-    console.log(campus, 'legacy ghost imported through the packaged browser UI');
+    console.log(campus, 'unverified ghost archived and matching ghost accepted through the packaged browser UI');
+    if (campus === 'szu') {
+      const roomGhost = environmentGhost(legacyEvent, {...ghost.run, vehicle:ghost.rider.vehicle},
+        {...ghost.rider, name:'Room Seed QA'}, { trafficSeed:2318273997 });
+      await uploadGhost(roomGhost);
+      await wait("__FORZERO__.race.opponent?.name==='Room Seed QA' && !__FORZERO__.ui.friendDialog.open", 'matching room-seeded ghost was archived without starting a challenge');
+      await evaluate('__FORZERO__.ui.friendButton.click()');
+      await wait("__FORZERO__.ui.friendScores.textContent.includes('Uses the Recorded Room Seeds') && [...__FORZERO__.ui.friendScores.querySelectorAll('.friend-play:not(:disabled)')].some(button=>button.getAttribute('aria-label').includes('Room Seed QA'))",
+        'archived room-seeded ghost was unavailable');
+      await evaluate("[...__FORZERO__.ui.friendScores.querySelectorAll('.friend-play:not(:disabled)')].find(button=>button.getAttribute('aria-label').includes('Room Seed QA')).click()");
+      await wait('!__FORZERO__.ui.friendDialog.open', 'room-seeded replay did not load from archive');
+      await evaluate('__FORZERO__.ui.startTrial.click()');
+      await wait("__FORZERO__.race.phase==='count'&&__FORZERO__.race.raceTraffic.seed==='2318273997'&&__FORZERO__.race.environmentKey===__FORZERO__.race.opponent.environment",
+        'solo race did not use the recorded room formation');
+      await evaluate('__FORZERO__.ui.freeRide.click()');
+    }
     if (campus === 'ucl') {
       await evaluate("Object.assign(__FORZERO__.race.rider, { position: [-245, .043, -119], heading: 0 })");
       await wait('qaTrafficDraws > 0', 'UCL traffic instancing was not exercised');
@@ -557,7 +669,7 @@ try {
     const route = buildCustomNetworkRoute(campus, waypoints, network);
     assert.equal(route.valid, true);
     const event = makeNetworkCourse(route.route, network);
-    const networkGhost = makeGhostFile(event, { ...event.benchmark, vehicle: 'bike' }, { name: 'Workshop QA', paint: 'classic' });
+    const networkGhost = environmentGhost(event, { ...event.benchmark, vehicle: 'bike' }, { name: 'Workshop QA', paint: 'classic' });
     await uploadGhost(networkGhost);
     await wait(`__FORZERO__.race.event.id===${JSON.stringify(event.id)} && __FORZERO__.race.opponent?.name==='Workshop QA' && !__FORZERO__.ui.friendDialog.open`,
       `${campus} workshop ghost did not reconstruct its course`);
@@ -570,7 +682,7 @@ try {
   setActiveCampus('shunde');
   buildRidingScene('shunde');
   const lake = getCourseVariant(coursesByCampus.shunde.find(event=>event.id==='qingyun-lake'),{direction:'reverse',laps:3});
-  const variantGhost = makeGhostFile(lake,{...lake.benchmark,vehicle:'bike'},{name:'Reverse QA',paint:'classic'});
+  const variantGhost = environmentGhost(lake,{...lake.benchmark,vehicle:'bike'},{name:'Reverse QA',paint:'classic'});
   await uploadGhost(variantGhost);
   await wait("__FORZERO__.race.opponent?.name==='Reverse QA' && !__FORZERO__.ui.friendDialog.open", 'Reverse three-lap ghost did not import');
   await evaluate('__FORZERO__.ui.friendButton.click()');
@@ -578,6 +690,27 @@ try {
   await evaluate(`[...__FORZERO__.ui.friendScores.querySelectorAll('.friend-play:not(:disabled)')].find(button=>button.getAttribute('aria-label').includes('Reverse')).click()`);
   await wait("!__FORZERO__.ui.friendDialog.open && __FORZERO__.race.opponent?.name?.startsWith('Reverse')", 'Archived reverse three-lap ghost did not launch');
   assert.deepEqual(await evaluate('__FORZERO__.race.event.variant'),{direction:'reverse',laps:3});
+  await evaluate(`(()=>{
+    const f=__FORZERO__,u=f.ui;
+    f.openSettings();u.settingsWindSpeed.value='15';u.settingsWindSpeed.dispatchEvent(new Event('change'));
+    f.closeSettings();u.startTrial.click();
+  })()`);
+  await wait("__FORZERO__.ui.friendDialog.open && __FORZERO__.ui.friendStatus.textContent.includes('conditions differ')",
+    'A selected friend ghost did not recheck the environment at race start');
+  assert.equal(await evaluate('__FORZERO__.race.phase'),'free');
+  assert.ok(await evaluate(`(()=>{
+    const f=__FORZERO__,u=f.ui,r=f.race;
+    u.friendClose.click();f.openSettings();u.settingsWindSpeed.value='0';u.settingsWindSpeed.dispatchEvent(new Event('change'));
+    f.closeSettings();u.startTrial.click();
+    const matched=r.phase==='count' && r.opponent?.name==='Reverse QA' && r.opponent.environment===r.environmentKey;
+    const frozen = r.environmentKey;
+    f.openSettings();u.settingsWindSpeed.value='15';u.settingsWindSpeed.dispatchEvent(new Event('change'));
+    f.closeSettings();u.startTrial.click();
+    const guarded = r.phase==='count' && r.environmentKey===frozen && !u.notice.hidden && u.notice.textContent.includes('conditions differ');
+    f.openSettings();u.settingsWindSpeed.value='0';u.settingsWindSpeed.dispatchEvent(new Event('change'));f.closeSettings();
+    u.freeRide.click();
+    return matched && guarded;
+  })()`),'Matching wind must allow launch and a rejected restart must keep the current countdown');
   await evaluate(`(()=>{
     const u=__FORZERO__.ui;
     u.coursePicker.disabled = false;
@@ -648,27 +781,43 @@ try {
     const temp = await mkdtemp(join(tmpdir(),'forzero-install-saves-'));
     const assets = await loadStaticAssets(new URL('./',pathToFileURL(join(desktop,'index.html'))));
     const driver = 'szu-litchi-driver-1';
-    const makeInstall = async name => {
+    const explorerKey = 'szu-litchi-explorer-1';
+    const explorerProgress = totalDeliveries => JSON.stringify({ totalDeliveries, bestStreak: 1, discovered: {szu:[],ucl:[],shunde:[]} });
+    const makeInstall = async (name, progress = {}) => {
       const saveDir = join(temp,name);
       const file = join(saveDir,'player-data.json');
       const instanceId = createHash('sha256').update(saveDir).digest('hex');
       const snapshot = {
         format:'litchi-save',version:1,updatedAt:'2000-01-01T00:00:00Z',
-        storage:{[driver]:JSON.stringify({name})},
+        storage:{[driver]:JSON.stringify({name}), ...progress},
         friends:[{score:{campus:archiveCourse.campus,courseId:archiveCourse.id,layout:archiveCourse.layout,
           name,vehicle:archiveRider.vehicle,time:archiveRun.time},replay:JSON.stringify(fixtures.szu.ghost)}],
       };
       await mkdir(saveDir);
       await writeFile(file,JSON.stringify(snapshot));
       const shell = createAppShell({assets,saveDir,instanceId,bootTimeoutMs:0,idleMs:0});
-      const install = {file,instanceId,shell,blockWrites:false};
+      const install = {file,instanceId,shell,blockWrites:false,holdNextSave:false,heldSave:null};
       const [handleRequest] = shell.server.listeners('request');
       shell.server.off('request',handleRequest);
       shell.server.on('request',(req,res)=>{
-        if (install.blockWrites && req.method==='POST' && req.url==='/app/save') {
-          req.resume();
-          res.writeHead(500,{'content-type':'application/json'}).end('{"error":"QA disk write failed"}');
-        } else handleRequest(req,res);
+        if (req.method==='POST' && req.url==='/app/save') {
+          if (install.blockWrites) {
+            req.resume();
+            res.writeHead(500,{'content-type':'application/json'}).end('{"error":"QA disk write failed"}');
+            return;
+          }
+          if (install.holdNextSave) {
+            install.holdNextSave = false;
+            const end = res.end.bind(res);
+            res.end = (...args) => {
+              install.heldSave = {status: res.statusCode, release: () => {
+                if (!res.destroyed && !res.writableEnded) end(...args);
+              }};
+              return res;
+            };
+          }
+        }
+        handleRequest(req,res);
       });
       return install;
     };
@@ -691,6 +840,99 @@ try {
       await once(shell.server,'listening');
       return shell.server.address().port;
     }
+    async function verifySaveHandoff(closeBeforeAck) {
+      const name = closeBeforeAck ? 'Close before save acknowledgement' : 'Older save acknowledged after import';
+      const install = await makeInstall(name, { [explorerKey]: explorerProgress(1) });
+      const tabs = new Set();
+      const diskDeliveries = async () => JSON.parse((await loadSave(install)).storage[explorerKey]).totalDeliveries;
+      const browserDeliveries = `(async()=>JSON.parse((await __FORZERO__.buildSaveSnapshot()).storage[${JSON.stringify(explorerKey)}]).totalDeliveries)()`;
+      async function closeTab(targetId) {
+        const result = await rpc('Target.closeTarget',{targetId});
+        assert.equal(result.success,true);
+        tabs.delete(targetId);
+      }
+      async function openTab(url, expectedStatus) {
+        const { targetId } = await rpc('Target.createTarget',{url:'about:blank'});
+        tabs.add(targetId);
+        const { sessionId: tabSession } = await rpc('Target.attachToTarget',{targetId,flatten:true});
+        await rpc('Page.enable',{},tabSession);
+        await rpc('Page.addScriptToEvaluateOnNewDocument',{source:`
+          globalThis.qaSaveStatuses = [];
+          const requestSave = fetch.bind(globalThis);
+          globalThis.fetch = async (url, options) => {
+            const response = await requestSave(url, options);
+            if (url === '/app/save' && options?.method === 'POST') qaSaveStatuses.push(response.status);
+            return response;
+          };
+        `},tabSession);
+        const nav = await rpc('Page.navigate',{url},tabSession);
+        assert.ok(!nav.errorText,nav.errorText);
+        await wait(`globalThis.__FORZERO__?.ready && qaSaveStatuses.includes(${expectedStatus})`,
+          `${name}: browser did not hydrate and attempt a save`,tabSession);
+        return { targetId, tabSession };
+      }
+      async function importDeliveries(tab, count) {
+        const backup = {format:'litchi-save',version:1,storage:{[explorerKey]:explorerProgress(count)}};
+        await evaluate(`(()=>{
+          const f=__FORZERO__, upload=new DataTransfer();
+          f.openSettings();
+          upload.items.add(new File([${JSON.stringify(JSON.stringify(backup))}],'delivery-progress.json',{type:'application/json'}));
+          f.ui.saveFile.files=upload.files;
+          f.ui.saveFile.dispatchEvent(new Event('change'));
+        })()`,tab.tabSession);
+        await wait(`(async()=>__FORZERO__.ui.saveStatus.textContent.startsWith('存档已导入') && (await ${browserDeliveries})===${count})()`,
+          `${name}: the UI did not confirm the ${count}-delivery import`,tab.tabSession);
+      }
+      try {
+        const port = await start(install.shell,0);
+        const url = `http://127.0.0.1:${port}/`;
+        const tab = await openTab(url,200);
+        assert.equal(await evaluate(browserDeliveries,tab.tabSession),1);
+        const acknowledged = await evaluate('qaSaveStatuses.length',tab.tabSession);
+        install.holdNextSave = true;
+        await importDeliveries(tab,2);
+        const timeout = Date.now()+15_000;
+        while (!install.heldSave) {
+          assert.ok(Date.now()<timeout,`${name}: the old response was not held`);
+          await delay(25);
+        }
+        assert.equal(install.heldSave.status,200);
+        assert.equal(await diskDeliveries(),2,`${name}: the older POST must reach disk before the newer import`);
+        assert.equal(await evaluate('qaSaveStatuses.length',tab.tabSession),acknowledged);
+        install.blockWrites = true;
+        await importDeliveries(tab,134);
+        if (!closeBeforeAck) {
+          install.heldSave.release();
+          await wait(`qaSaveStatuses.slice(${acknowledged}).includes(200)`,`${name}: the older acknowledgement did not reach Chrome`,tab.tabSession);
+        }
+        await closeTab(tab.targetId);
+        install.heldSave.release();
+        assert.equal(await diskDeliveries(),2);
+        const reopened = await openTab(url,500);
+        assert.equal(await evaluate(browserDeliveries,reopened.tabSession),134,
+          `${name}: reopening must preserve the locally confirmed import even while disk still contains 2 deliveries`);
+        assert.equal(await diskDeliveries(),2);
+        install.blockWrites = false;
+        await wait('qaSaveStatuses.includes(200)',`${name}: reopened page did not resume the pending save`,reopened.tabSession);
+        assert.equal(await diskDeliveries(),134,`${name}: recovery must also reach the desktop save file`);
+        if (closeBeforeAck) {
+          await closeTab(reopened.targetId);
+          const later = await loadSave(install);
+          later.storage[explorerKey] = explorerProgress(135);
+          const response = await fetch(`${url}app/save`, {method:'POST', headers:{
+            'Content-Type':'application/json', 'X-Forzero-Installation':install.instanceId,
+          }, body:JSON.stringify(later)});
+          assert.equal(response.status,200);
+          const subsequent = await openTab(url,200);
+          assert.equal(await evaluate(browserDeliveries,subsequent.tabSession),135,
+            'The acknowledged browser revision must not override a later authoritative disk save');
+        }
+      } finally {
+        install.heldSave?.release();
+        await Promise.allSettled([...tabs].map(closeTab));
+        await install.shell.shutdown();
+      }
+    }
     async function openInstall(url, name) {
       const oldTime = await evaluate('performance.timeOrigin');
       const nav = await rpc('Page.navigate',{url},sessionId);
@@ -710,11 +952,14 @@ try {
       r.start();
       r.splits=r.event.gates.map((_,i)=>${time}*i/(r.event.gates.length-1));
       r.finishAt(${time});
-      return f.checkpointRecordKey(r.event,r.entryVehicle);
+      return f.checkpointRecordKey(r.event,r.entryVehicle,r.environmentKey);
     })()`);
     const retrying = "__FORZERO__.ui.saveStatus.textContent==='桌面存档写入失败，正在重试。'";
     let first, second;
     try {
+      await verifySaveHandoff(true);
+      await verifySaveHandoff(false);
+      console.log('Desktop progress survived tab close with a held or outdated save acknowledgement.');
       first = await makeInstall('Driver A');
       second = await makeInstall('Driver B');
       const port = await start(first.shell,0);
@@ -858,14 +1103,17 @@ try {
     const largeHeight = await evaluate("document.querySelector('[data-drive=gas]').getBoundingClientRect().height");
     assert.ok(Math.abs(largeHeight / normalHeight - 1.5) < .03, 'Touch buttons did not reach 150% height');
     assert.equal(await evaluate("getComputedStyle(document.querySelector('.speedometer')).scale"), '1.5');
-    await evaluate(`(()=>{
+    const previousMobileWind = await evaluate(`(()=>{
       const f=__FORZERO__, r=f.race;
+      const {windSpeed,windMode}=f.preferences;
+      Object.assign(f.preferences,{windSpeed:4,windMode:'steady'});
       f.ui.startTrial.click();
       if(r.phase!=='count' || r.countdownTicks<=0) throw Error('Mobile trial did not start its countdown');
       // Layout checks use the game countdown without relying on frame timing in a headless browser.
       const countdownTicks=r.countdownTicks;
       for(let i=0;i<countdownTicks;i++) r.step();
       f.updateHud();
+      return {windSpeed,windMode};
     })()`);
     await wait("__FORZERO__.race.phase==='race' && !__FORZERO__.ui.next.hidden && !__FORZERO__.ui.fpsCounter.hidden", 'Mobile race guidance did not appear');
     for (const [width,height] of [[320,568],[390,844],[844,390],[568,320]]) {
@@ -873,13 +1121,12 @@ try {
       await wait(`innerWidth===${width}`, 'Mobile viewport did not resize');
       const fit = await evaluate(`(()=>{
         const f=__FORZERO__, u=f.ui, r=f.race, box=element=>element.getBoundingClientRect();
-        const rider=r.rider, campus=f.activeCampus, {windSpeed,windMode}=f.preferences;
+        const rider=r.rider, campus=f.activeCampus;
         const missedGate=r.missedGate;
         const sample=${JSON.stringify(shenbuGravel)};
         const fitsHorizontally=(inner,outer)=>inner.width>0 && inner.left>=outer.left && inner.right<=outer.right;
         try {
           f.activeCampus='shunde';
-          Object.assign(f.preferences,{windSpeed:4,windMode:'steady'});
           r.rider={...rider,...sample,speed:30,inPuddle:true,draft:{charge:.6}};
           r.missedGate=true;
           f.updateHud();
@@ -911,7 +1158,6 @@ try {
           r.rider=rider;
           r.missedGate=missedGate;
           f.activeCampus=campus;
-          Object.assign(f.preferences,{windSpeed,windMode});
           f.updateHud();
         }
       })()`);
@@ -923,6 +1169,7 @@ try {
       assert.deepEqual({guidance,routeFits,buttonsFit,cameraFits},
         {guidance:true,routeFits:true,buttonsFit:true,cameraFits:true},'Navigation and controls: '+layout);
     }
+    await evaluate(`Object.assign(__FORZERO__.preferences,${JSON.stringify(previousMobileWind)})`);
     const timeOrigin = await evaluate('performance.timeOrigin');
     await rpc('Page.reload',{},sessionId);
     await wait(`performance.timeOrigin!==${timeOrigin} && globalThis.__FORZERO__?.ready===true && __FORZERO__.preferences.hudScale===150 && __FORZERO__.preferences.touchSize===150`, 'Custom scales did not survive reload');

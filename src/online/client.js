@@ -609,15 +609,20 @@ function onlineTuningRemainingSec(session,now=performance.now()) {
   return Math.max(0,Math.ceil((session.state.tuning.endsAt-(now+(session.serverOffset??0)))/1000));
 }
 
+function tuningRidersMissing(state) {
+  return state?.phase==='tuning' && (state.players.length<2 || state.players.some(player=>!player.online));
+}
+
 function updateOnlineTuningBanner(session,now=performance.now()) {
   const tuning = session?.state.phase==='tuning';
+  const ridersMissing = tuningRidersMissing(session?.state);
   const rem = onlineTuningRemainingSec(session,now);
   const readyCount = session ? session.state.players.filter(p=>p.online&&p.ready).length : 0;
   const onlineCount = session ? session.state.players.filter(p=>p.online).length : 0;
   const self = session?.state.players.find(p=>p.id===session.id);
   const isHost = Boolean(session && session.id===session.state.host);
   const problem=tuning?session.state.budgetProblems?.find(item=>item.id===session.id):null;
-  const clock = rem===null?translate('等待合规配车'):message`改车倒计时 ${rem}s`;
+  const clock = ridersMissing ? translate('等待骑手重连') : rem===null ? translate('等待合规配车') : message`改车倒计时 ${rem}s`;
   const warning = problem?' · '+onlineNoticeLabel(problem.reason):'';
   const label = tuning ? message`${roomBudgetLabel(session.state)} · ${clock} · 已完成 ${readyCount}/${onlineCount}${warning}` : '';
   if (worldState.ui.onlineTuningBanner) {
@@ -631,7 +636,7 @@ function updateOnlineTuningBanner(session,now=performance.now()) {
       app.setText(worldState.ui.settingsTuneReady,self?.ready?'继续改装':'完成改装');
       worldState.ui.settingsTuneReady.disabled = onlineBusy;
       worldState.ui.settingsTuneSkip.hidden = !isHost;
-      worldState.ui.settingsTuneSkip.disabled = onlineBusy;
+      worldState.ui.settingsTuneSkip.disabled = onlineBusy || ridersMissing;
     }
   }
 }
@@ -671,6 +676,7 @@ function renderOnline() {
   const self = state.players.find(player=>player.id===session.id);
   const waiting = state.phase==='lobby'||state.phase==='between';
   const tuning = state.phase==='tuning';
+  const ridersMissing = tuningRidersMissing(state);
   const isHost = session.id===state.host;
   const linked = onlineDataLinks(session);
   const rule = state.vehicleRule ?? 'bike';
@@ -763,7 +769,7 @@ function renderOnline() {
   app.setText(worldState.ui.onlineReady,tuning?(self?.ready?'继续改装':'完成改装'):(self?.ready?'取消准备':'准备'));
   worldState.ui.onlineStart.hidden = !(waiting||tuning)||!isHost;
   app.setText(worldState.ui.onlineStart,tuning?'立即发车':'发车');
-  worldState.ui.onlineStart.disabled = onlineBusy||!hasOnlineCourse(session)||
+  worldState.ui.onlineStart.disabled = onlineBusy||!hasOnlineCourse(session)||ridersMissing||
     (waiting&&(state.players.length<2||!state.players.every(player=>player.online&&player.ready)||linked!==state.players.length-1));
   worldState.ui.onlineGarage.hidden = state.phase==='race';
   worldState.ui.onlineGarage.disabled = onlineBusy || (waiting && Boolean(self?.ready));
@@ -773,7 +779,7 @@ function renderOnline() {
   if (onlineNotice) return;
   const guidance = !session.course?'正在载入房间赛道…':!session.clockReady?'正在同步发车时钟…':state.phase==='done'?
     (state.winners.length?'比赛结束。房主可切换赛道开始下一局。':'比赛结束，暂无完赛骑手。'):
-    tuning?'改装倒计时中：可进入车库调校配装，全员完成后自动发车。':
+    tuning?(ridersMissing?'等待骑手重连后再发车。':'改装倒计时中：可进入车库调校配装，全员完成后自动发车。'):
     state.phase==='race'?'本轮进行中。':state.players.length<2?'复制邀请链接或把房主地址发给好友。':
     linked!==state.players.length-1?'正在建立骑手间连接…':'准备前可点「车库改装」调整配装。';
   app.setText(worldState.ui.onlineStatus,guidance);

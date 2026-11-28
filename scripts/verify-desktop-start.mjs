@@ -96,14 +96,16 @@ try {
   await Promise.all([first,second].map(path=>cp(source,path,{recursive:true,filter:file=>file!==join(source,'save')})));
   const oldPortable = snapshot('Prior Windows');
   const oldLight = snapshot('Prior light');
-  const priorPortable = join(temp,'forzero-budget-windows-x64-2.6.2');
-  const priorLight = join(temp,'forzero-budget-2.6.2');
+  const priorPortable = join(temp,'forzero-budget-windows-x64-2.6.3');
+  const priorLight = join(temp,'forzero-budget-2.6.3');
+  const olderPortable = join(temp,'forzero-budget-windows-x64-2.6.2');
+  const olderSave = snapshot('Older Windows');
   const independent = snapshot('Independent');
   const archive = [{score:{name:'Friend'},replay:'existing archive entry'}];
   await Promise.all([
     seedSave(priorPortable,oldPortable),
     seedSave(priorLight,oldLight),
-    seedSave(join(temp,'forzero-budget-windows-x64-2.6.1'),snapshot('Older Windows')),
+    seedSave(olderPortable,olderSave),
     seedSave(second,{...independent,friends:archive}),
   ]);
   const base = await reserveConsecutivePorts();
@@ -112,6 +114,7 @@ try {
   assert.deepEqual((await (await request(base+1,'/app/save')).json()).data,oldPortable);
   assert.deepEqual(JSON.parse(await readFile(join(priorPortable,'save','player-data.json'),'utf8')),oldPortable);
   assert.deepEqual(JSON.parse(await readFile(join(priorLight,'save','player-data.json'),'utf8')),oldLight);
+  assert.deepEqual(JSON.parse(await readFile(join(olderPortable,'save','player-data.json'),'utf8')),olderSave);
   const secondStatus = await waitForApp(base,launch(second,base));
   assert.equal(secondStatus.version,version);
   assert.notEqual(secondStatus.instanceId,firstStatus.instanceId);

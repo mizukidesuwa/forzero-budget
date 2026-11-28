@@ -75,8 +75,9 @@ for (const [i, gate] of reverse.gates.entries()) {
 }
 assert.equal(trial.phase, 'done');
 assert.equal(trial.splits.length, reverse.gates.length);
-assert.ok(storage.has(game.checkpointRecordKey(reverse, 'chair')));
-assert.ok(!storage.has(game.checkpointRecordKey(loop, 'chair')));
+const reverseBest = game.checkpointRecordKey(reverse, 'chair', trial.environmentKey);
+assert.deepEqual([...storage.keys()].filter(key => key.startsWith('checkpoints:')), [reverseBest],
+  'The reverse route did not create a result for the underlying loop');
 
 for (const vehicle of Object.keys(vehicles)) {
   const team = new game.TimeTrial(loop, game.stockBike, vehicle, query);
@@ -102,7 +103,8 @@ for (const vehicle of Object.keys(vehicles)) {
   strong.unranked = true;
   strong.finishAt(72000);
   assert.equal(game.aiWins(loop, vehicle, 'team', 'standard'), 1);
-  assert.ok(!storage.has(game.checkpointRecordKey(loop, vehicle)));
+  assert.deepEqual([...storage.keys()].filter(key => key.startsWith('checkpoints:')), [reverseBest],
+    `${vehicle} AI results must not enter the environment-scoped personal bests`);
   assert.equal(game.trialMedal(team), '');
 }
 console.log('Reverse three-lap timing and ghost round-trip, all AI grids and difficulties, and legal win isolation passed.');

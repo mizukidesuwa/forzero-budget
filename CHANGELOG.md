@@ -1,5 +1,15 @@
 # 更新日志（CHANGELOG）
 
+## 2.6.4 — 竞速环境、桌面存档与联机发车修复
+
+- 计时、区间单练、夜骑盲区和单人影子追捕在倒计时或发车时冻结天气、风速风向、阵风模式与种子、车流和碰撞。赛中调整设置在下一场生效，物理与完赛记录使用同一份环境。关联 `src/world/ride-environment.js`、`src/world/environment.js`、`src/race/time-trial.js` 与 `src/ride/physics.js`。
+- 个人最佳和成绩影子按赛道、车型及环境保存和读取。好友排行榜按布局与环境分组，导入及发车均校验条件。条件不同或无法核实的旧影子仍可归档，历史成绩与已获勋章保留。关联 `src/race/environment-key.js`、`src/race/records.js`、`src/replay/ghost.js`、`src/ui/friend-duel.js` 与 `src/ui/save-sync.js`。
+- 桌面版在浏览器内保留尚未确认写入的个人进度修订。关闭重开会合并磁盘与待写内容并续写，旧响应只能确认它对应的修订。桌面服务在提交时复核磁盘版本，过期写入收到冲突后由当前页面合并重试。关联 `src/core/desktop-save-journal.js`、`src/ui/save-sync.js` 与 `server/server.mjs`。
+- 调校到期、最后一人就绪、跳过调校等路径在创建正式轮次前统一复核在线人数。捉人轮同时要求有效的猎手与逃跑者。等待重连后可继续，宽限期结束仍不足两人时取消待发车轮次，已完成轮次照常计分。关联 `server/room-rules.cjs`、`server/server.mjs` 与 `src/online/client.js`。
+- 设置相符时，好友对战可沿用影子记录的联机车流和阵风种子。实际车流、风况及成绩使用相同的完整环境标识。同场多影子对战仍要求种子与其余环境条件一致。关联 `src/race/environment-key.js`、`src/race/time-trial.js`、`src/world/traffic.js` 与 `src/ui/friend-duel.js`。
+- 桌面版优先迁移同级的 2.6.3 存档，同版本按当前安装包型优先匹配。关联 `server/server.mjs`、`scripts/verify-save.mjs` 与 `scripts/verify-desktop-start.mjs`。
+- 通过 `npm run lint`、`npm run typecheck`、`npm run build:release` 与 `npm run verify:all -- --skip-build` 的 18 项检查，另通过 `node scripts/verify-four-player.mjs --drive` 四端实骑。真实 Chrome 验证了旧响应挂起或迟到时，导入的 134 单关页重开后仍在并成功补写到磁盘。服务端验证了调校掉线、重连、预算暂停和只剩一人时的轮次及成绩。环境验收覆盖赛中从无风改为 15 m/s、下一场采用设置、联机种子重放、条件不符时拒绝发车以及旧影子归档。沿用 v2.6.0 运行时基线和原有地图快照。
+
 ## 2.6.3 — 统一骑行界面与玩法提示
 
 - 驾驶仪表跨车型和玩法保持同一位置。计时、校园闪送、影子追捕、联机捉人共用左上状态区，导航、警告、检查点反馈和夜骑提示各有位置。漏过检查点和回归赛道的提示可与下一站同时显示，手机横竖屏沿用相同的信息顺序。关联 `src/index.html` 与 `src/styles/hud-compact.css`。
@@ -215,7 +225,7 @@
 - `scripts/verify-esm-parity.mjs` 保留 1.9.1.1 快照，单列 2.1.0 围挡、草地通行、伦敦车流、青云湖尾流及轮椅路面变化的预期。几何和地图快照已随 2.1.0 更新。
 - 发行通过 `npm run build:release`、`node scripts/verify-esm-parity.mjs`、`node scripts/verify-210.mjs`、`node scripts/verify-data.mjs`、`node scripts/verify-assets.mjs`、`node scripts/verify-maps.mjs`、`node scripts/verify-browser.mjs`、`node scripts/verify-save.mjs` 和 `node szu-litchi-dev/online/verify.mjs`。
 
-## Unreleased
+## 早期工程维护记录
 
 - 收敛开发指导。仓库根目录的 AGENTS.md 作为唯一权威入口，FORZERO-WORK-GUIDE.md 标记为按需索引，删除外部重复提示词。同步修正工作指南中的 2.2.0 版本和构建说明，未更新地图或资产基线。
 - 在 `AGENTS.md` 第 6 节补充大文件治理边界：对 `src/ui/app.js` 采用“改到哪拆哪”的增量剥离原则（改一块用 `node scripts/verify-browser.mjs` 验一块），不搞重构专项；已稳定的 `szu.js`、`ucl.js`、`client.js` 不作无收益硬拆。

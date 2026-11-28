@@ -122,12 +122,12 @@ export function makeTrafficFormation(actors, mode, seed, spawn = null, countdown
 }
 
 export function trialTraffic(trial) {
+  if ((trial.rideEnvironment || trial.phase !== 'free') && trial.raceTraffic) return trial.raceTraffic;
   const session = worldState.onlineRoom;
   const prefs = getPreferences();
   const mode = knownTraffic(session ? session.state.traffic : prefs?.traffic);
   const activeCampus = getActiveCampus();
   const revision = worldState.trafficSceneRevision;
-  if (trial.phase !== 'free' && trial.raceTraffic) return trial.raceTraffic;
   const cache = trial.freeTraffic;
   if (cache?.mode === mode && cache.campus === activeCampus && cache.revision === revision) return cache;
   return trial.freeTraffic = {
@@ -136,11 +136,11 @@ export function trialTraffic(trial) {
   };
 }
 
-export function stageRaceTraffic(trial) {
+export function stageRaceTraffic(trial, environment = null) {
   const session = worldState.onlineRoom;
   const prefs = getPreferences();
-  const mode = knownTraffic(session ? session.state.traffic : prefs?.traffic);
-  const seed = trafficSeedFor(trial.event, session?.state.round);
+  const mode = environment?.trafficMode ?? knownTraffic(session ? session.state.traffic : prefs?.traffic);
+  const seed = environment?.trafficSeed ?? trafficSeedFor(trial.event, session?.state.round);
   trial.trafficElapsed = 0;
   trial.raceTraffic = {
     mode, seed,

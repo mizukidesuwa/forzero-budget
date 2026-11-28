@@ -6,7 +6,7 @@ import { flyoverClearance, trafficRules } from '../data/traffic.js';
 import { draftingRules } from '../data/race.js';
 import { advanceDraft, findWake } from './drafting.js';
 import { rivalYieldsContact } from '../race/rivals.js';
-import { currentWeather } from '../render/atmosphere.js';
+import { currentWeather, weatherChoices } from '../render/atmosphere.js';
 import { rainPuddleAt, shelteredWind } from '../world/environment.js';
 import { cityVehicles } from '../world/geometry.js';
 import { courseGround, createWorldQuery } from '../world/query.js';
@@ -166,8 +166,8 @@ function collisionTime(trafficClock, now) {
   return Number.isFinite(trafficClock) ? trafficClock * 1000 : now;
 }
 
-export function resolveVehicleCollisions(rider, x, z, y, trafficClock, mayRide, actors = cityVehicles, worldQuery = null) {
-  if (!vehicleCollisionEnabled()) return [x, z, false];
+export function resolveVehicleCollisions(rider, x, z, y, trafficClock, mayRide, actors = cityVehicles, worldQuery = null, collision = vehicleCollisionEnabled()) {
+  if (!collision) return [x, z, false];
   const query = worldQuery ?? createWorldQuery(getActiveCampus());
   const r = riderCollisionRadius(rider.vehicle);
   const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -287,7 +287,8 @@ export function resolveVehicleCollisions(rider, x, z, y, trafficClock, mayRide, 
   return [x, z, hit];
 }
 
-export function moveCyclist(rider, input, dt, exploring = false, wind = null, trafficClock = null, actors = cityVehicles, worldQuery = null) {
+/** @param {import('../world/ride-environment.js').RideEnvironment | null} [environment] */
+export function moveCyclist(rider, input, dt, exploring = false, wind = null, trafficClock = null, actors = cityVehicles, worldQuery = null, environment = null) {
   const query = worldQuery ?? createWorldQuery(getActiveCampus());
   const campus = query.campus;
   const p = rider.position;
@@ -315,7 +316,7 @@ export function moveCyclist(rider, input, dt, exploring = false, wind = null, tr
   } else if (cycling) rider.energy = Math.min(1, rider.energy + dt * (rider.drafting ? sprint.draftingRecovery : paved ? sprint.pavedRecovery : gravel ? sprint.gravelRecovery : sprint.grassRecovery) * (bike.sprintRecover ?? 1));
   if (!cycling) updateVehicleSkill(rider, input, dt);
   if (bike.magicEnergy) rider.energy = Math.min(1, rider.energy + skillPhysics.magicEnergyRecovery * dt);
-  const weather = currentWeather();
+  const weather = environment ? weatherChoices[environment.weather] : currentWeather();
   const wet = (paved || poweredOnGravel) && weather.wetness > 0;
   const puddle = rainPuddleAt(campus, p[0], p[2], weather.rain);
   if (puddle && !rider.inPuddle && rider.speed > puddleRules.splashMinSpeed) worldState.hooks.playSound?.('splash');
@@ -447,7 +448,7 @@ export function moveCyclist(rider, input, dt, exploring = false, wind = null, tr
     rider.speed *= .38;
     if (blockedByStep && (x !== p[0] || z !== p[2])) rider.hazard = hazardAt(x, z);
   }
-  if (!rider.hazard) [x, z] = resolveVehicleCollisions(rider, x, z, p[1], trafficClock, mayRide, actors, query);
+  if (!rider.hazard) [x, z] = resolveVehicleCollisions(rider, x, z, p[1], trafficClock, mayRide, actors, query, environment?.collision);
   if (campus === 'shunde') {
     rider.surfaceKind = query.surfaceKindAt(x, z, exploring);
     rider.paved = rider.surfaceKind === 'paved';

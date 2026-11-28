@@ -5,7 +5,7 @@ import { getActiveCampus, getStorage, setActiveCampus, setPreferences, worldStat
 import { CampusCourier, makeCourierBeaconShape, nearestCourierLandmark } from '../race/courier.js';
 import { ShadowChase } from '../race/chase.js';
 import { BlindNav } from '../race/blind-nav.js';
-import { knownLaunchMode } from '../data/modes.js';
+import { blindNavRules, knownLaunchMode } from '../data/modes.js';
 import { raceLaunchOptions } from '../race/launch-options.js';
 import { raceReviewRows } from '../race/race-review.js';
 import { liveDeltaMs, vehicleBenchmark } from '../race/records.js';
@@ -15,7 +15,7 @@ import { currentWeather, drawRainOverlay, getActiveWeatherId, knownWeather, setA
 import { rideCamera } from '../render/ride-camera.js';
 import { courseDecor, disposeRidingScene, uploadRidingScene } from '../render/scene-upload.js';
 import { renderer } from '../render/webgl-renderer.js';
-import { loadFriendGhost, replayAt } from '../replay/ghost.js';
+import { GhostFileError, loadFriendGhost, replayAt } from '../replay/ghost.js';
 import { advanceMapReplay, mapReplay, replayGapAt } from '../replay/map-replay.js';
 import { soloBudget } from '../ride/budget.js';
 import {
@@ -357,6 +357,7 @@ export function updateHud() {
     BlindNav.leave(setActiveWeather);
     BlindNav.setEnabled(false);
   }
+  if (!online) setActiveWeather(race.rideEnvironment?.weather ?? race.event.environment?.weather ?? preferences.weather);
   const chasing = !online && ShadowChase.active;
   const onlineChaseView = online ? getOnlineChaseView(now) : null;
   const onlineChasing = Boolean(onlineChaseView?.snap?.active);
@@ -502,7 +503,7 @@ export function updateHud() {
   let blindNote = '';
   if (timed && race.phase === 'done' && race.blindRun) {
     if (!race.blindResult) {
-      race.blindResult = BlindNav.recordClear(race.event, race.rider.vehicle, race.elapsed, Boolean(soloBudget(race).illegal || race.rivals?.length));
+      race.blindResult = BlindNav.recordClear(race.event, race.rider.vehicle, race.elapsed, Boolean(race.unranked || race.rivals?.length), race.environmentKey);
     }
     const record = race.blindResult?.isBest ? translate('刷新盲区最佳') :
       race.blindResult?.bestMs ? message`盲区最佳 ${timeLabel(race.blindResult.bestMs)}` : '';
@@ -572,21 +573,37 @@ function startTrial() {
 }
 
 export function beginTrial(selection = { mode: ui.raceMode?.value, difficulty: ui.aiDifficulty?.value }) {
-  if (typeof CampusCourier !== 'undefined') CampusCourier.stop(false);
-  ShadowChase.stop();
-  BlindNav.leave(setActiveWeather);
-  BlindNav.setEnabled(false);
-  applyPendingSaveVehicle({ restarting: true });
-  clearInput();
   const { launchMode, raceMode, aiDifficulty } = raceLaunchOptions(selection);
-  race.raceMode = raceMode;
-  race.aiDifficulty = aiDifficulty;
-  if(race.start()===false) {
-    openSettings('bike');
-    workshop.highlightBudgetParts();
+  const environmentOptions = launchMode === 'blind' && !getOnlineRoom() ? { weather: blindNavRules.weather } : undefined;
+  if (!race.checkStartEnvironment(environmentOptions)) {
+    showFriendStartMismatch();
     return;
   }
+  if (typeof CampusCourier !== 'undefined') CampusCourier.stop(false);
+  if (ShadowChase.active) {
+    ShadowChase.stop();
+    race.freeRide();
+  }
+  applyPendingSaveVehicle({ restarting: true });
+  clearInput();
+  race.raceMode = raceMode;
+  race.aiDifficulty = aiDifficulty;
+  if (race.start(environmentOptions) === false) {
+    if (race.phase === 'free') {
+      BlindNav.leave(setActiveWeather);
+      BlindNav.setEnabled(false);
+    }
+    if (race.startFailure === 'environment') showFriendStartMismatch();
+    else {
+      openSettings('bike');
+      workshop.highlightBudgetParts();
+    }
+    return;
+  }
+  BlindNav.leave(setActiveWeather);
+  BlindNav.setEnabled(false);
   if (launchMode === 'chase') {
+    const { rideEnvironment, environmentKey, raceTraffic } = race;
     const illegal = Boolean(race.unranked);
     const targetVehicle = race.opponent?.vehicle ?? race.entryVehicle;
     const reference = race.opponent ?? vehicleBenchmark(race.event, targetVehicle).run;
@@ -595,16 +612,17 @@ export function beginTrial(selection = { mode: ui.raceMode?.value, difficulty: u
       : { name: '逃跑影子', vehicle: targetVehicle };
     race.freeRide();
     race.moved = true;
-    ShadowChase.start({
+    if (ShadowChase.start({
       event: race.event,
       vehicle: targetVehicle,
       difficulty: aiDifficulty,
       reference,
       runnerProfile,
       unranked: illegal,
+      environmentKey,
       campus: getActiveCampus(),
       landmarkAt: nearestCourierLandmark,
-    });
+    })) Object.assign(race, { rideEnvironment, environmentKey, raceTraffic, freeClock: 0 });
   } else if (launchMode === 'blind' && !getOnlineRoom()) {
     BlindNav.setEnabled(true);
     BlindNav.enter(getActiveWeatherId(), setActiveWeather);
@@ -686,7 +704,10 @@ const friendDuel = createFriendDuelController({
   setPendingCampus: v => { pendingCampus = v; },
   setZoomMap: v => { zoomMap = Boolean(v); },
 });
-const { openFriendDialog, activateFriendChallenge, friendImportFailed, friendResult, updateFriendFilters, initFriendDuel } = friendDuel;
+const {
+  openFriendDialog, activateFriendChallenge, friendEnvironmentError, friendImportFailed, friendResult,
+  showFriendStartMismatch, updateFriendFilters, initFriendDuel,
+} = friendDuel;
 
 const workshop = createWorkshopController({
   ui,
@@ -759,7 +780,6 @@ function selectCourse(event,opponent=null,extraOpponents=[]) {
   courseByCampus[getActiveCampus()]=event;
   clearInput();
   race.select(event,opponent,extraOpponents);
-  if (!getOnlineRoom()) setActiveWeather(event.environment?.weather ?? preferences.weather);
   refreshBicycleModels();
   cameraRevision++;
   ui.mapPlace.hidden=true;
@@ -1257,10 +1277,12 @@ function run() {
       if (ghost) {
         challenge=loadFriendGhost(ghost);
         if (extraGhosts?.length) challengeExtra=extraGhosts.map(item=>loadFriendGhost(item).opponent);
+        const error = friendEnvironmentError(challenge.event, [challenge.opponent, ...challengeExtra]);
+        if (error) throw new GhostFileError(error);
       }
       if (online) onlineCourse=findOnlineCourse(online.route);
     } catch(error) {
-      console.error(error);
+      if (!ghost) console.error(error);
       setActiveCampus(previous);
       for(const [i,items] of sceneLists.entries()) {
         items.length=0;
@@ -1277,14 +1299,13 @@ function run() {
     disposeRidingScene(world,cars,routeMeshes);
     ({world,cars}=uploadRidingScene(gpu,getActiveCampus()));
     updateCampusLabels();
-    if (challenge) activateFriendChallenge(challenge,archive,challengeExtra);
+    if (challenge) activateFriendChallenge(challenge,archive ? ghost : null,challengeExtra);
     else {
       if (targetCourseId) {
         const picked=coursesByCampus[getActiveCampus()].find(c=>c.id===targetCourseId);
         if (picked) courseByCampus[getActiveCampus()]=picked;
       }
       race.select(courseByCampus[getActiveCampus()]);
-      if (!getOnlineRoom()) setActiveWeather(race.event.environment?.weather ?? preferences.weather);
       zoomMap=false;
       initHud();
       arriveAtStation();
@@ -1406,13 +1427,23 @@ function startSectorPractice(fromGate, toGate) {
   if (!ready || getOnlineRoom() || pendingCampus || race.event.campus !== getActiveCampus()) return;
   const gates = race.event.gates;
   if (fromGate < 0 || toGate <= fromGate || toGate >= gates.length) return;
+  if (!race.checkStartEnvironment()) {
+    showFriendStartMismatch();
+    return;
+  }
   applyPendingSaveVehicle({ restarting: true });
   clearInput();
   if(race.startPractice(fromGate,toGate)===false) {
-    openSettings('bike');
-    workshop.highlightBudgetParts();
+    if (race.startFailure === 'environment') showFriendStartMismatch();
+    else {
+      openSettings('bike');
+      workshop.highlightBudgetParts();
+    }
     return;
   }
+  ShadowChase.stop();
+  BlindNav.leave(setActiveWeather);
+  BlindNav.setEnabled(false);
   zoomMap = true;
   cameraRevision++;
   priorTimestamp = performance.now();

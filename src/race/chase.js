@@ -6,10 +6,11 @@ import { nearestSafeRoad, rideElevation } from '../world/query.js';
 import { courseIsLoop, courseVariantSuffix } from './course-variants.js';
 import { knownAiDifficulty } from './rivals.js';
 
-export function chaseCourseKey(event, vehicle = 'bike') {
+export function chaseCourseKey(event, vehicle = 'bike', environmentKey = null) {
   const base = event?.baseCourse ?? event;
   const campus = event?.campus ?? getActiveCampus();
-  return `${campus}:${base?.id ?? 'route'}:${vehicle}` + courseVariantSuffix(event?.variant);
+  const course = `${campus}:${base?.id ?? 'route'}:${vehicle}` + courseVariantSuffix(event?.variant);
+  return environmentKey ? `${course}:${environmentKey}` : course;
 }
 
 export function defaultChaseProgress() {
@@ -62,6 +63,7 @@ export function createShadowChase() {
   return {
     phase: 'idle',
     event: null,
+    environmentKey: null,
     campus: 'szu',
     vehicle: 'bike',
     difficulty: 'standard',
@@ -112,12 +114,13 @@ export function createShadowChase() {
     start({
       event, vehicle = 'bike', difficulty = 'standard', reference,
       runnerProfile = null, unranked = false, campus = event?.campus ?? getActiveCampus(),
-      landmarkAt = null,
+      landmarkAt = null, environmentKey = null,
     }) {
       if (!event || !reference?.samples?.length) return false;
       this.difficulty = knownAiDifficulty(difficulty);
       this.rules = chaseRules.difficulties[this.difficulty] ?? chaseRules.difficulties.standard;
       this.event = event;
+      this.environmentKey = environmentKey;
       this.campus = campus;
       this.vehicle = vehicle;
       this.record = reference;
@@ -134,7 +137,7 @@ export function createShadowChase() {
       this.visible = false;
       this.proximity = 'far';
       this.isBest = false;
-      this.bestMs = this.progress.bestByKey[chaseCourseKey(event, vehicle)] ?? null;
+      this.bestMs = this.progress.bestByKey[chaseCourseKey(event, vehicle, environmentKey)] ?? null;
       this.rejoinAtMs = -Infinity;
       this.runnerPose = sampleChaseRunner(event, reference, this.runnerElapsedMs, campus);
       this.refreshPing(landmarkAt);
@@ -144,6 +147,7 @@ export function createShadowChase() {
 
     stop() {
       this.phase = 'idle';
+      this.environmentKey = null;
       this.runnerPose = null;
       this.lastPing = null;
       this.distance = Infinity;
@@ -206,7 +210,7 @@ export function createShadowChase() {
       this.visible = true;
       playSound?.('catch');
       if (this.unranked) return;
-      const key = chaseCourseKey(this.event, this.vehicle);
+      const key = chaseCourseKey(this.event, this.vehicle, this.environmentKey);
       const prev = this.progress.bestByKey[key];
       this.isBest = prev === undefined || this.elapsedMs < prev;
       if (this.isBest) this.progress.bestByKey[key] = this.elapsedMs;

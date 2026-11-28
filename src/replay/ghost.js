@@ -7,7 +7,7 @@ import { getCourseVariant } from '../race/course-variants.js';
 import { parseRouteCode } from '../race/route-code.js';
 import { courseVariantRules } from '../data/race.js';
 import { readSeedCode } from '../race/seed-code.js';
-import { raceEnvironmentKey } from '../race/environment-key.js';
+import { knownRaceEnvironmentKey, legacyRaceEnvironmentKey } from '../race/environment-key.js';
 import {
   bicycleAppearance, bicycleStyle, frameChoices, knownPaint, maxBikeSpeed,
   riderName, tyreChoices, vehicleChoices,
@@ -123,7 +123,7 @@ export function makeGhostFile(event, run, profile) {
   if (run?.unranked) throw new GhostFileError('这场成绩仅用于娱乐或独立结算，无法导出官方影子。');
   const appearance = run.appearance ?? (run.vehicle === 'bike' && profile.look ? bicycleAppearance(profile, run.bike) : null);
   const skin = appearance?.skin ?? (profile?.skinId || profile?.skinSpec ? skinForProfile(profile) : null);
-  const environment = run.environment ?? raceEnvironmentKey(event, { trafficSeed: run.trafficSeed });
+  const environment = knownRaceEnvironmentKey(run.environment) ?? legacyRaceEnvironmentKey(event, { trafficSeed: run.trafficSeed });
   const routeCode = event.networkEdges?.length && routeRefForCourse(event, event.variant)?.code;
   if (event.networkEdges?.length && !routeCode) throw new GhostFileError('找不到影子文件指定的赛道或种子。');
   return {
@@ -236,6 +236,7 @@ export function loadFriendGhost({ course, rider, run }, activeCampus = getActive
         },
       } : {}),
       kind: name + '的影子', time: run.time, splits: run.splits, samples: run.samples, corners,
+      environment: knownRaceEnvironmentKey(course.environment),
     },
   };
 }
@@ -291,12 +292,10 @@ export async function friendArchiveTransaction(stores, mode, operate) {
   });
 }
 
-export async function saveFriendGhost({ event, opponent }) {
-  const { name, paint, corners } = opponent;
-  const run = { ...opponent, corners: corners.map(score => score && { speed: score.speed, duration: score.duration }) };
-  const ghost = makeGhostFile(event, run, { name, paint, look: opponent.look });
+export async function saveFriendGhost(ghost) {
   const { campus, id: courseId, seed, layout } = ghost.course;
-  const score = { campus, courseId, seed, layout, name: ghost.rider.name, vehicle: ghost.rider.vehicle, time: run.time };
+  const environment = knownRaceEnvironmentKey(ghost.course.environment);
+  const score = { campus, courseId, seed, layout, name: riderName(ghost.rider.name), vehicle: ghost.rider.vehicle, time: ghost.run.time, environment };
   const replay = JSON.stringify(ghost);
   const result = await friendArchiveTransaction(['scores', 'replays'], 'readwrite', transaction => {
     const scores = transaction.objectStore('scores'), replays = transaction.objectStore('replays');

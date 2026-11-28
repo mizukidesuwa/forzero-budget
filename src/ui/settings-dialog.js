@@ -10,7 +10,7 @@ import { knownWeather, setActiveWeather } from '../render/atmosphere.js';
 import { knownSkinId, skinForProfile, skinSpecHash } from '../ride/rider-skin.js';
 import { bicyclePaints, knownPaint, riderName, storeDriverProfile, vehicleChoices } from '../ride/vehicles.js';
 import { knownWindMode } from '../world/environment.js';
-import { knownTraffic, trialTraffic } from '../world/traffic.js';
+import { knownTraffic } from '../world/traffic.js';
 import { setRideAudioMuted } from './audio.js';
 import { applyHudLayout, applyTouchLayout, installHudControls, showCameraMode } from './hud-controls.js';
 import {
@@ -76,8 +76,8 @@ export function createSettingsController({
     if (stage.dataset.cameraView !== preferences.cameraView) bumpCameraRevision();
     showCameraMode(stage, ui, preferences.cameraView);
     ui.settingsTraffic.value = preferences.traffic;
-    ui.settingsTraffic.disabled = Boolean(getOnlineRoom()) || race.phase === 'race' || race.phase === 'count';
-    ui.settingsCollision.disabled = Boolean(getOnlineRoom()) || trialTraffic(race).mode === 'off';
+    ui.settingsTraffic.disabled = Boolean(getOnlineRoom());
+    ui.settingsCollision.disabled = Boolean(getOnlineRoom()) || preferences.traffic === 'off';
     ui.settingsCollision.checked = preferences.collision === true;
     if (ui.settingsWindSpeed) ui.settingsWindSpeed.value = String(preferences.windSpeed ?? 0);
     ui.settingsWindMode.value = knownWindMode(preferences.windMode);
@@ -88,6 +88,12 @@ export function createSettingsController({
     try { getStorage()?.setItem(prefKey, JSON.stringify(preferences)); } catch {}
     bumpGraphicsRevision();
     if (typeof scheduleLocalSave === 'function') scheduleLocalSave();
+  }
+
+  function saveEnvironmentPreferences() {
+    savePreferences();
+    race.refreshPreviewRecords();
+    updateHud();
   }
 
   function cycleCamera() {
@@ -104,13 +110,14 @@ export function createSettingsController({
 
   function updateSettingsActions() {
     const active = race.phase === 'race' || race.phase === 'count';
+    const environmentLocked = Boolean(race.rideEnvironment) && (active || ShadowChase.isRunning());
     setText(ui.settingsContinue, active && !race.paused ? '继续比赛' : '返回骑行');
     ui.recover.hidden = race.phase !== 'race';
     ui.settingsExit.hidden = race.phase === 'free';
     setText(ui.settingsExit, active ? '退出比赛' : '返回自由骑行');
     ui.settingsUnfullscreen.hidden = !isFullscreen();
-    setText(ui.settingsState, active ? '比赛已暂停，计时停止' : '');
-    ui.settingsState.hidden = !active;
+    setText(ui.settingsState, environmentLocked ? '比赛已暂停，环境设置将在下一场生效' : active ? '比赛已暂停，计时停止' : '');
+    ui.settingsState.hidden = !active && !environmentLocked;
   }
 
   function updateSettingsLabels() {
@@ -301,8 +308,8 @@ export function createSettingsController({
     for (const [key, control] of [['resolution', ui.settingsResolution], ['aa', ui.settingsAA], ['weather', ui.settingsWeather]]) {
       control.addEventListener('change', () => {
         preferences[key] = control.value;
-        if (key === 'weather' && !getOnlineRoom() && !race.event?.environment) setActiveWeather(control.value);
-        savePreferences();
+        if (key === 'weather') saveEnvironmentPreferences();
+        else savePreferences();
       });
     }
     for (const [key, control] of [['ghost', ui.settingsGhost], ['brakeLine', ui.settingsBrakeLine], ['sound', ui.settingsSound], ['collision', ui.settingsCollision], ['fps', ui.settingsFps]]) {
@@ -310,32 +317,31 @@ export function createSettingsController({
       control.addEventListener('change', () => {
         preferences[key] = control.checked;
         if (key === 'sound' && typeof setRideAudioMuted === 'function') setRideAudioMuted(!control.checked);
-        savePreferences();
+        if (key === 'collision') saveEnvironmentPreferences();
+        else savePreferences();
       });
     }
     installHudControls(ui, preferences, applyHudScale, applyTouchSize, savePreferences);
     ui.settingsTraffic.addEventListener('change', () => {
       preferences.traffic = knownTraffic(ui.settingsTraffic.value);
       ui.settingsCollision.disabled = preferences.traffic === 'off';
-      savePreferences();
+      saveEnvironmentPreferences();
     });
     ui.settingsWindSpeed?.addEventListener('change', () => {
       const w = Math.round(clamp(Number(ui.settingsWindSpeed.value) || 0, 0, 15) * 10) / 10;
       ui.settingsWindSpeed.value = String(w);
       preferences.windSpeed = w;
-      savePreferences();
-      updateHud();
+      saveEnvironmentPreferences();
     });
     ui.settingsWindMode.addEventListener('change', () => {
       preferences.windMode = knownWindMode(ui.settingsWindMode.value);
-      savePreferences();
+      saveEnvironmentPreferences();
     });
     ui.settingsWindDir?.addEventListener('change', () => {
       const d = Math.round(clamp(Number(ui.settingsWindDir.value) || 0, 0, 7));
       ui.settingsWindDir.value = String(d);
       preferences.windDir = d;
-      savePreferences();
-      updateHud();
+      saveEnvironmentPreferences();
     });
     document.addEventListener('fullscreenchange', () => { if (getSettingsOpen()) updateSettingsActions(); });
   }

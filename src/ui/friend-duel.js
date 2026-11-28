@@ -1,4 +1,5 @@
 import { getActiveCampus, worldState } from '../core/state.js';
+import { knownRaceEnvironmentKey, matchRecordedEnvironment, readRaceEnvironmentKey } from '../race/environment-key.js';
 import { weeklySeed } from '../race/seed-code.js';
 import {
   GhostFileError, MAX_GHOST_BYTES, ghostCourseKey, loadFriendGhost, makeGhostFile,
@@ -6,9 +7,23 @@ import {
   resolveFriendGhostCourse, saveFriendGhost,
 } from '../replay/ghost.js';
 import { vehicleChoices } from '../ride/vehicles.js';
+import { weatherChoices } from '../render/atmosphere.js';
+import { captureRideEnvironment, WIND_LABELS } from '../world/environment.js';
 import { campuses, coursesByCampus } from '../world/scene-builder.js';
 import { courseTitle, message, setLabel as setText, setText as setRawText, translate } from './language.js';
 import { ghostLabel } from './presentation-text.js';
+
+function friendEnvironmentLabel(key) {
+  const { weather, wind, trafficMode, collision } = readRaceEnvironmentKey(key);
+  const traffic = { off: '无车流', sparse: '稀疏车流', standard: '标准车流' };
+  const windLabel = wind ?
+    message`${translate(WIND_LABELS[Math.round(wind.angle / (Math.PI / 4)) % 8])} ${wind.speed} m/s（${translate(wind.mode === 'gust' ? '阵风' : '恒定')}）` :
+    translate('无风');
+  return [translate(weatherChoices[weather].name), windLabel, translate(traffic[trafficMode]),
+    translate(collision ? '碰撞开启' : '碰撞关闭')].join(' · ');
+}
+
+const playableEnvironment = status => status === 'matched' || status === 'recorded-seeds';
 
 export function createFriendDuelController({
   ui,
@@ -32,6 +47,7 @@ export function createFriendDuelController({
   let friendBoardRender = 0;
   let selectedFriendIds = [];
   let friendImporting = false;
+  let launchNoticeTimer;
 
   function updateFriendMultiBar() {
     if (!ui.friendMultiBar) return;
@@ -94,9 +110,10 @@ export function createFriendDuelController({
             setText(ui.friendStatus, '同场群跑最多同时选择 3 条影子。');
             return;
           }
-          if (friendScores.some(item => selectedFriendIds.includes(item.id) && item.layout !== score.layout)) {
+          if (friendScores.some(item => selectedFriendIds.includes(item.id) &&
+              (item.layout !== score.layout || item.environment !== score.environment))) {
             pick.checked = false;
-            setText(ui.friendStatus, '同场群跑需要相同的赛道布局。');
+            setText(ui.friendStatus, '同场群跑需要相同的赛道布局和比赛环境。');
             return;
           }
           if (!selectedFriendIds.includes(score.id)) selectedFriendIds.push(score.id);
@@ -114,23 +131,30 @@ export function createFriendDuelController({
     return row;
   }
 
-  async function layoutCanReplay(scores) {
+  async function groupCompatibility(scores, environment) {
+    if (!environment) return 'unverified';
     for (const score of scores) {
       try {
         const replay = JSON.parse(await readSavedFriendGhost(score.id));
         const course = replay?.course;
         if (course?.campus === score.campus && course.id === score.courseId && course.layout === score.layout &&
-            resolveFriendGhostCourse(course, replay.run?.splits?.length)) return true;
+            knownRaceEnvironmentKey(course.environment) === environment) {
+          const event = resolveFriendGhostCourse(course, replay.run?.splits?.length);
+          if (event) {
+            const current = captureRideEnvironment(event);
+            const matched = matchRecordedEnvironment(event, current, environment);
+            return matched === current ? 'matched' : matched ? 'recorded-seeds' : 'different';
+          }
+        }
       } catch {}
     }
-    return false;
+    return 'older-layout';
   }
 
   async function renderFriendScores(courseScores) {
     const render = ++friendBoardRender;
     const { value: campus } = ui.friendCampus, { value: course } = ui.friendCourse;
-    const scores = courseScores.filter(score => score.vehicle === ui.friendVehicle.value)
-      .sort((a, b) => a.time - b.time || a.id - b.id);
+    const scores = courseScores.filter(score => score.vehicle === ui.friendVehicle.value);
     const visibleIds = new Set(scores.map(s => s.id));
     selectedFriendIds = selectedFriendIds.filter(id => visibleIds.has(id));
     updateFriendMultiBar();
@@ -145,22 +169,32 @@ export function createFriendDuelController({
     const currentLayout = event ? ghostCourseKey(event) : null;
     const groups = new Map();
     for (const score of scores) {
-      if (!groups.has(score.layout)) groups.set(score.layout, []);
-      groups.get(score.layout).push(score);
+      const layout = score.layout, environment = knownRaceEnvironmentKey(score.environment);
+      const key = JSON.stringify([layout, environment]);
+      if (!groups.has(key)) groups.set(key, { layout, environment, scores: [] });
+      groups.get(key).scores.push(score);
     }
-    const layouts = [...groups.keys()].sort((a, b) => Number(b === currentLayout) - Number(a === currentLayout));
-    const compatibleLayouts = await Promise.all(layouts.map(layout => layoutCanReplay(groups.get(layout))));
+    const rankedGroups = await Promise.all([...groups.values()].map(async group => ({
+      ...group, compatibility: await groupCompatibility(group.scores, group.environment),
+    })));
     if (render !== friendBoardRender) return;
-    for (const [index, layout] of layouts.entries()) {
-      const compatible = compatibleLayouts[index];
-      if (layouts.length > 1 || !compatible) {
-        const title = document.createElement('h3');
-        title.textContent = compatible ? message`布局 ${layout}` : message`旧版布局 ${layout}`;
-        ui.friendScores.append(title);
-      }
-      const list = document.createElement('ol');
+    rankedGroups.sort((a, b) => Number(playableEnvironment(b.compatibility)) - Number(playableEnvironment(a.compatibility)) ||
+      Number(b.layout === currentLayout) - Number(a.layout === currentLayout));
+    const playableIds = new Set(rankedGroups.filter(group => playableEnvironment(group.compatibility)).flatMap(group => group.scores.map(score => score.id)));
+    selectedFriendIds = selectedFriendIds.filter(id => playableIds.has(id));
+    updateFriendMultiBar();
+    for (const { layout, environment, scores: groupScores, compatibility } of rankedGroups) {
+      const title = document.createElement('h3');
+      title.textContent = compatibility === 'unverified' ? message`环境未核实 · 布局 ${layout}` :
+        compatibility === 'older-layout' ? message`旧版布局 ${layout}` :
+          compatibility === 'matched' ? message`当前环境 · 布局 ${layout}` :
+            compatibility === 'recorded-seeds' ? message`沿用影子的联机种子 · 布局 ${layout}` : message`不同环境 · 布局 ${layout}`;
+      if (environment) title.textContent += ' · ' + friendEnvironmentLabel(environment);
+      ui.friendScores.append(title);
+      const list = document.createElement(environment ? 'ol' : 'ul');
       list.className = 'friend-ranking';
-      for (const score of groups.get(layout)) list.append(friendScoreRow(score, compatible));
+      if (environment) groupScores.sort((a, b) => a.time - b.time || a.id - b.id);
+      for (const score of groupScores) list.append(friendScoreRow(score, playableEnvironment(compatibility)));
       ui.friendScores.append(list);
     }
   }
@@ -232,7 +266,28 @@ export function createFriendDuelController({
     ui.friendScores.inert = active;
   }
 
-  function activateFriendChallenge({ event, opponent }, archive, extraOpponents = []) {
+  function friendEnvironmentError(event, opponents) {
+    const environment = opponents[0]?.environment;
+    if (!environment || opponents.some(opponent => !opponent.environment)) return '影子的环境未核实，无法用于对战。';
+    if (opponents.some(opponent => opponent.environment !== environment)) return '同场群跑需要相同的赛道布局和比赛环境。';
+    if (!matchRecordedEnvironment(event, captureRideEnvironment(event), environment)) return '影子的环境与当前设置不同，无法开始对战。';
+    return '';
+  }
+
+  async function archiveUnmatchedGhost(ghost, reason) {
+    try {
+      await saveFriendGhost(ghost);
+      await refreshFriendBoard();
+      updateFriendFilters({ campus: ghost.course.campus, course: ghost.course.id, vehicle: ghost.rider.vehicle });
+      setText(ui.friendStatus, reason);
+    } catch (error) { friendImportFailed(error); }
+    finally {
+      setFriendImporting(false);
+      ui.friendClose.focus();
+    }
+  }
+
+  function activateFriendChallenge({ event, opponent }, ghostToArchive, extraOpponents = []) {
     if (event.seed) worldState.seedCourses[getActiveCampus()] = event;
     else if (event.networkEdges?.length) worldState.customCourses[getActiveCampus()] = event;
     populateCoursePicker();
@@ -244,9 +299,9 @@ export function createFriendDuelController({
       setFriendImporting(false);
       ui.friendDialog.close();
     };
-    if (!archive) { close(); return; }
+    if (!ghostToArchive) { close(); return; }
     setText(ui.friendStatus, '正在保存影子…');
-    void saveFriendGhost({ event, opponent }).then(close, error => {
+    void saveFriendGhost(ghostToArchive).then(close, error => {
       console.error(error);
       setFriendImporting(false);
       setText(ui.friendStatus, '影子已载入对战，暂时无法保存到友人对战。');
@@ -260,11 +315,33 @@ export function createFriendDuelController({
     setText(ui.friendStatus, error instanceof GhostFileError ? error.message : '读取影子文件失败，请重新选择。');
   }
 
+  function showFriendStartMismatch() {
+    openFriendDialog();
+    const label = '影子的环境与当前设置不同，无法开始对战。';
+    if (ui.friendDialog.open) {
+      setText(ui.friendStatus, label);
+      return;
+    }
+    const text = translate(label);
+    setRawText(ui.notice, text);
+    ui.notice.hidden = false;
+    clearTimeout(launchNoticeTimer);
+    launchNoticeTimer = setTimeout(() => {
+      if (ui.notice.textContent === text) ui.notice.hidden = true;
+    }, 4000);
+  }
+
   function prepareFriendChallenge(ghost, archive, extraGhosts = []) {
+    const primary = loadFriendGhost(ghost, ghost.course.campus);
+    const extras = extraGhosts.map(item => loadFriendGhost(item, ghost.course.campus).opponent);
+    const error = friendEnvironmentError(primary.event, [primary.opponent, ...extras]);
+    if (error) {
+      if (!archive) throw new GhostFileError(error);
+      void archiveUnmatchedGhost(ghost, primary.opponent.environment ? '影子的环境与当前设置不同，已存入档案。' : '影子的环境未核实，已存入档案。');
+      return;
+    }
     if (ghost.course.campus === getActiveCampus()) {
-      const primary = loadFriendGhost(ghost);
-      const extras = extraGhosts.map(item => loadFriendGhost(item).opponent);
-      activateFriendChallenge(primary, archive, extras);
+      activateFriendChallenge(primary, archive ? ghost : null, extras);
       return;
     }
     setRawText(ui.friendStatus, message`正在载入 ${translate(campuses[ghost.course.campus].name)}…`);
@@ -325,7 +402,7 @@ export function createFriendDuelController({
         ghosts.push(readGhostFile(replay));
       }
       if (ghosts.some(({course}) => course.layout !== ghosts[0].course.layout)) {
-        throw new GhostFileError('同场群跑需要相同的赛道布局。');
+        throw new GhostFileError('同场群跑需要相同的赛道布局和比赛环境。');
       }
       ghosts.sort((a, b) => a.run.time - b.run.time);
       prepareFriendChallenge(ghosts[0], false, ghosts.slice(1));
@@ -390,6 +467,8 @@ export function createFriendDuelController({
   return {
     openFriendDialog,
     activateFriendChallenge,
+    friendEnvironmentError,
+    showFriendStartMismatch,
     friendImportFailed,
     friendResult,
     updateFriendFilters,

@@ -6,10 +6,11 @@ import { courseVariantSuffix } from './course-variants.js';
 const ARROWS = ['↑', '↗', '→', '↘', '↓', '↙', '←', '↖'];
 const DIRECTIONS = ['正前', '右前', '右侧', '右后', '正后', '左后', '左侧', '左前'];
 
-export function blindCourseKey(event, vehicle = 'bike') {
+export function blindCourseKey(event, vehicle = 'bike', environmentKey = null) {
   const base = event?.baseCourse ?? event;
   const campus = event?.campus ?? getActiveCampus();
-  return `${campus}:${base?.id ?? 'route'}:${vehicle}` + courseVariantSuffix(event?.variant);
+  const course = `${campus}:${base?.id ?? 'route'}:${vehicle}` + courseVariantSuffix(event?.variant);
+  return environmentKey ? `${course}:${environmentKey}` : course;
 }
 
 export function defaultBlindProgress() {
@@ -84,7 +85,7 @@ export function createBlindNav() {
       this.hazardLabel = '';
       this.hazardUntilMs = -Infinity;
       this.hazardCooldownUntilMs = -Infinity;
-      setWeather?.('night');
+      setWeather?.(blindNavRules.weather);
       return true;
     },
 
@@ -177,9 +178,9 @@ export function createBlindNav() {
       return label;
     },
 
-    recordClear(event, vehicle, timeMs, unranked = false) {
+    recordClear(event, vehicle, timeMs, unranked = false, environmentKey = null) {
       if (unranked || !event || !(timeMs > 0)) return { clears: this.progress.clears, bestMs: null, isBest: false };
-      const key = blindCourseKey(event, vehicle);
+      const key = blindCourseKey(event, vehicle, environmentKey);
       const prev = this.progress.bestByKey[key];
       const isBest = prev === undefined || timeMs < prev;
       if (isBest) this.progress.bestByKey[key] = timeMs;

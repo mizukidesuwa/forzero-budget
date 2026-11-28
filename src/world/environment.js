@@ -1,16 +1,18 @@
-import { ROAD_Y, TAU, clamp, mix } from '../core/math.js';
+import { ROAD_Y, TAU, mix } from '../core/math.js';
 import { Shape } from '../core/shape.js';
 import { getActiveCampus, getPreferences, worldState } from '../core/state.js';
 import { getActiveWeatherId, knownWeather, weatherChoices } from '../render/atmosphere.js';
 import { courseFrame } from './geometry.js';
 import { createWorldQuery, rideElevation } from './query.js';
 import { createSpatialGrid } from './spatial-grid.js';
+import { createRideEnvironment, knownWindMode, makeCustomWind } from './ride-environment.js';
 import { raceTrafficTime } from './traffic.js';
 
-import { WEEKLY_SEED_PATTERN, WEEKLY_WEATHERS, WIND_LABELS, customWindLimits, puddleCourseStations, puddleRadius } from '../data/environment.js';
+import { WEEKLY_SEED_PATTERN, WEEKLY_WEATHERS, WIND_LABELS, puddleCourseStations, puddleRadius } from '../data/environment.js';
 import { windPhysics } from '../data/surfaces.js';
 
 export { WEEKLY_SEED_PATTERN, WEEKLY_WEATHERS, WIND_LABELS } from '../data/environment.js';
+export { knownWindMode, makeCustomWind } from './ride-environment.js';
 
 const puddleCache = new Map();
 const puddleGridCache = new Map();
@@ -61,8 +63,6 @@ export function rainPuddleShape(campus) {
   return shape;
 }
 
-export const knownWindMode = value => value === 'steady' ? 'steady' : 'gust';
-
 export function weeklyEnvironment(seedCode) {
   if (typeof seedCode !== 'string' || !WEEKLY_SEED_PATTERN.test(seedCode)) return null;
   let h = 2166136261 >>> 0;
@@ -85,20 +85,13 @@ export function weeklyEnvironment(seedCode) {
   };
 }
 
-export function makeCustomWind(speed, dir = 0, weather = 'day') {
-  const s = Number.isFinite(Number(speed)) ? Math.round(clamp(Number(speed), 0, customWindLimits.maxSpeed) * 10) / 10 : 0;
-  if (s <= 0) return null;
-  const dirIdx = Number.isInteger(Number(dir)) ? clamp(Number(dir), 0, customWindLimits.lastDirection) : 0;
-  const angle = dirIdx * (Math.PI / 4);
-  return {
-    weather,
-    angle,
-    vector: [Math.cos(angle), Math.sin(angle)],
-    speed: s,
-    dir: dirIdx,
-    label: WIND_LABELS[dirIdx],
-    custom: true,
-  };
+/**
+ * @param {import('./ride-environment.js').RideEnvironmentCourse} event
+ * @param {Parameters<typeof createRideEnvironment>[3]} [raceTraffic]
+ * @param {Parameters<typeof createRideEnvironment>[4]} [options]
+ */
+export function captureRideEnvironment(event, raceTraffic = null, options = {}) {
+  return createRideEnvironment(event, getPreferences(), worldState.onlineRoom?.state ?? null, raceTraffic, options);
 }
 
 export function gustWind(base, clock, seed, mode) {
@@ -133,6 +126,8 @@ export function shelteredWind(wind, rider, dt, worldQuery = null) {
 }
 
 export function activeWind(raceObj = worldState.race, clock = raceObj ? raceTrafficTime(raceObj) : 0) {
+  const frozen = raceObj?.rideEnvironment;
+  if (frozen) return gustWind(frozen.wind, clock, frozen.windSeed, frozen.windMode);
   const room = worldState.onlineRoom;
   if (room) {
     const st = room.state;

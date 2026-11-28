@@ -1,5 +1,6 @@
 import { ROAD_Y, add, clamp, cross, dot, lerpPoint, mix, scale } from '../core/math.js';
 import { courseVariantSuffix } from './course-variants.js';
+import { knownRaceEnvironmentKey, raceEnvironmentKey } from './environment-key.js';
 import { Shape } from '../core/shape.js';
 import { getStorage, worldState } from '../core/state.js';
 import {
@@ -32,7 +33,25 @@ export function recordKey(event, vehicle = 'bike') {
   return key + (vehicle === 'bike' ? '' : ':' + vehicle) + courseVariantSuffix(event.variant);
 }
 
-export const checkpointRecordKey = (event, vehicle) => 'checkpoints:' + recordKey(event, vehicle);
+const environmentRecordMarker = ':environment:';
+
+/** An omitted environment addresses the historical, unscoped archive. @param {string | null} [environment] */
+export function checkpointRecordKey(event, vehicle, environment = null) {
+  const courseKey = 'checkpoints:' + recordKey(event, vehicle);
+  return environment === null ? courseKey : courseKey + environmentRecordMarker + encodeURIComponent(environment);
+}
+
+/** @param {string} key @returns {string | null} */
+export function checkpointRecordEnvironment(key) {
+  if (!key.startsWith('checkpoints:')) return null;
+  const marker = key.lastIndexOf(environmentRecordMarker);
+  if (marker < 0) return null;
+  const encoded = key.slice(marker + environmentRecordMarker.length);
+  try {
+    const environment = knownRaceEnvironmentKey(decodeURIComponent(encoded));
+    return environment && encodeURIComponent(environment) === encoded ? environment : null;
+  } catch { return null; }
+}
 
 export function brakingCorners(event) {
   const { raw, spacing } = event.plan;
@@ -130,19 +149,26 @@ export function makeBenchmark(event, vehicle = 'bike', drive = null) {
   return { time, splits, samples, kind: '基准影子' };
 }
 
-export function readRecord(event, key, vehicle = 'bike') {
+/** @param {string | null} [environment] */
+export function readRecord(event, key, vehicle = 'bike', environment = null) {
   try {
     const raw = getStorage()?.getItem(key);
     if (!raw || raw.length > recordRules.maxBytes) return null;
     const r = JSON.parse(raw);
     if (!validReplay(r, event.gates.length) || r.time <= recordRules.minTime || r.time > recordingRules(vehicle).limit) return null;
+    if (environment !== null && (r.environment !== environment || r.vehicle !== vehicle || r.unranked || r.blind)) return null;
     const corners = validCornerScores(r.corners, event.corners.length, r.time)
       ? r.corners : referenceCornerScores(event, r, vehicle);
     return { ...r, corners, kind: '个人最佳影子' };
   } catch { return null; }
 }
 
-export function loadBest(event, vehicle = 'bike') {
+/** @param {string | null} [environment] */
+export function loadBest(event, vehicle = 'bike', environment = null) {
+  if (environment !== null) {
+    if (!knownRaceEnvironmentKey(environment)) return null;
+    return readRecord(event, checkpointRecordKey(event, vehicle, environment), vehicle, environment);
+  }
   return readRecord(event, checkpointRecordKey(event, vehicle), vehicle) ??
     readRecord(event, recordKey(event, vehicle), vehicle) ??
     (vehicle === 'bike' && event.oldKey ? readRecord(event, event.oldKey) : null);
@@ -198,7 +224,8 @@ export function medalName(event, ms, vehicle = 'bike') {
 }
 
 export function trialMedal(trial) {
-  return trial.unranked || trial.rivals?.length ? '' : medalName(trial.event, trial.elapsed, trial.rider.vehicle);
+  return trial.unranked || trial.rivals?.length || trial.environmentKey !== raceEnvironmentKey(trial.event)
+    ? '' : medalName(trial.event, trial.elapsed, trial.rider.vehicle);
 }
 
 export function bestCourseAchievement(event) {
@@ -206,12 +233,18 @@ export function bestCourseAchievement(event) {
   let bestBike = null;
   let primaryRun = null;
   const race = worldState.race;
+  const environment = raceEnvironmentKey(event);
   for (const veh of ['bike', 'ebike', 'chair', 'trail']) {
-    const key = checkpointRecordKey(event, veh);
-    const run = (race ? race.sessionRecords?.get(key) : null) ?? loadBest(event, veh);
+    const key = checkpointRecordKey(event, veh, environment);
+    const verified = race?.sessionRecords?.get(key) ?? loadBest(event, veh, environment);
+    const historical = loadBest(event, veh);
+    const verifiedTier = medalTier(event, verified?.time, veh);
+    const historicalTier = medalTier(event, historical?.time, veh);
+    const keepHistorical = MEDAL_RANKS[historicalTier] > MEDAL_RANKS[verifiedTier];
+    const run = keepHistorical ? historical : verified ?? historical;
     if (!run) continue;
     if (veh === 'bike') bestBike = run;
-    const tier = medalTier(event, run.time, veh);
+    const tier = keepHistorical ? historicalTier : verifiedTier;
     if (MEDAL_RANKS[tier] > MEDAL_RANKS[bestTier] || (!primaryRun && !bestTier)) {
       bestTier = tier;
       primaryRun = run;

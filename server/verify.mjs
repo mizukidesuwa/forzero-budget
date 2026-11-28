@@ -66,6 +66,28 @@ async function race(players,times,{checkEarly=false}={}) {
   return host.stream.state();
 }
 
+async function beginChaseTuning(host, players, seconds, hunter = host) {
+  await command(host,'config',{tuningSeconds:seconds});
+  await Promise.all(players.map(player=>command(player,'ready',{ready:true})));
+  await command(host,'start');
+  const state = host.stream.state();
+  assert.equal(state.phase,'tuning');
+  assert.equal(state.nextHunterId,hunter.id);
+  return state.tuning.endsAt;
+}
+
+async function disconnect(player) {
+  player.stream.destroy();
+  await new Promise(resolve=>player.stream.once('close',resolve));
+}
+
+function assertUnstartedChase(state) {
+  assert.equal(state.round,null,'A disconnected contestant must not start an official round');
+  assert.deepEqual(state.history,[]);
+  assert.deepEqual(state.winners,[]);
+  assert.ok(state.standing.every(row=>row.finishes===0 && row.points===0 && row.wins===0 && row.time===0));
+}
+
 try {
   const legacyBuild = await request('POST','/online/rooms',{name:'Old',protocol:3,format:'bo1',route},undefined,400);
   assert.match(JSON.stringify(legacyBuild), /协议 v4/);
@@ -124,6 +146,119 @@ try {
   assert.equal(newHost.stream.state().host,newHost.id);
   const expired = emit('GET',oldHost.eventURL);
   assert.equal(expired.status,204);
+
+  const lateHunter = await enter('Late hunter','chase');
+  const loneRunner = await enter('Lone runner',null,lateHunter.room.code);
+  const lateDeadline = await beginChaseTuning(lateHunter,[lateHunter,loneRunner],1);
+  await disconnect(lateHunter);
+  assert.equal(loneRunner.stream.state().players.find(player=>player.id===lateHunter.id).online,false);
+  time = lateDeadline + 1;
+  await sleep(650);
+  assertUnstartedChase(loneRunner.stream.state());
+  assert.equal(loneRunner.stream.state().phase,'tuning','The tuning phase gives disconnected riders time to return');
+  time += 20_000;
+  await sleep(650);
+  assert.equal(loneRunner.stream.state().phase,'done');
+  assertUnstartedChase(loneRunner.stream.state());
+
+  const waitingHunter = await enter('Wait hunter','chase');
+  const returningRunner = await enter('Return racer',null,waitingHunter.room.code);
+  await beginChaseTuning(waitingHunter,[waitingHunter,returningRunner],45);
+  await disconnect(returningRunner);
+  await command(waitingHunter,'ready',{ready:true});
+  assertUnstartedChase(waitingHunter.stream.state());
+  await command(waitingHunter,'skipTuning',{},409);
+  assertUnstartedChase(waitingHunter.stream.state());
+  await command(waitingHunter,'config',{tuningSeconds:0});
+  assertUnstartedChase(waitingHunter.stream.state());
+  returningRunner.stream = emit('GET',returningRunner.eventURL);
+  assert.equal(returningRunner.stream.status,200);
+  await sleep(650);
+  const validChase = waitingHunter.stream.state();
+  assert.equal(validChase.phase,'race');
+  assert.equal(validChase.round.chase.hunterId,waitingHunter.id);
+  assert.deepEqual(Object.keys(validChase.round.builds).sort(),[waitingHunter.id,returningRunner.id].sort());
+  assert.deepEqual(validChase.round.results,[]);
+  time = validChase.round.goAt + 1000;
+  await disconnect(waitingHunter);
+  time += 20_000;
+  await sleep(650);
+  const retiredInRace = returningRunner.stream.state();
+  assert.equal(retiredInRace.phase,'done');
+  assert.equal(retiredInRace.history.length,1,'A valid round still settles after an in-race withdrawal');
+  assert.equal(retiredInRace.history[0].results.find(row=>row.id===returningRunner.id).ms,validChase.round.chase.durationMs);
+  assert.equal(retiredInRace.standing.find(row=>row.id===returningRunner.id).points,3);
+  assert.deepEqual(retiredInRace.winners,[returningRunner.id]);
+
+  const earlyHunter = await enter('Early hunter','chase');
+  const earlyRunner = await enter('Early runner',null,earlyHunter.room.code);
+  await beginChaseTuning(earlyHunter,[earlyHunter,earlyRunner],45);
+  await command(earlyHunter,'leave');
+  assert.equal(earlyRunner.stream.state().phase,'done');
+  assertUnstartedChase(earlyRunner.stream.state());
+
+  const rotatingHunter = await enter('Rotate hunt','chase');
+  const stableRunner = await enter('Stable run',null,rotatingHunter.room.code);
+  const leavingRunner = await enter('Depart run',null,rotatingHunter.room.code);
+  const rotateDeadline = await beginChaseTuning(rotatingHunter,[rotatingHunter,stableRunner,leavingRunner],1);
+  await disconnect(leavingRunner);
+  time = rotateDeadline + 1;
+  await sleep(650);
+  assertUnstartedChase(rotatingHunter.stream.state());
+  time += 20_000;
+  await sleep(650);
+  const twoRiderChase = rotatingHunter.stream.state();
+  assert.equal(twoRiderChase.phase,'race','Tuning resumes once the disconnected player has left and two riders remain');
+  assert.equal(twoRiderChase.round.chase.hunterId,rotatingHunter.id);
+  assert.deepEqual(Object.keys(twoRiderChase.round.builds).sort(),[rotatingHunter.id,stableRunner.id].sort());
+  assert.deepEqual(twoRiderChase.round.results,[]);
+
+  const caughtAt = twoRiderChase.round.chase.headStartMs + 1000;
+  time = twoRiderChase.round.goAt + caughtAt;
+  await command(rotatingHunter,'tag',{round:twoRiderChase.round.number,targetId:stableRunner.id,ms:caughtAt});
+  const firstChase = rotatingHunter.stream.state();
+  assert.equal(firstChase.phase,'between');
+  assert.ok(firstChase.standing.find(row=>row.id===rotatingHunter.id).points>0);
+  const nextChaseDeadline = await beginChaseTuning(rotatingHunter,[rotatingHunter,stableRunner],1,stableRunner);
+  await disconnect(stableRunner);
+  time = nextChaseDeadline + 1;
+  await sleep(650);
+  assert.equal(rotatingHunter.stream.state().round,null);
+  assert.deepEqual(rotatingHunter.stream.state().history,firstChase.history);
+  time += 20_000;
+  await sleep(650);
+  const cancelledNextChase = rotatingHunter.stream.state();
+  assert.equal(cancelledNextChase.phase,'done');
+  assert.equal(cancelledNextChase.round,null);
+  assert.deepEqual(cancelledNextChase.history,firstChase.history);
+  assert.deepEqual(cancelledNextChase.standing,firstChase.standing);
+  assert.deepEqual(cancelledNextChase.winners,[rotatingHunter.id]);
+
+  const budgetChaseHunter = await enter('Budget hunt','chase');
+  const budgetChaseRunner = await enter('Budget run',null,budgetChaseHunter.room.code);
+  await command(budgetChaseHunter,'config',{budget:'400'});
+  const budgetChaseDeadline = await beginChaseTuning(budgetChaseHunter,[budgetChaseHunter,budgetChaseRunner],1);
+  await command(budgetChaseRunner,'profile',{bike:{tyres:'race',gears:'long',frame:'aero'}});
+  time = budgetChaseDeadline + 1;
+  await sleep(650);
+  assert.equal(budgetChaseHunter.stream.state().tuning.endsAt,null);
+  assert.ok(budgetChaseHunter.stream.state().budgetProblems.some(row=>row.id===budgetChaseRunner.id));
+  await disconnect(budgetChaseRunner);
+  await command(budgetChaseRunner,'profile',{bike:{tyres:'stock',gears:'stock',frame:'stock'}});
+  await command(budgetChaseRunner,'ready',{ready:true});
+  await command(budgetChaseHunter,'ready',{ready:true});
+  const budgetChaseWaiting = budgetChaseHunter.stream.state();
+  assertUnstartedChase(budgetChaseWaiting);
+  assert.deepEqual(budgetChaseWaiting.budgetProblems,[]);
+  assert.ok(budgetChaseWaiting.players.every(player=>player.ready));
+  budgetChaseRunner.stream = emit('GET',budgetChaseRunner.eventURL);
+  assert.equal(budgetChaseRunner.stream.status,200);
+  await sleep(650);
+  const resumedChase = budgetChaseHunter.stream.state();
+  assert.equal(resumedChase.phase,'race','Reconnect should unblock ready players even after a budget pause cleared the deadline');
+  assert.equal(resumedChase.round.chase.hunterId,budgetChaseHunter.id);
+  assert.deepEqual(resumedChase.round.results,[]);
+  console.log('Chase round commit rechecks all online riders on timeout, ready, skip and tuning changes.');
 
   const endA = await enter('A','bo1');
   const endB = await enter('B',null,endA.room.code);

@@ -5,7 +5,7 @@ import { MAX_REPLAY_SAMPLES, crossesGate, packPose, recordingRules, replayAt } f
 import { soloBudget } from '../ride/budget.js';
 import { makeCyclist, moveCyclist } from '../ride/physics.js';
 import { bicycleAppearance, buildVehicleTuning, knownVehicle, stockBike, vehicleChoices } from '../ride/vehicles.js';
-import { activeWind } from '../world/environment.js';
+import { activeWind, captureRideEnvironment } from '../world/environment.js';
 import { courseFrame, plannedSpeed } from '../world/geometry.js';
 import { courseGround, nearestSafeRoad, surfaceAt, surfaceKindAt } from '../world/query.js';
 import { raceTrafficTime, stageRaceTraffic, trialTraffic } from '../world/traffic.js';
@@ -15,7 +15,7 @@ import {
 import { recordAiWin } from './ai-results.js';
 import { prepareRivals, rivalComparison, stepRivals } from './rivals.js';
 import { createRaceFeedbackStats, summarizeRaceFeedback } from './feedback.js';
-import { raceEnvironmentKey } from './environment-key.js';
+import { matchRecordedEnvironment, raceEnvironmentKey } from './environment-key.js';
 
 export class TimeTrial {
   constructor(event, bike = stockBike, vehicle = 'bike', worldQuery = null) {
@@ -25,6 +25,8 @@ export class TimeTrial {
     this.sessionRecords = new Map();
     this.practiceBest = new Map();
     this.practice = null;
+    this.nextGate = 0;
+    this.startFailure = null;
     this.freeClock = 0;
     this.rejoinReason = null;
     this.freeHazardNotice = null;
@@ -75,14 +77,70 @@ export class TimeTrial {
 
   get progressEstimate() { return this.routeAnchor; }
 
+  get previewEnvironmentKey() {
+    return raceEnvironmentKey(this.event, this.captureStartEnvironment());
+  }
+
+  /** @param {Parameters<typeof captureRideEnvironment>[2]} [options] */
+  captureStartEnvironment(options) {
+    const environment = captureRideEnvironment(this.event, null, options);
+    if (!this.opponent || worldState.onlineRoom) return environment;
+    return matchRecordedEnvironment(this.event, environment, this.opponent.environment) ?? environment;
+  }
+
+  /** @param {string} environment */
+  hasCompatibleOpponents(environment) {
+    return (!this.opponent || this.opponent.environment === environment) &&
+      this.extraOpponents.every(opponent => opponent.environment === environment);
+  }
+
+  /** @param {Parameters<typeof captureRideEnvironment>[2]} options */
+  checkStartEnvironment(options) {
+    this.startFailure = null;
+    if (!this.opponent && !this.extraOpponents.length) return true;
+    const environment = raceEnvironmentKey(this.event, this.captureStartEnvironment(options));
+    if (this.hasCompatibleOpponents(environment)) return true;
+    this.startFailure = 'environment';
+    return false;
+  }
+
+  /** @param {string} vehicle @param {string} environment */
+  setRecordContext(vehicle, environment) {
+    const key = checkpointRecordKey(this.event, vehicle, environment);
+    const { run, medals } = vehicleBenchmark(this.event, vehicle);
+    this.recordEnvironment = environment;
+    this.recordVehicle = vehicle;
+    this.recordRules = recordingRules(vehicle);
+    this.bestRun = this.sessionRecords.get(key) ?? loadBest(this.event, vehicle, environment);
+    this.best = this.bestRun?.time ?? null;
+    this.medalTimes = medals;
+    this.reference = (this.opponent?.environment === environment ? this.opponent : null) ?? this.bestRun ?? run;
+  }
+
+  refreshPreviewRecords() {
+    if (this.phase !== 'free' || this.rideEnvironment) return;
+    const vehicle = this.entryVehicle;
+    const environment = this.previewEnvironmentKey;
+    if (this.recordEnvironment !== environment || this.recordVehicle !== vehicle) this.setRecordContext(vehicle, environment);
+  }
+
+  /** @param {Parameters<typeof captureRideEnvironment>[2]} options */
+  freezeEnvironment(options) {
+    this.rideEnvironment = this.captureStartEnvironment(options);
+    stageRaceTraffic(this, this.rideEnvironment);
+    this.environmentKey = raceEnvironmentKey(this.event, this.rideEnvironment);
+    this.setRecordContext(this.rider.vehicle, this.environmentKey);
+  }
+
   /** @param {ReadonlySet<string>} keys */
   refreshRestoredRecords(keys) {
     for (const key of keys) this.sessionRecords.delete(key);
-    const entry = this.entryVehicle;
-    if (!keys.has(checkpointRecordKey(this.event, entry))) return;
-    this.bestRun = loadBest(this.event, entry);
+    const entry = this.phase === 'free' ? this.entryVehicle : this.rider.vehicle;
+    const environment = this.environmentKey ?? this.previewEnvironmentKey;
+    if (!keys.has(checkpointRecordKey(this.event, entry, environment))) return;
+    this.bestRun = loadBest(this.event, entry, environment);
     this.best = this.bestRun?.time ?? null;
-    if (this.phase === 'free') this.reference = this.opponent ?? this.bestRun ?? vehicleBenchmark(this.event, entry).run;
+    if (this.phase === 'free') this.setRecordContext(entry, environment);
   }
 
   setBike(bike) {
@@ -103,7 +161,9 @@ export class TimeTrial {
     return this.sector(stage.finishGate, stage.index ? stage.startGate : -1, stage.name);
   }
 
-  startPractice(fromGate, toGate) {
+  /** @param {number} fromGate @param {number} toGate @param {Parameters<typeof captureRideEnvironment>[2]} [options] */
+  startPractice(fromGate, toGate, options = {}) {
+    if (!this.checkStartEnvironment(options)) return false;
     const budget = soloBudget(this);
     if (budget.over) return false;
     this.freeRide();
@@ -113,11 +173,6 @@ export class TimeTrial {
     const entry = this.entryVehicle;
     const drive = entry === 'bike' ? this.bike : buildVehicleTuning(entry, worldState.vehicleTunings?.[entry]);
     const entrySpeed = fromGate > 0 ? Math.min(drive.roadSpeed * .86, plannedSpeed(this.event, startGate.distance) * .80) : 0;
-    this.practice = {
-      fromGate, toGate, entrySpeed,
-      key: `${checkpointRecordKey(this.event, entry)}:sector:${fromGate}-${toGate}`,
-      name: `${startGate.name} → ${endGate.name}`,
-    };
     const campus = this.worldQuery?.campus ?? getActiveCampus();
     this.rider = makeCyclist(this.event, this.bike, entry, null, this.worldQuery);
     if (fromGate > 0) {
@@ -133,17 +188,20 @@ export class TimeTrial {
     this.phase = 'count';
     this.countdownTicks = Math.round(COUNTDOWN_TICKS * .5);
     this.countdown = this.countdownTicks * PHYSICS_STEP;
-    stageRaceTraffic(this);
-    this.environmentKey = raceEnvironmentKey(this.event, {
-      trafficSeed: this.raceTraffic.seed,
-      wind: activeWind(this, 0),
-    });
+    this.freezeEnvironment(options);
+    this.practice = {
+      fromGate, toGate, entrySpeed,
+      key: `${checkpointRecordKey(this.event, entry, this.environmentKey)}:sector:${fromGate}-${toGate}`,
+      name: `${startGate.name} → ${endGate.name}`,
+    };
     this.frames = [packPose(0, this.rider)];
     this.replayInterval = this.recordRules.interval;
     this.nextRecording = this.replayInterval;
   }
 
-  start() {
+  /** @param {Parameters<typeof captureRideEnvironment>[2]} [options] */
+  start(options = {}) {
+    if (!this.checkStartEnvironment(options)) return false;
     const build = worldState.hooks.onlineRoundBuild?.() ?? null;
     const budget = build ?? soloBudget(this);
     if (budget.over) return false;
@@ -154,11 +212,7 @@ export class TimeTrial {
     this.phase = 'count';
     this.countdownTicks = COUNTDOWN_TICKS;
     this.countdown = this.countdownTicks * PHYSICS_STEP;
-    stageRaceTraffic(this);
-    this.environmentKey = raceEnvironmentKey(this.event, {
-      trafficSeed: this.raceTraffic.seed,
-      wind: activeWind(this, 0),
-    });
+    this.freezeEnvironment(options);
     this.rivals = prepareRivals(this);
     stepRivals(this, 0);
     this.frames = [packPose(0, this.rider)];
@@ -173,19 +227,15 @@ export class TimeTrial {
     this.rider.draft = null;
     this.rider.drafting = false;
     this.aiWinCount = null;
+    this.rideEnvironment = null;
+    this.environmentKey = null;
     const vehicle = this.opponent?.vehicle ?? this.vehicle;
     if (this.rider.vehicle !== vehicle) {
       const { position, heading, paved } = this.rider;
       this.rider = { ...makeCyclist(this.event, this.bike, vehicle, null, this.worldQuery), position, heading, paved };
     }
-    const entry = this.entryVehicle;
-    const key = checkpointRecordKey(this.event, entry);
-    const { run, medals } = vehicleBenchmark(this.event, entry);
-    this.recordRules = recordingRules(entry);
-    this.bestRun = this.sessionRecords.get(key) ?? loadBest(this.event, entry);
-    this.best = this.bestRun?.time ?? null;
-    this.medalTimes = medals;
     this.phase = 'free';
+    this.setRecordContext(this.entryVehicle, this.previewEnvironmentKey);
     this.elapsed = 0;
     this.nextGate = 0;
     this.routeAnchor = 0;
@@ -202,7 +252,6 @@ export class TimeTrial {
     this.blindResult = null;
     this.lastGatePass = null;
     this.missedGate = false;
-    this.reference = this.opponent ?? this.bestRun ?? run;
     this.cornerIndex = 0;
     this.cornerEntryAt = null;
     this.lastCorner = null;
@@ -366,12 +415,12 @@ export class TimeTrial {
       if (this.record) this.practiceBest.set(this.practice.key, time);
       return;
     }
-    if (this.online || this.unranked || this.blindRun) return;
+    if (this.online || this.unranked || this.blindRun || !this.environmentKey) return;
     this.record = (this.best === null || time < this.best) && time <= this.recordRules.limit;
     if (!this.record) return;
     this.best = time;
     this.bestRun = { ...this.lastRun, kind: '个人最佳影子' };
-    const key = checkpointRecordKey(this.event, this.rider.vehicle);
+    const key = checkpointRecordKey(this.event, this.rider.vehicle, this.environmentKey);
     this.sessionRecords.set(key, this.bestRun);
     try { getStorage()?.setItem(key, JSON.stringify(this.bestRun)); } catch {}
     worldState.hooks.scheduleSave?.();
@@ -408,7 +457,7 @@ export class TimeTrial {
       lean: this.rider.lean ?? 0,
       travel: this.rider.travel ?? 0,
     };
-    const previous = moveCyclist(this.rider, input, PHYSICS_STEP, exploring, stepWind, stepClock, trialTraffic(this).vehicles, this.worldQuery);
+    const previous = moveCyclist(this.rider, input, PHYSICS_STEP, exploring, stepWind, stepClock, trialTraffic(this).vehicles, this.worldQuery, this.rideEnvironment);
     if (this.phase === 'race') {
       const feedback = this.feedbackStats;
       if (this.rider.drafting) feedback.draftingMs += STEP_MS;
